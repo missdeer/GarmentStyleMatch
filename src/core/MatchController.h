@@ -1,0 +1,110 @@
+#pragma once
+
+#include <QObject>
+#include <QString>
+#include <QDate>
+
+class CandidateListModel;
+class GalleryListModel;
+class PhotoListModel;
+
+class MatchController : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString title             READ title           CONSTANT)
+    Q_PROPERTY(QString subtitle          READ subtitle        NOTIFY subtitleChanged)
+    Q_PROPERTY(int     currentPhotoIndex READ currentPhotoIndex WRITE setCurrentPhotoIndex NOTIFY currentPhotoIndexChanged)
+    Q_PROPERTY(int     currentIndex      READ currentIndex    WRITE setCurrentIndex NOTIFY currentIndexChanged)
+    Q_PROPERTY(int     currentImagePage READ currentImagePage NOTIFY currentImagePageChanged)
+    Q_PROPERTY(int     currentImageCount READ currentImageCount NOTIFY currentImageCountChanged)
+    Q_PROPERTY(QString currentImagePath READ currentImagePath NOTIFY currentImagePathChanged)
+    Q_PROPERTY(QString currentStyleId  READ currentStyleId  NOTIFY currentStyleIdChanged)
+    Q_PROPERTY(QString categoryFilter  READ categoryFilter  WRITE setCategoryFilter NOTIFY categoryFilterChanged)
+    Q_PROPERTY(QString searchText      READ searchText      WRITE setSearchText     NOTIFY searchTextChanged)
+    Q_PROPERTY(QString photoDir        READ photoDir        WRITE setPhotoDir       NOTIFY photoDirChanged)
+    Q_PROPERTY(QString outputDir       READ outputDir       WRITE setOutputDir      NOTIFY outputDirChanged)
+    Q_PROPERTY(QString pptPath         READ pptPath         WRITE setPptPath        NOTIFY pptPathChanged)
+
+public:
+    explicit MatchController(QObject *parent = nullptr);
+
+    void setCandidateModel(CandidateListModel *m);
+    void setGalleryModel(GalleryListModel *m);
+    void setPhotoModel(PhotoListModel *m);
+
+    QString title() const;
+    QString subtitle() const;
+    int     currentIndex() const     { return m_currentIndex; }
+    int     currentPhotoIndex() const { return m_currentPhotoIndex; }
+    int     currentImagePage() const { return m_currentImagePage; }
+    int     currentImageCount() const;
+    QString currentImagePath() const;
+    QString currentStyleId() const;
+    QString categoryFilter() const { return m_categoryFilter; }
+    QString searchText() const     { return m_searchText; }
+    QString photoDir() const       { return m_photoDir; }
+    QString outputDir() const      { return m_outputDir; }
+    QString pptPath() const        { return m_pptPath; }
+
+    void setCurrentIndex(int idx);
+    void setCurrentPhotoIndex(int idx);
+    void setCategoryFilter(const QString &v);
+    void setSearchText(const QString &v);
+    void setPhotoDir(const QString &v);
+    void setOutputDir(const QString &v);
+    void setPptPath(const QString &v);
+
+public slots:
+    void loadDemoData();
+
+    void previousImage();
+    void nextImage();
+    void openCurrentImageExternally();
+
+    void previousCandidate();
+    void nextCandidate();
+
+    void confirmSelectedThumb(int galleryRow);
+    void confirmStyleId(const QString &styleId);
+    void generateFineTuneModel();
+
+    void scanPhotoDir();
+    void scanOutputDir();
+    void reloadPpt();
+
+signals:
+    void subtitleChanged();
+    void currentIndexChanged();
+    void currentPhotoIndexChanged();
+    void currentImagePageChanged();
+    void currentImageCountChanged();
+    void currentImagePathChanged();
+    void currentStyleIdChanged();
+    void categoryFilterChanged();
+    void searchTextChanged();
+    void photoDirChanged();
+    void outputDirChanged();
+    void pptPathChanged();
+
+    void logMessage(const QString &msg);
+
+private:
+    void emitCurrentChanged();
+
+    enum PreviewSource { PreviewPhoto, PreviewOutput };
+
+    CandidateListModel *m_candidateModel = nullptr;
+    GalleryListModel   *m_galleryModel   = nullptr;
+    PhotoListModel     *m_photoModel     = nullptr;
+
+    int m_currentIndex      = -1;
+    int m_currentPhotoIndex = -1;
+    int m_currentImagePage  = 0;   // 0-based
+    PreviewSource m_previewSource = PreviewPhoto;
+
+    QString m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
+    QString m_searchText;
+    QString m_photoDir;
+    QString m_outputDir;
+    QString m_pptPath;
+};
