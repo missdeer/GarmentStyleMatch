@@ -27,9 +27,15 @@ set(GSM_QML_FILES
     qml/components/PathPickerRow.qml
 )
 
+set(GSM_PLATFORM_SOURCES)
+if(WIN32)
+    list(APPEND GSM_PLATFORM_SOURCES GarmentStyleMatch.rc)
+endif()
+
 qt_add_executable(GarmentStyleMatch WIN32 MACOSX_BUNDLE
     ${GSM_SOURCES}
     ${GSM_HEADERS}
+    ${GSM_PLATFORM_SOURCES}
 )
 
 qt_add_qml_module(GarmentStyleMatch
