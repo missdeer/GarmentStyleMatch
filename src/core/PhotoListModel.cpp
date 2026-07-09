@@ -1,5 +1,7 @@
 #include "PhotoListModel.h"
 
+#include <QDir>
+
 PhotoListModel::PhotoListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -24,8 +26,8 @@ QVariant PhotoListModel::data(const QModelIndex &index, int role) const
     case ProcessedRole: return it.processed;
     case DisplayLineRole:
         return QStringLiteral("%1  %2")
-            .arg(it.processed ? QStringLiteral("\xE2\x9C\x93") : QStringLiteral(" "))
-            .arg(it.fileName);
+            .arg(it.processed ? QStringLiteral("\xE2\x9C\x93") : QStringLiteral(" "),
+                 QDir::toNativeSeparators(it.imagePath));
     default: return {};
     }
 }

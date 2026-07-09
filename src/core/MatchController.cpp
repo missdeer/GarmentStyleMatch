@@ -6,6 +6,7 @@
 #include <QDate>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QUrl>
 
@@ -158,21 +159,23 @@ void MatchController::scanPhotoDir()
     QVector<PhotoItem> items;
     if (!m_photoDir.isEmpty()) {
         static const QStringList imgFilter = {
-            QStringLiteral("*.png"),  QStringLiteral("*.jpg"),
-            QStringLiteral("*.jpeg"), QStringLiteral("*.bmp"),
-            QStringLiteral("*.webp"),
+            QStringLiteral("*.jpg"), QStringLiteral("*.jpeg"),
         };
-        QDir dir(m_photoDir);
-        const auto entries = dir.entryInfoList(imgFilter,
-                                               QDir::Files | QDir::NoDotAndDotDot,
-                                               QDir::Name);
-        items.reserve(entries.size());
-        for (const QFileInfo &fi : entries) {
+        QDirIterator it(m_photoDir, imgFilter,
+                        QDir::Files | QDir::NoDotAndDotDot,
+                        QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            const QFileInfo fi = it.fileInfo();
             PhotoItem p;
             p.fileName  = fi.fileName();
             p.imagePath = fi.absoluteFilePath();
             items.push_back(p);
         }
+        std::sort(items.begin(), items.end(),
+                  [](const PhotoItem &a, const PhotoItem &b) {
+                      return a.imagePath < b.imagePath;
+                  });
     }
     m_photoModel->setItems(std::move(items));
     setCurrentPhotoIndex(m_photoModel->rowCount() > 0 ? 0 : -1);
