@@ -7,6 +7,7 @@
 #include "core/CandidateListModel.h"
 #include "core/GalleryListModel.h"
 #include "core/PhotoListModel.h"
+#include "core/PptPageListModel.h"
 
 int main(int argc, char *argv[])
 {
@@ -21,16 +22,19 @@ int main(int argc, char *argv[])
     CandidateListModel candidateModel;
     GalleryListModel   galleryModel;
     PhotoListModel     photoModel;
+    PptPageListModel   pptPageModel;
     MatchController    controller;
     controller.setCandidateModel(&candidateModel);
     controller.setGalleryModel(&galleryModel);
     controller.setPhotoModel(&photoModel);
+    controller.setPptPageModel(&pptPageModel);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),     &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("candidateModel"), &candidateModel);
     engine.rootContext()->setContextProperty(QStringLiteral("galleryModel"),   &galleryModel);
     engine.rootContext()->setContextProperty(QStringLiteral("photoModel"),     &photoModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("pptPageModel"),   &pptPageModel);
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, []() { QCoreApplication::exit(-1); },

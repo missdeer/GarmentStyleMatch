@@ -2,6 +2,7 @@
 #include "CandidateListModel.h"
 #include "GalleryListModel.h"
 #include "PhotoListModel.h"
+#include "PptPageListModel.h"
 
 #include <QDate>
 #include <QDesktopServices>
@@ -28,6 +29,11 @@ void MatchController::setGalleryModel(GalleryListModel *m)
 void MatchController::setPhotoModel(PhotoListModel *m)
 {
     m_photoModel = m;
+}
+
+void MatchController::setPptPageModel(PptPageListModel *m)
+{
+    m_pptPageModel = m;
 }
 
 QString MatchController::title() const
@@ -147,6 +153,7 @@ void MatchController::setPptPath(const QString &v)
     m_pptPath = v;
     emit pptPathChanged();
     emit logMessage(QStringLiteral("pptPath=%1").arg(v));
+    reloadPpt();
 }
 
 void MatchController::scanPhotoDir()
@@ -219,7 +226,59 @@ void MatchController::scanOutputDir()
 void MatchController::reloadPpt()
 {
     emit logMessage(QStringLiteral("reloadPpt=%1").arg(m_pptPath));
-    // TODO: 解析 PPT,填充 GalleryListModel
+    if (!m_pptPageModel)
+        return;
+
+    QVector<PptPageItem> pages;
+    if (!m_pptPath.isEmpty()) {
+        constexpr int kStubPageCount = 12;
+        pages.reserve(kStubPageCount);
+        for (int i = 0; i < kStubPageCount; ++i) {
+            PptPageItem p;
+            p.pageIndex = i + 1;
+            pages.push_back(p);
+        }
+    }
+    m_pptPageModel->setItems(std::move(pages));
+}
+
+void MatchController::togglePptPageSelected(int row)
+{
+    if (m_pptPageModel)
+        m_pptPageModel->toggleSelected(row);
+}
+
+void MatchController::extractFromSelectedPages()
+{
+    if (!m_pptPageModel || !m_galleryModel) {
+        emit logMessage(QStringLiteral("extractFromSelectedPages: missing model"));
+        return;
+    }
+
+    const QVector<int> rows = m_pptPageModel->selectedRows();
+    if (rows.isEmpty()) {
+        emit logMessage(QStringLiteral("extractFromSelectedPages: no pages selected"));
+        return;
+    }
+
+    QVector<GalleryItem> items;
+    constexpr int kStubStylesPerPage = 4;
+    items.reserve(rows.size() * kStubStylesPerPage);
+    for (int row : rows) {
+        const auto *page = m_pptPageModel->at(row);
+        if (!page) continue;
+        for (int j = 0; j < kStubStylesPerPage; ++j) {
+            GalleryItem it;
+            it.styleId = QStringLiteral("slide%1_T0JE26B38A%2B")
+                             .arg(page->pageIndex, 3, 10, QChar('0'))
+                             .arg(j, 3, 10, QChar('0'));
+            it.tag = QStringLiteral("baby");
+            items.push_back(it);
+        }
+    }
+    m_galleryModel->setItems(std::move(items));
+    emit logMessage(QStringLiteral("extractFromSelectedPages: %1 pages -> %2 styles")
+                        .arg(rows.size()).arg(items.size()));
 }
 
 void MatchController::emitCurrentChanged()

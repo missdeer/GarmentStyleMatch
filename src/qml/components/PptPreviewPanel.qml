@@ -1,0 +1,165 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+Rectangle {
+    id: root
+
+    property alias model: grid.model
+    property string pptPath: ""
+    property int selectedCount: 0
+
+    signal pptPathEdited(string path)
+    signal pptSearchRequested()
+    signal pageToggled(int row)
+    signal extractRequested()
+
+    color: "#f5f7fa"
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: pptBox.implicitHeight + 20
+            color: "#e9edf1"
+            border.color: "#dee3e8"
+
+            PathPickerRow {
+                id: pptBox
+                anchors.left:  parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin:  8
+                anchors.rightMargin: 8
+
+                label: qsTr("fitting方案PPT")
+                path:  root.pptPath
+                isFile: true
+                dialogTitle: qsTr("选择 fitting 方案 PPT 文件")
+                nameFilters: ["PowerPoint (*.pptx *.ppt)", "All files (*)"]
+                pickLabel:   qsTr("选择PPT")
+                searchLabel: qsTr("重新加载")
+                onPathPicked:      (p) => root.pptPathEdited(p)
+                onSearchRequested: root.pptSearchRequested()
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 44
+            color: "#f5f7fa"
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 8
+
+                Label {
+                    text: qsTr("PPT页面预览")
+                    font.pixelSize: 13
+                    font.bold: true
+                }
+                Label {
+                    text: qsTr("(点击缩略图切换选中,已选 %1 页)").arg(root.selectedCount)
+                    color: "#6b7a89"
+                    Layout.fillWidth: true
+                    elide: Label.ElideRight
+                }
+                Button {
+                    text: qsTr("从选中页提取")
+                    enabled: root.selectedCount > 0
+                    onClicked: root.extractRequested()
+                }
+            }
+        }
+
+        GridView {
+            id: grid
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            cellWidth: Math.max(140, (width - 4) / 2)
+            cellHeight: cellWidth * 0.85
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar {}
+
+            delegate: Item {
+                id: cell
+                required property int    index
+                required property int    pageIndex
+                required property string imagePath
+                required property bool   selected
+
+                width:  GridView.view.cellWidth
+                height: GridView.view.cellHeight
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    color: "white"
+                    border.color: cell.selected ? "#2f5aa8" : "#dee3e8"
+                    border.width: cell.selected ? 2 : 1
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 6
+                        spacing: 4
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: "#eef1f4"
+                                visible: pageThumb.status !== Image.Ready
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: qsTr("第 %1 页").arg(cell.pageIndex)
+                                    color: "#8fa1b0"
+                                }
+                            }
+                            Image {
+                                id: pageThumb
+                                anchors.fill: parent
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true
+                                source: cell.imagePath !== "" ? "file:///" + cell.imagePath : ""
+                            }
+
+                            Rectangle {
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 4
+                                width: 20; height: 20
+                                radius: 3
+                                color: cell.selected ? "#2f5aa8" : "#ffffffcc"
+                                border.color: "#2f5aa8"
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: cell.selected ? "✓" : ""
+                                    color: "white"
+                                    font.bold: true
+                                }
+                            }
+                        }
+
+                        Label {
+                            text: qsTr("Page %1").arg(cell.pageIndex)
+                            font.pixelSize: 11
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.pageToggled(cell.index)
+                    }
+                }
+            }
+        }
+    }
+}

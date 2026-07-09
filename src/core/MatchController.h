@@ -7,6 +7,7 @@
 class CandidateListModel;
 class GalleryListModel;
 class PhotoListModel;
+class PptPageListModel;
 
 class MatchController : public QObject
 {
@@ -31,6 +32,7 @@ public:
     void setCandidateModel(CandidateListModel *m);
     void setGalleryModel(GalleryListModel *m);
     void setPhotoModel(PhotoListModel *m);
+    void setPptPageModel(PptPageListModel *m);
 
     QString title() const;
     QString subtitle() const;
@@ -71,6 +73,8 @@ public slots:
     void scanPhotoDir();
     void scanOutputDir();
     void reloadPpt();
+    void togglePptPageSelected(int row);
+    void extractFromSelectedPages();
 
 signals:
     void subtitleChanged();
@@ -96,6 +100,7 @@ private:
     CandidateListModel *m_candidateModel = nullptr;
     GalleryListModel   *m_galleryModel   = nullptr;
     PhotoListModel     *m_photoModel     = nullptr;
+    PptPageListModel   *m_pptPageModel   = nullptr;
 
     int m_currentIndex      = -1;
     int m_currentPhotoIndex = -1;

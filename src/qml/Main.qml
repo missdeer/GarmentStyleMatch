@@ -88,15 +88,19 @@ ApplicationWindow {
             GalleryPanel {
                 Layout.preferredWidth: 440
                 Layout.fillHeight: true
-                model: galleryModel
-                categoryText: controller.categoryFilter
-                searchText:   controller.searchText
-                pptPath:      controller.pptPath
+                galleryModel:     galleryModel
+                pptPageModel:     pptPageModel
+                pptSelectedCount: pptPageModel.selectedCount
+                categoryText:     controller.categoryFilter
+                searchText:       controller.searchText
+                pptPath:          controller.pptPath
                 onSearchTextEdited:   (t) => controller.searchText = t
                 onCategoryEdited:     (t) => controller.categoryFilter = t
                 onSearchRequested:    () => { /* TODO: trigger controller search */ }
                 onPptPathEdited:      (p) => controller.pptPath = p
                 onPptSearchRequested: ()  => controller.reloadPpt()
+                onPptPageToggled:     (r) => controller.togglePptPageSelected(r)
+                onExtractRequested:   ()  => controller.extractFromSelectedPages()
             }
         }
     }

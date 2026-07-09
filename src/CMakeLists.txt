@@ -4,6 +4,7 @@ set(GSM_SOURCES
     core/CandidateListModel.cpp
     core/GalleryListModel.cpp
     core/PhotoListModel.cpp
+    core/PptPageListModel.cpp
 )
 
 set(GSM_HEADERS
@@ -11,6 +12,7 @@ set(GSM_HEADERS
     core/CandidateListModel.h
     core/GalleryListModel.h
     core/PhotoListModel.h
+    core/PptPageListModel.h
 )
 
 set(GSM_QML_FILES
@@ -19,6 +21,8 @@ set(GSM_QML_FILES
     qml/components/CandidatePanel.qml
     qml/components/MainImageView.qml
     qml/components/GalleryPanel.qml
+    qml/components/PptPreviewPanel.qml
+    qml/components/StyleGalleryPanel.qml
     qml/components/ConfirmBar.qml
     qml/components/PathPickerRow.qml
 )
