@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QSettings>
 
 #include "core/MatchController.h"
 #include "core/CandidateListModel.h"
@@ -18,7 +19,17 @@ int main(int argc, char *argv[])
 
     QGuiApplication app(argc, argv);
 
-    QQuickStyle::setStyle(QStringLiteral("Fusion"));
+    const QStringList availableUiStyles = MatchController::systemUiStyles();
+    const QString savedUiStyle = QSettings().value(
+        QStringLiteral("ui/style"), QStringLiteral("Fusion")).toString();
+    QString selectedUiStyle = QStringLiteral("Fusion");
+    for (const QString &availableUiStyle : availableUiStyles) {
+        if (availableUiStyle.compare(savedUiStyle, Qt::CaseInsensitive) == 0) {
+            selectedUiStyle = availableUiStyle;
+            break;
+        }
+    }
+    QQuickStyle::setStyle(selectedUiStyle);
 
     CandidateListModel candidateModel;
     GalleryListModel   galleryModel;

@@ -5,9 +5,55 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     property string titleText: ""
+    property string pendingStyle: ""
 
     implicitHeight: 56
     color: "#1f2c3a"
+
+    ButtonGroup {
+        id: styleButtonGroup
+        exclusive: true
+    }
+
+    Menu {
+        id: styleMenu
+
+        Repeater {
+            model: controller.availableUiStyles
+
+            delegate: MenuItem {
+                required property string modelData
+
+                text: modelData
+                checkable: true
+                checked: modelData.toLowerCase() === controller.currentUiStyle.toLowerCase()
+                ButtonGroup.group: styleButtonGroup
+                onTriggered: {
+                    if (controller.setCurrentUiStyle(modelData)) {
+                        root.pendingStyle = modelData
+                        styleRestartDialog.open()
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog {
+        id: styleRestartDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(420, parent.width - 32)
+        modal: true
+        title: qsTr("界面风格已保存")
+        standardButtons: Dialog.Ok
+        closePolicy: Popup.CloseOnEscape
+
+        contentItem: Label {
+            text: qsTr("界面风格已设置为 %1，将在下次启动应用时生效。\n请在方便时自行重启应用。")
+                  .arg(root.pendingStyle)
+            wrapMode: Text.Wrap
+        }
+    }
 
     Dialog {
         id: aboutDialog
@@ -117,6 +163,22 @@ Rectangle {
         }
 
         Item { Layout.fillWidth: true }
+
+        Label {
+            id: styleLink
+            text: qsTr("风格")
+            color: styleMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            font.pixelSize: 13
+            font.underline: true
+
+            MouseArea {
+                id: styleMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: styleMenu.popup()
+            }
+        }
 
         Label {
             id: aboutLink

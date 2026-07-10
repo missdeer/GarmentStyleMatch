@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QDate>
 
 class CandidateListModel;
@@ -25,10 +26,14 @@ class MatchController : public QObject
     Q_PROPERTY(QString photoDir        READ photoDir        WRITE setPhotoDir       NOTIFY photoDirChanged)
     Q_PROPERTY(QString outputDir       READ outputDir       WRITE setOutputDir      NOTIFY outputDirChanged)
     Q_PROPERTY(QString pptPath         READ pptPath         WRITE setPptPath        NOTIFY pptPathChanged)
+    Q_PROPERTY(QStringList availableUiStyles READ availableUiStyles CONSTANT)
+    Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
     Q_PROPERTY(bool    busy            READ busy                                   NOTIFY busyChanged)
 
 public:
     explicit MatchController(QObject *parent = nullptr);
+
+    static QStringList systemUiStyles();
 
     void setCandidateModel(CandidateListModel *m);
     void setGalleryModel(GalleryListModel *m);
@@ -48,6 +53,8 @@ public:
     QString photoDir() const       { return m_photoDir; }
     QString outputDir() const      { return m_outputDir; }
     QString pptPath() const        { return m_pptPath; }
+    QStringList availableUiStyles() const { return m_availableUiStyles; }
+    QString currentUiStyle() const { return m_currentUiStyle; }
     bool    busy() const           { return m_busy; }
 
     void setCurrentIndex(int idx);
@@ -59,6 +66,8 @@ public:
     void setPptPath(const QString &v);
 
 public slots:
+    bool setCurrentUiStyle(const QString &style);
+
     void loadDemoData();
     void restorePersistentState();
 
@@ -117,6 +126,8 @@ private:
     QString m_photoDir;
     QString m_outputDir;
     QString m_pptPath;
+    QStringList m_availableUiStyles;
+    QString m_currentUiStyle;
     bool    m_busy = false;
     bool    m_restoringPptState = false;
 

@@ -13,12 +13,16 @@
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QFutureWatcher>
+#include <QLibraryInfo>
 #include <QPointer>
+#include <QQuickStyle>
 #include <QScopeGuard>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QUrl>
 #include <QtConcurrent/QtConcurrentRun>
+
+#include <utility>
 
 #ifdef Q_OS_WIN
 #include <QAxObject>
@@ -26,7 +30,28 @@
 
 MatchController::MatchController(QObject *parent)
     : QObject(parent)
+    , m_availableUiStyles(systemUiStyles())
+    , m_currentUiStyle(QQuickStyle::name())
 {
+}
+
+QStringList MatchController::systemUiStyles()
+{
+    const QDir controlsDir(QDir(QLibraryInfo::path(QLibraryInfo::QmlImportsPath))
+                               .absoluteFilePath(QStringLiteral("QtQuick/Controls")));
+    const QFileInfoList directories = controlsDir.entryInfoList(
+        QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
+
+    QStringList styles;
+    for (const QFileInfo &directory : directories) {
+        const QString name = directory.fileName();
+        if (name.compare(QStringLiteral("designer"), Qt::CaseInsensitive) == 0
+            || name.compare(QStringLiteral("impl"), Qt::CaseInsensitive) == 0)
+            continue;
+        if (QFileInfo::exists(QDir(directory.absoluteFilePath()).absoluteFilePath(QStringLiteral("qmldir"))))
+            styles.push_back(name);
+    }
+    return styles;
 }
 
 void MatchController::setCandidateModel(CandidateListModel *m)
@@ -55,6 +80,29 @@ void MatchController::setPptPageModel(PptPageListModel *m)
         connect(m_pptPageModel, &PptPageListModel::selectedPagesTextChanged,
                 this, &MatchController::persistSelectedPptPages);
     }
+}
+
+bool MatchController::setCurrentUiStyle(const QString &style)
+{
+    QString selectedStyle;
+    for (const QString &availableStyle : std::as_const(m_availableUiStyles)) {
+        if (availableStyle.compare(style, Qt::CaseInsensitive) == 0) {
+            selectedStyle = availableStyle;
+            break;
+        }
+    }
+    if (selectedStyle.isEmpty()
+        || selectedStyle.compare(m_currentUiStyle, Qt::CaseInsensitive) == 0)
+        return false;
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("ui/style"), selectedStyle);
+    settings.sync();
+    if (settings.status() != QSettings::NoError) {
+        emit logMessage(QStringLiteral("无法保存界面风格: %1").arg(selectedStyle));
+        return false;
+    }
+    return true;
 }
 
 QString MatchController::title() const
