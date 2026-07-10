@@ -14,8 +14,9 @@ struct PptPageItem
 class PptPageListModel : public QAbstractListModel
 {
     Q_OBJECT
-    Q_PROPERTY(int count          READ rowCount     NOTIFY countChanged)
-    Q_PROPERTY(int selectedCount  READ selectedCount NOTIFY selectedCountChanged)
+    Q_PROPERTY(int     count             READ rowCount            NOTIFY countChanged)
+    Q_PROPERTY(int     selectedCount     READ selectedCount       NOTIFY selectedCountChanged)
+    Q_PROPERTY(QString selectedPagesText READ selectedPagesText   WRITE setSelectedPagesText NOTIFY selectedPagesTextChanged)
 
 public:
     enum Roles {
@@ -31,9 +32,12 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     void setItems(QVector<PptPageItem> items);
+    void appendItem(const PptPageItem &item);
     const PptPageItem *at(int row) const;
     QVector<int> selectedRows() const;
     int selectedCount() const;
+    QString selectedPagesText() const;
+    void    setSelectedPagesText(const QString &text);
 
     Q_INVOKABLE void toggleSelected(int row);
     Q_INVOKABLE void setSelected(int row, bool on);
@@ -43,6 +47,7 @@ public:
 signals:
     void countChanged();
     void selectedCountChanged();
+    void selectedPagesTextChanged();
 
 private:
     QVector<PptPageItem> m_items;

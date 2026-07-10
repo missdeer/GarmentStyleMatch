@@ -25,6 +25,7 @@ class MatchController : public QObject
     Q_PROPERTY(QString photoDir        READ photoDir        WRITE setPhotoDir       NOTIFY photoDirChanged)
     Q_PROPERTY(QString outputDir       READ outputDir       WRITE setOutputDir      NOTIFY outputDirChanged)
     Q_PROPERTY(QString pptPath         READ pptPath         WRITE setPptPath        NOTIFY pptPathChanged)
+    Q_PROPERTY(bool    busy            READ busy                                   NOTIFY busyChanged)
 
 public:
     explicit MatchController(QObject *parent = nullptr);
@@ -47,6 +48,7 @@ public:
     QString photoDir() const       { return m_photoDir; }
     QString outputDir() const      { return m_outputDir; }
     QString pptPath() const        { return m_pptPath; }
+    bool    busy() const           { return m_busy; }
 
     void setCurrentIndex(int idx);
     void setCurrentPhotoIndex(int idx);
@@ -89,6 +91,7 @@ signals:
     void photoDirChanged();
     void outputDirChanged();
     void pptPathChanged();
+    void busyChanged();
 
     void logMessage(const QString &msg);
 
@@ -112,4 +115,9 @@ private:
     QString m_photoDir;
     QString m_outputDir;
     QString m_pptPath;
+    bool    m_busy = false;
+
+    void    setBusy(bool on);
+    QString pptCacheDir(const QString &pptFilePath) const;
+    bool    loadPptPreviewsFromCache();
 };

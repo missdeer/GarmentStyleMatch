@@ -1,5 +1,8 @@
 #include "PptPageListModel.h"
 
+#include <QSet>
+#include <QStringList>
+
 PptPageListModel::PptPageListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -42,6 +45,16 @@ void PptPageListModel::setItems(QVector<PptPageItem> items)
     endResetModel();
     emit countChanged();
     emit selectedCountChanged();
+    emit selectedPagesTextChanged();
+}
+
+void PptPageListModel::appendItem(const PptPageItem &item)
+{
+    const int row = m_items.size();
+    beginInsertRows(QModelIndex(), row, row);
+    m_items.push_back(item);
+    endInsertRows();
+    emit countChanged();
 }
 
 const PptPageItem *PptPageListModel::at(int row) const
@@ -77,6 +90,7 @@ void PptPageListModel::toggleSelected(int row)
     const QModelIndex idx = index(row);
     emit dataChanged(idx, idx, {SelectedRole});
     emit selectedCountChanged();
+    emit selectedPagesTextChanged();
 }
 
 void PptPageListModel::setSelected(int row, bool on)
@@ -89,6 +103,7 @@ void PptPageListModel::setSelected(int row, bool on)
     const QModelIndex idx = index(row);
     emit dataChanged(idx, idx, {SelectedRole});
     emit selectedCountChanged();
+    emit selectedPagesTextChanged();
 }
 
 void PptPageListModel::clearSelection()
@@ -104,6 +119,7 @@ void PptPageListModel::clearSelection()
         return;
     emit dataChanged(index(0), index(m_items.size() - 1), {SelectedRole});
     emit selectedCountChanged();
+    emit selectedPagesTextChanged();
 }
 
 void PptPageListModel::clear()
@@ -115,4 +131,41 @@ void PptPageListModel::clear()
     endResetModel();
     emit countChanged();
     emit selectedCountChanged();
+    emit selectedPagesTextChanged();
+}
+
+QString PptPageListModel::selectedPagesText() const
+{
+    QStringList parts;
+    parts.reserve(m_items.size());
+    for (const auto &it : m_items)
+        if (it.selected)
+            parts << QString::number(it.pageIndex);
+    return parts.join(QLatin1Char(','));
+}
+
+void PptPageListModel::setSelectedPagesText(const QString &text)
+{
+    QSet<int> requested;
+    const QStringList tokens = text.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    for (const QString &t : tokens) {
+        bool ok = false;
+        const int page = t.trimmed().toInt(&ok);
+        if (ok && page > 0)
+            requested.insert(page);
+    }
+
+    bool changed = false;
+    for (int i = 0; i < m_items.size(); ++i) {
+        const bool wantSel = requested.contains(m_items[i].pageIndex);
+        if (m_items[i].selected != wantSel) {
+            m_items[i].selected = wantSel;
+            changed = true;
+        }
+    }
+    if (!changed)
+        return;
+    emit dataChanged(index(0), index(m_items.size() - 1), {SelectedRole});
+    emit selectedCountChanged();
+    emit selectedPagesTextChanged();
 }

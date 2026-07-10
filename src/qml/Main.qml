@@ -26,6 +26,13 @@ ApplicationWindow {
 
     Component.onCompleted: controller.loadDemoData()
 
+    property string statusText: qsTr("就绪")
+
+    Connections {
+        target: controller
+        function onLogMessage(msg) { root.statusText = msg }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -89,7 +96,7 @@ ApplicationWindow {
                 Layout.preferredWidth: 440
                 Layout.fillHeight: true
                 galleryModel:     galleryModel
-                pptPageModel:     pptPageModel
+                pagesModel:       pptPageModel
                 pptSelectedCount: pptPageModel.selectedCount
                 categoryText:     controller.categoryFilter
                 searchText:       controller.searchText
@@ -101,6 +108,39 @@ ApplicationWindow {
                 onPptSearchRequested: ()  => controller.reloadPpt()
                 onPptPageToggled:     (r) => controller.togglePptPageSelected(r)
                 onExtractRequested:   ()  => controller.extractFromSelectedPages()
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 26
+            color: "#e9edf1"
+            border.color: "#dee3e8"
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 8
+
+                BusyIndicator {
+                    running: controller.busy
+                    visible: controller.busy
+                    Layout.preferredWidth: 18
+                    Layout.preferredHeight: 18
+                }
+                Label {
+                    text: root.statusText
+                    color: "#3a4a5a"
+                    font.pixelSize: 12
+                    elide: Label.ElideRight
+                    Layout.fillWidth: true
+                }
+                Label {
+                    text: controller.busy ? qsTr("处理中…") : qsTr("空闲")
+                    color: controller.busy ? "#2f5aa8" : "#6b7a89"
+                    font.pixelSize: 12
+                }
             }
         }
     }

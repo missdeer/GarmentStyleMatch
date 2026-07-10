@@ -63,7 +63,7 @@ Rectangle {
                     font.bold: true
                 }
                 Label {
-                    text: qsTr("(点击缩略图切换选中,已选 %1 页)").arg(root.selectedCount)
+                    text: qsTr("(已选 %1 页)").arg(root.selectedCount)
                     color: "#6b7a89"
                     Layout.fillWidth: true
                     elide: Label.ElideRight
@@ -71,7 +71,80 @@ Rectangle {
                 Button {
                     text: qsTr("从选中页提取")
                     enabled: root.selectedCount > 0
-                    onClicked: root.extractRequested()
+                    onClicked: {
+                        if (root.model)
+                            root.model.selectedPagesText = pagesEdit.text
+                        root.extractRequested()
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 40
+            color: "#f5f7fa"
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 6
+
+                Label {
+                    text: qsTr("选中页号:")
+                    color: "#3a4a5a"
+                }
+                TextField {
+                    id: pagesEdit
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("如 1,3,5")
+                    rightPadding: clearBtn.width + 10
+                    validator: RegularExpressionValidator {
+                        regularExpression: /^[\d,\s]*$/
+                    }
+                    onEditingFinished: {
+                        if (root.model)
+                            root.model.selectedPagesText = text
+                    }
+
+                    Rectangle {
+                        id: clearBtn
+                        visible: pagesEdit.text.length > 0
+                        anchors.right: parent.right
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 16; height: 16
+                        radius: width / 2
+                        color: clearArea.containsMouse ? "#8a99a8" : "#b0bcc7"
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: "×"
+                            color: "white"
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            id: clearArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                pagesEdit.text = ""
+                                if (root.model)
+                                    root.model.selectedPagesText = ""
+                            }
+                        }
+                    }
+                }
+                Binding {
+                    target: pagesEdit
+                    property: "text"
+                    value: root.model ? root.model.selectedPagesText : ""
+                    when: !pagesEdit.activeFocus
+                    restoreMode: Binding.RestoreNone
                 }
             }
         }
@@ -116,10 +189,29 @@ Rectangle {
                                 anchors.fill: parent
                                 color: "#eef1f4"
                                 visible: pageThumb.status !== Image.Ready
-                                Label {
+                                ColumnLayout {
                                     anchors.centerIn: parent
-                                    text: qsTr("第 %1 页").arg(cell.pageIndex)
-                                    color: "#8fa1b0"
+                                    width: parent.width - 8
+                                    spacing: 2
+                                    Label {
+                                        text: qsTr("第 %1 页").arg(cell.pageIndex)
+                                        color: "#8fa1b0"
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
+                                    Label {
+                                        text: "status=" + pageThumb.status
+                                        color: "#c04a4a"
+                                        font.pixelSize: 10
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
+                                    Label {
+                                        text: cell.imagePath
+                                        color: "#3a4a5a"
+                                        font.pixelSize: 9
+                                        wrapMode: Text.WrapAnywhere
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
                                 }
                             }
                             Image {
@@ -128,6 +220,12 @@ Rectangle {
                                 fillMode: Image.PreserveAspectFit
                                 asynchronous: true
                                 source: cell.imagePath !== "" ? "file:///" + cell.imagePath : ""
+                                onStatusChanged: {
+                                    if (status === Image.Error)
+                                        console.log("PptPreview Image error:", source, "reason?")
+                                    else if (status === Image.Ready)
+                                        console.log("PptPreview Image ready:", source)
+                                }
                             }
 
                             Rectangle {

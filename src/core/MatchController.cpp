@@ -4,12 +4,20 @@
 #include "PhotoListModel.h"
 #include "PptPageListModel.h"
 
+#include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDate>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QScopeGuard>
+#include <QStandardPaths>
 #include <QUrl>
+
+#ifdef Q_OS_WIN
+#include <QAxObject>
+#endif
 
 MatchController::MatchController(QObject *parent)
     : QObject(parent)
@@ -153,7 +161,51 @@ void MatchController::setPptPath(const QString &v)
     m_pptPath = v;
     emit pptPathChanged();
     emit logMessage(QStringLiteral("pptPath=%1").arg(v));
-    reloadPpt();
+    loadPptPreviewsFromCache();
+}
+
+QString MatchController::pptCacheDir(const QString &pptFilePath) const
+{
+    const QFileInfo fi(pptFilePath);
+    if (!fi.exists() || !fi.isFile())
+        return {};
+    const QString key = fi.fileName() + QLatin1Char(':') + QString::number(fi.size());
+    const QByteArray hash = QCryptographicHash::hash(
+        key.toUtf8(), QCryptographicHash::Sha1);
+    const QString subDir = QString::fromLatin1(hash.toHex().left(16));
+    const QString base = QStandardPaths::writableLocation(
+        QStandardPaths::CacheLocation);
+    return base + QStringLiteral("/ppt_slides/") + subDir;
+}
+
+bool MatchController::loadPptPreviewsFromCache()
+{
+    if (!m_pptPageModel)
+        return false;
+    m_pptPageModel->clear();
+    if (m_pptPath.isEmpty())
+        return false;
+
+    const QString dir = pptCacheDir(m_pptPath);
+    if (dir.isEmpty())
+        return false;
+    QDir d(dir);
+    if (!d.exists())
+        return false;
+    const auto files = d.entryInfoList({QStringLiteral("slide_*.png")},
+                                       QDir::Files | QDir::NoDotAndDotDot,
+                                       QDir::Name);
+    if (files.isEmpty())
+        return false;
+
+    for (int i = 0; i < files.size(); ++i) {
+        PptPageItem p;
+        p.pageIndex = i + 1;
+        p.imagePath = files.at(i).absoluteFilePath();
+        m_pptPageModel->appendItem(p);
+    }
+    emit logMessage(QStringLiteral("从缓存加载 %1 页预览: %2").arg(files.size()).arg(dir));
+    return true;
 }
 
 void MatchController::scanPhotoDir()
@@ -223,23 +275,118 @@ void MatchController::scanOutputDir()
                     .arg(m_outputDir).arg(m_candidateModel->rowCount()));
 }
 
+void MatchController::setBusy(bool on)
+{
+    if (m_busy == on)
+        return;
+    m_busy = on;
+    emit busyChanged();
+}
+
 void MatchController::reloadPpt()
 {
     emit logMessage(QStringLiteral("reloadPpt=%1").arg(m_pptPath));
     if (!m_pptPageModel)
         return;
 
-    QVector<PptPageItem> pages;
-    if (!m_pptPath.isEmpty()) {
-        constexpr int kStubPageCount = 12;
-        pages.reserve(kStubPageCount);
-        for (int i = 0; i < kStubPageCount; ++i) {
-            PptPageItem p;
-            p.pageIndex = i + 1;
-            pages.push_back(p);
-        }
+    setBusy(true);
+    auto busyGuard = qScopeGuard([this] { setBusy(false); });
+
+    m_pptPageModel->clear();
+
+    if (m_pptPath.isEmpty())
+        return;
+
+    const QFileInfo fi(m_pptPath);
+    if (!fi.exists() || !fi.isFile()) {
+        emit logMessage(QStringLiteral("PPT 文件不存在: %1").arg(m_pptPath));
+        return;
     }
-    m_pptPageModel->setItems(std::move(pages));
+
+#ifdef Q_OS_WIN
+    const QString cacheDir = pptCacheDir(m_pptPath);
+    if (cacheDir.isEmpty()) {
+        emit logMessage(QStringLiteral("无法确定缓存目录"));
+        return;
+    }
+    QDir dir(cacheDir);
+    if (!dir.exists())
+        QDir().mkpath(cacheDir);
+    const auto stale = dir.entryInfoList({QStringLiteral("slide_*.png")},
+                                         QDir::Files | QDir::NoDotAndDotDot);
+    for (const QFileInfo &f : stale)
+        QFile::remove(f.absoluteFilePath());
+
+    QAxObject ppApp(QStringLiteral("PowerPoint.Application"));
+    if (ppApp.isNull()) {
+        emit logMessage(QStringLiteral("PowerPoint COM 启动失败,请确认已安装 Microsoft PowerPoint"));
+        return;
+    }
+
+    QAxObject *presentations = ppApp.querySubObject("Presentations");
+    if (!presentations) {
+        emit logMessage(QStringLiteral("获取 Presentations 集合失败"));
+        ppApp.dynamicCall("Quit()");
+        return;
+    }
+
+    const QString nativePath = QDir::toNativeSeparators(fi.absoluteFilePath());
+    // Open(FileName, ReadOnly=msoTrue, Untitled=msoFalse, WithWindow=msoFalse)
+    QAxObject *pres = presentations->querySubObject(
+        "Open(const QString&,int,int,int)",
+        nativePath, -1, 0, 0);
+    if (!pres) {
+        emit logMessage(QStringLiteral("PPT 打开失败: %1").arg(nativePath));
+        delete presentations;
+        ppApp.dynamicCall("Quit()");
+        return;
+    }
+
+    QAxObject *slides = pres->querySubObject("Slides");
+    const int count = slides ? slides->property("Count").toInt() : 0;
+    emit logMessage(QStringLiteral("PPT 共 %1 页,开始导出预览...").arg(count));
+
+    constexpr int kExportW = 800;
+    constexpr int kExportH = 600;
+    for (int i = 1; i <= count; ++i) {
+        QAxObject *slide = slides->querySubObject("Item(int)", i);
+        if (!slide)
+            continue;
+        const QString outPath = QDir::toNativeSeparators(
+            cacheDir + QStringLiteral("/slide_%1.png").arg(i, 4, 10, QChar('0')));
+        slide->dynamicCall("Export(const QString&,const QString&,int,int)",
+                           outPath, QStringLiteral("PNG"), kExportW, kExportH);
+        delete slide;
+
+        const QFileInfo outFi(outPath);
+        if (!outFi.exists() || outFi.size() <= 0) {
+            emit logMessage(QStringLiteral("警告: slide %1 导出失败或文件为空: %2")
+                                .arg(i).arg(outPath));
+            QCoreApplication::processEvents();
+            continue;
+        }
+
+        PptPageItem p;
+        p.pageIndex = i;
+        p.imagePath = QDir::fromNativeSeparators(outPath);
+        m_pptPageModel->appendItem(p);
+
+        emit logMessage(QStringLiteral("导出 slide %1/%2 (%3 KB, rowCount=%4)")
+                            .arg(i).arg(count).arg(outFi.size() / 1024)
+                            .arg(m_pptPageModel->rowCount()));
+        QCoreApplication::processEvents();
+    }
+
+    delete slides;
+    pres->dynamicCall("Close()");
+    delete pres;
+    delete presentations;
+    ppApp.dynamicCall("Quit()");
+
+    emit logMessage(QStringLiteral("PPT 预览导出完成,共 %1 页").arg(count));
+#else
+    emit logMessage(QStringLiteral("当前平台不支持 PPT 预览提取(仅 Windows)"));
+#endif
 }
 
 void MatchController::togglePptPageSelected(int row)

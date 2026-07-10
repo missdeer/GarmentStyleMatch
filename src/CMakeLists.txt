@@ -55,6 +55,7 @@ target_link_libraries(GarmentStyleMatch PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Widgets
+    $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
 )
 
 set_target_properties(GarmentStyleMatch PROPERTIES

@@ -32,6 +32,10 @@ find_package(Qt6 6.10 REQUIRED COMPONENTS
     Widgets
 )
 
+if(WIN32)
+    find_package(Qt6 6.10 REQUIRED COMPONENTS AxContainer)
+endif()
+
 qt_standard_project_setup(REQUIRES 6.10)
 
 set(GSM_3RDPARTY_DIR "${CMAKE_SOURCE_DIR}/3rdparty" CACHE PATH "Third-party libraries directory")

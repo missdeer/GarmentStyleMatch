@@ -11,7 +11,7 @@
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication::setOrganizationName(QStringLiteral("GarmentStyleMatch"));
+    QGuiApplication::setOrganizationName(QStringLiteral("Eidos"));
     QGuiApplication::setApplicationName(QStringLiteral("GarmentStyleMatch"));
     QGuiApplication::setApplicationVersion(QStringLiteral("0.1.0"));
 

@@ -6,7 +6,7 @@ Rectangle {
     id: root
 
     property var galleryModel
-    property var pptPageModel
+    property var pagesModel
     property int pptSelectedCount: 0
     property string categoryText: qsTr("全部")
     property string searchText: ""
@@ -40,7 +40,7 @@ Rectangle {
             currentIndex: tabBar.currentIndex
 
             PptPreviewPanel {
-                model:          root.pptPageModel
+                model:          root.pagesModel
                 pptPath:        root.pptPath
                 selectedCount:  root.pptSelectedCount
                 onPptPathEdited:      (p) => root.pptPathEdited(p)
