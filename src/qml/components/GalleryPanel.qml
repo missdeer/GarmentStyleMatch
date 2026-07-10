@@ -15,7 +15,6 @@ Rectangle {
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
-    signal searchRequested()
     signal pptPathEdited(string path)
     signal pptSearchRequested()
     signal pptPageToggled(int row)
@@ -60,7 +59,6 @@ Rectangle {
                 searchText:    root.searchText
                 onSearchTextEdited: (t) => root.searchTextEdited(t)
                 onCategoryEdited:   (t) => root.categoryEdited(t)
-                onSearchRequested:  ()  => root.searchRequested()
             }
         }
     }

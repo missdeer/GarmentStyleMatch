@@ -1,6 +1,8 @@
 #include <QDir>
 #include <QFileInfo>
 
+#include <utility>
+
 #include "GalleryListModel.h"
 
 GalleryListModel::GalleryListModel(QObject *parent) : QAbstractListModel(parent) {}
@@ -50,12 +52,46 @@ void GalleryListModel::setItems(QVector<GalleryItem> items)
 {
     const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
-    m_items         = std::move(items);
+    m_allItems      = std::move(items);
+    rebuildFilteredItems();
     m_selectedIndex = -1;
     endResetModel();
     emit countChanged();
     if (hadSelection)
         emit selectedIndexChanged();
+}
+
+void GalleryListModel::setFilterText(const QString &text)
+{
+    const QString normalizedText = text.trimmed();
+    if (normalizedText == m_filterText)
+        return;
+
+    const bool hadSelection = m_selectedIndex >= 0;
+    beginResetModel();
+    m_filterText = normalizedText;
+    rebuildFilteredItems();
+    m_selectedIndex = -1;
+    endResetModel();
+    emit countChanged();
+    if (hadSelection)
+        emit selectedIndexChanged();
+}
+
+void GalleryListModel::rebuildFilteredItems()
+{
+    m_items.clear();
+    if (m_filterText.isEmpty())
+    {
+        m_items = m_allItems;
+        return;
+    }
+
+    for (const GalleryItem &item : std::as_const(m_allItems))
+    {
+        if (item.styleId.contains(m_filterText, Qt::CaseInsensitive))
+            m_items.push_back(item);
+    }
 }
 
 void GalleryListModel::loadFromStyleCacheDir(const QString &directoryPath)
@@ -127,10 +163,11 @@ void GalleryListModel::clearSelection()
 
 void GalleryListModel::clear()
 {
-    if (m_items.isEmpty())
+    if (m_allItems.isEmpty())
         return;
     const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
+    m_allItems.clear();
     m_items.clear();
     m_selectedIndex = -1;
     endResetModel();

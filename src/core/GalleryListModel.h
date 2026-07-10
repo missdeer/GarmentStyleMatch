@@ -35,6 +35,8 @@ public:
 
     void               setItems(QVector<GalleryItem> items);
     void               loadFromStyleCacheDir(const QString &directoryPath);
+    void               setFilterText(const QString &text);
+    QString            filterText() const { return m_filterText; }
     const GalleryItem *at(int row) const;
     int                selectedIndex() const
     {
@@ -50,6 +52,10 @@ signals:
     void selectedIndexChanged();
 
 private:
+    void rebuildFilteredItems();
+
+    QVector<GalleryItem> m_allItems;
     QVector<GalleryItem> m_items;
+    QString              m_filterText;
     int                  m_selectedIndex = -1;
 };

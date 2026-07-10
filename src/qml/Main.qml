@@ -107,7 +107,6 @@ ApplicationWindow {
                 pptPath:          controller.pptPath
                 onSearchTextEdited:   (t) => controller.searchText = t
                 onCategoryEdited:     (t) => controller.categoryFilter = t
-                onSearchRequested:    () => { /* TODO: trigger controller search */ }
                 onPptPathEdited:      (p) => controller.pptPath = p
                 onPptSearchRequested: ()  => controller.reloadPpt()
                 onPptPageToggled:     (r) => controller.togglePptPageSelected(r)

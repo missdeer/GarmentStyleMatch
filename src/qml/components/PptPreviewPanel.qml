@@ -109,6 +109,16 @@ Rectangle {
                         if (root.model)
                             root.model.selectedPagesText = text
                     }
+                    Keys.onEscapePressed: (event) => {
+                        clearText()
+                        event.accepted = true
+                    }
+
+                    function clearText() {
+                        clear()
+                        if (root.model)
+                            root.model.selectedPagesText = ""
+                    }
 
                     Rectangle {
                         id: clearBtn
@@ -133,11 +143,7 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                pagesEdit.text = ""
-                                if (root.model)
-                                    root.model.selectedPagesText = ""
-                            }
+                            onClicked: pagesEdit.clearText()
                         }
                     }
                 }

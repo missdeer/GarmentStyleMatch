@@ -58,6 +58,19 @@ int main(int argc, char *argv[])
     if (!check(model.selectedIndex() == -1 && !isSelected(model, 2), QStringLiteral("clearSelection 应清除当前选择")))
         return 1;
 
+    model.setFilterText(QStringLiteral("style2"));
+    if (!check(model.rowCount() == 1 && model.at(0)->styleId == QStringLiteral("STYLE200B"),
+               QStringLiteral("搜索应即时按款号进行不区分大小写的包含匹配")))
+        return 1;
+
+    model.setFilterText(QStringLiteral("missing"));
+    if (!check(model.rowCount() == 0, QStringLiteral("无匹配款号时图库应为空")))
+        return 1;
+
+    model.setFilterText(QStringLiteral("  "));
+    if (!check(model.rowCount() == 3, QStringLiteral("清空搜索内容后应恢复全部款号")))
+        return 1;
+
     QTemporaryDir temporary;
     if (!check(temporary.isValid(), QStringLiteral("无法创建缓存加载测试目录")))
         return 1;

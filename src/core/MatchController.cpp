@@ -37,6 +37,8 @@ void MatchController::setCandidateModel(CandidateListModel *m)
 void MatchController::setGalleryModel(GalleryListModel *m)
 {
     m_galleryModel = m;
+    if (m_galleryModel)
+        m_galleryModel->setFilterText(m_searchText);
 }
 
 void MatchController::setPhotoModel(PhotoListModel *m)
@@ -142,6 +144,8 @@ void MatchController::setSearchText(const QString &v)
     if (v == m_searchText)
         return;
     m_searchText = v;
+    if (m_galleryModel)
+        m_galleryModel->setFilterText(v);
     emit searchTextChanged();
 }
 
