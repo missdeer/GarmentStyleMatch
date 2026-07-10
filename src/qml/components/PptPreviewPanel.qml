@@ -99,11 +99,10 @@ Rectangle {
                     text: qsTr("选中页号:")
                     color: "#3a4a5a"
                 }
-                TextField {
+                ClearableTextField {
                     id: pagesEdit
                     Layout.fillWidth: true
                     placeholderText: qsTr("如 1,3,5")
-                    rightPadding: clearBtn.width + 10
                     validator: RegularExpressionValidator {
                         regularExpression: /^[\d,\s]*$/
                     }
@@ -111,42 +110,9 @@ Rectangle {
                         if (root.model)
                             root.model.selectedPagesText = text
                     }
-                    Keys.onEscapePressed: (event) => {
-                        clearText()
-                        event.accepted = true
-                    }
-
-                    function clearText() {
-                        clear()
+                    onCleared: {
                         if (root.model)
                             root.model.selectedPagesText = ""
-                    }
-
-                    Rectangle {
-                        id: clearBtn
-                        visible: pagesEdit.text.length > 0
-                        anchors.right: parent.right
-                        anchors.rightMargin: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 16; height: 16
-                        radius: width / 2
-                        color: clearArea.containsMouse ? "#8a99a8" : "#b0bcc7"
-
-                        Label {
-                            anchors.centerIn: parent
-                            text: "×"
-                            color: "white"
-                            font.pixelSize: 12
-                            font.bold: true
-                        }
-
-                        MouseArea {
-                            id: clearArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: pagesEdit.clearText()
-                        }
                     }
                 }
                 Binding {

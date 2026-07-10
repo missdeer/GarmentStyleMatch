@@ -40,48 +40,12 @@ Rectangle {
                     Layout.preferredWidth: 100
                     onCurrentTextChanged: root.categoryEdited(currentText)
                 }
-                TextField {
+                ClearableTextField {
                     id: searchField
                     Layout.fillWidth: true
                     placeholderText: qsTr("输入款号或关键词")
                     text: root.searchText
                     onTextChanged: root.searchTextEdited(text)
-                    rightPadding: clearBtn.width + 10
-                    Keys.onEscapePressed: (event) => {
-                        clearText()
-                        event.accepted = true
-                    }
-
-                    function clearText() {
-                        clear()
-                    }
-
-                    Rectangle {
-                        id: clearBtn
-                        visible: searchField.text.length > 0
-                        anchors.right: parent.right
-                        anchors.rightMargin: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 16; height: 16
-                        radius: width / 2
-                        color: clearArea.containsMouse ? "#8a99a8" : "#b0bcc7"
-
-                        Label {
-                            anchors.centerIn: parent
-                            text: "×"
-                            color: "white"
-                            font.pixelSize: 12
-                            font.bold: true
-                        }
-
-                        MouseArea {
-                            id: clearArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: searchField.clearText()
-                        }
-                    }
                 }
             }
         }

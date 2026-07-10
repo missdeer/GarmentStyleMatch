@@ -16,10 +16,6 @@ Item {
     property string pickIconName: "folder-open"
     property string searchIconName: "edit-find"
     property string uiStyle: ""
-    readonly property bool useCompactIconPadding: {
-        const style = uiStyle.toLowerCase()
-        return style === "fluentwinui3" || style === "imagine"
-    }
 
     signal pathPicked(string path)
     signal searchRequested()
@@ -32,59 +28,30 @@ Item {
         anchors.right: parent.right
         spacing: 4
 
-        TextField {
+        ClearableTextField {
             id: field
             Layout.fillWidth: true
             text: root.path
             placeholderText: root.placeholderText
             onEditingFinished: root.pathPicked(text)
+            onCleared: root.pathPicked("")
         }
-        Button {
+        IconButton {
             id: pickButton
-            readonly property int iconExtent: Math.max(
-                1, Math.floor(Math.min(availableWidth, availableHeight)))
-
-            Binding on leftPadding {
-                when: root.useCompactIconPadding
-                value: 8
-            }
-            Binding on rightPadding {
-                when: root.useCompactIconPadding
-                value: 8
-            }
-
             Layout.preferredWidth: field.implicitHeight
             Layout.preferredHeight: field.implicitHeight
-            display: AbstractButton.IconOnly
-            icon.name: root.pickIconName
-            icon.width: iconExtent
-            icon.height: iconExtent
-            ToolTip.visible: hovered
-            ToolTip.text: root.pickLabel
+            iconName: root.pickIconName
+            toolTipText: root.pickLabel
+            uiStyle: root.uiStyle
             onClicked: root.isFile ? fileDlg.open() : folderDlg.open()
         }
-        Button {
+        IconButton {
             id: searchButton
-            readonly property int iconExtent: Math.max(
-                1, Math.floor(Math.min(availableWidth, availableHeight)))
-
-            Binding on leftPadding {
-                when: root.useCompactIconPadding
-                value: 8
-            }
-            Binding on rightPadding {
-                when: root.useCompactIconPadding
-                value: 8
-            }
-
             Layout.preferredWidth: field.implicitHeight
             Layout.preferredHeight: field.implicitHeight
-            display: AbstractButton.IconOnly
-            icon.name: root.searchIconName
-            icon.width: iconExtent
-            icon.height: iconExtent
-            ToolTip.visible: hovered
-            ToolTip.text: root.searchLabel
+            iconName: root.searchIconName
+            toolTipText: root.searchLabel
+            uiStyle: root.uiStyle
             onClicked: root.searchRequested()
         }
     }
