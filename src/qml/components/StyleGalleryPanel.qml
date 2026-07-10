@@ -31,7 +31,7 @@ Rectangle {
                 spacing: 6
 
                 Label {
-                    text: qsTr("款号小图库")
+                    text: qsTr("款号小图库 (%1)").arg(root.model ? root.model.count : 0)
                     font.pixelSize: 13
                     font.bold: true
                 }
@@ -72,6 +72,7 @@ Rectangle {
                 required property string imagePath
                 required property string tag
                 required property int    indexLabel
+                required property bool   selected
 
                 width:  GridView.view.cellWidth
                 height: GridView.view.cellHeight
@@ -79,8 +80,9 @@ Rectangle {
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: 4
-                    color: "white"
-                    border.color: "#dee3e8"
+                    color: cell.selected ? "#f3f7ff" : "white"
+                    border.color: cell.selected ? "#2f5aa8" : "#dee3e8"
+                    border.width: cell.selected ? 2 : 1
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -108,13 +110,32 @@ Rectangle {
                                 asynchronous: true
                                 source: cell.imagePath !== "" ? "file:///" + cell.imagePath : ""
                             }
+
+                            Rectangle {
+                                visible: cell.selected
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 4
+                                width: 22
+                                height: 22
+                                radius: 11
+                                color: "#2f5aa8"
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: "✓"
+                                    color: "white"
+                                    font.bold: true
+                                }
+                            }
                         }
 
                         RowLayout {
                             Layout.fillWidth: true
                             Label {
-                                text: cell.indexLabel + "  " + cell.styleId
+                                text: qsTr("款号：%1").arg(cell.styleId)
                                 font.pixelSize: 11
+                                font.bold: true
                                 elide: Label.ElideRight
                                 Layout.fillWidth: true
                             }
@@ -137,6 +158,11 @@ Rectangle {
 
                     MouseArea {
                         anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.model)
+                                root.model.toggleSelected(cell.index)
+                        }
                         onDoubleClicked: root.searchTextEdited(cell.styleId)
                     }
                 }

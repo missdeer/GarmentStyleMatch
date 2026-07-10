@@ -8,6 +8,7 @@ Rectangle {
     property alias model: grid.model
     property string pptPath: ""
     property int selectedCount: 0
+    property bool busy: false
 
     signal pptPathEdited(string path)
     signal pptSearchRequested()
@@ -28,6 +29,7 @@ Rectangle {
 
             PathPickerRow {
                 id: pptBox
+                enabled: !root.busy
                 anchors.left:  parent.left
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
@@ -38,7 +40,7 @@ Rectangle {
                 path:  root.pptPath
                 isFile: true
                 dialogTitle: qsTr("选择 fitting 方案 PPT 文件")
-                nameFilters: ["PowerPoint (*.pptx *.ppt)", "All files (*)"]
+                nameFilters: ["PowerPoint Open XML (*.pptx)", "All files (*)"]
                 pickLabel:   qsTr("选择PPT")
                 searchLabel: qsTr("重新加载")
                 onPathPicked:      (p) => root.pptPathEdited(p)
@@ -69,8 +71,8 @@ Rectangle {
                     elide: Label.ElideRight
                 }
                 Button {
-                    text: qsTr("从选中页提取")
-                    enabled: root.selectedCount > 0
+                    text: root.busy ? qsTr("正在提取…") : qsTr("从选中页提取")
+                    enabled: root.selectedCount > 0 && !root.busy
                     onClicked: {
                         if (root.model)
                             root.model.selectedPagesText = pagesEdit.text

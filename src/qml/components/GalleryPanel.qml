@@ -5,9 +5,10 @@ import QtQuick.Layouts
 Rectangle {
     id: root
 
-    property var galleryModel
+    property var styleGalleryModel
     property var pagesModel
     property int pptSelectedCount: 0
+    property bool busy: false
     property string categoryText: qsTr("全部")
     property string searchText: ""
     property string pptPath: ""
@@ -43,6 +44,7 @@ Rectangle {
                 model:          root.pagesModel
                 pptPath:        root.pptPath
                 selectedCount:  root.pptSelectedCount
+                busy:           root.busy
                 onPptPathEdited:      (p) => root.pptPathEdited(p)
                 onPptSearchRequested: ()  => root.pptSearchRequested()
                 onPageToggled:        (r) => root.pptPageToggled(r)
@@ -53,7 +55,7 @@ Rectangle {
             }
 
             StyleGalleryPanel {
-                model:         root.galleryModel
+                model:         root.styleGalleryModel
                 categoryText:  root.categoryText
                 searchText:    root.searchText
                 onSearchTextEdited: (t) => root.searchTextEdited(t)

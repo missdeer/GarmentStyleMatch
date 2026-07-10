@@ -5,6 +5,7 @@ set(GSM_SOURCES
     core/GalleryListModel.cpp
     core/PhotoListModel.cpp
     core/PptPageListModel.cpp
+    core/PptStyleExtractor.cpp
 )
 
 set(GSM_HEADERS
@@ -13,6 +14,17 @@ set(GSM_HEADERS
     core/GalleryListModel.h
     core/PhotoListModel.h
     core/PptPageListModel.h
+    core/PptStyleExtractor.h
+)
+
+# Some localized MSVC installations emit /showIncludes output in a code page
+# that Ninja cannot parse reliably.  Keep project-header dependencies explicit
+# so a class layout change can never leave main.cpp or another source object
+# built against an older layout.
+list(TRANSFORM GSM_HEADERS PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/"
+     OUTPUT_VARIABLE GSM_HEADER_DEPENDENCIES)
+set_property(SOURCE ${GSM_SOURCES} APPEND PROPERTY
+    OBJECT_DEPENDS "${GSM_HEADER_DEPENDENCIES}"
 )
 
 set(GSM_QML_FILES
@@ -48,13 +60,17 @@ target_include_directories(GarmentStyleMatch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+find_package(LibArchive REQUIRED)
+
 target_link_libraries(GarmentStyleMatch PRIVATE
+    Qt6::Concurrent
     Qt6::Core
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Widgets
+    LibArchive::LibArchive
     $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
 )
 

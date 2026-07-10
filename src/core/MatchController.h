@@ -60,6 +60,7 @@ public:
 
 public slots:
     void loadDemoData();
+    void restorePersistentState();
 
     void previousImage();
     void nextImage();
@@ -116,8 +117,13 @@ private:
     QString m_outputDir;
     QString m_pptPath;
     bool    m_busy = false;
+    bool    m_restoringPptState = false;
 
     void    setBusy(bool on);
     QString pptCacheDir(const QString &pptFilePath) const;
+    QString pptPagesSettingsKey(const QString &pptFilePath) const;
+    void    persistSelectedPptPages();
+    void    restoreSelectedPptPages();
     bool    loadPptPreviewsFromCache();
+    bool    loadPptStylesFromCache();
 };

@@ -1,7 +1,8 @@
 #include "PptPageListModel.h"
 
-#include <QSet>
 #include <QStringList>
+
+#include <algorithm>
 
 PptPageListModel::PptPageListModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -40,6 +41,12 @@ QHash<int, QByteArray> PptPageListModel::roleNames() const
 
 void PptPageListModel::setItems(QVector<PptPageItem> items)
 {
+    for (PptPageItem &item : items) {
+        if (item.selected)
+            m_selectedPages.insert(item.pageIndex);
+        else
+            item.selected = m_selectedPages.contains(item.pageIndex);
+    }
     beginResetModel();
     m_items = std::move(items);
     endResetModel();
@@ -50,11 +57,18 @@ void PptPageListModel::setItems(QVector<PptPageItem> items)
 
 void PptPageListModel::appendItem(const PptPageItem &item)
 {
+    PptPageItem storedItem = item;
+    if (storedItem.selected)
+        m_selectedPages.insert(storedItem.pageIndex);
+    else
+        storedItem.selected = m_selectedPages.contains(storedItem.pageIndex);
     const int row = m_items.size();
     beginInsertRows(QModelIndex(), row, row);
-    m_items.push_back(item);
+    m_items.push_back(std::move(storedItem));
     endInsertRows();
     emit countChanged();
+    if (m_items.back().selected)
+        emit selectedCountChanged();
 }
 
 const PptPageItem *PptPageListModel::at(int row) const
@@ -87,6 +101,10 @@ void PptPageListModel::toggleSelected(int row)
     if (row < 0 || row >= m_items.size())
         return;
     m_items[row].selected = !m_items[row].selected;
+    if (m_items[row].selected)
+        m_selectedPages.insert(m_items[row].pageIndex);
+    else
+        m_selectedPages.remove(m_items[row].pageIndex);
     const QModelIndex idx = index(row);
     emit dataChanged(idx, idx, {SelectedRole});
     emit selectedCountChanged();
@@ -100,6 +118,10 @@ void PptPageListModel::setSelected(int row, bool on)
     if (m_items[row].selected == on)
         return;
     m_items[row].selected = on;
+    if (on)
+        m_selectedPages.insert(m_items[row].pageIndex);
+    else
+        m_selectedPages.remove(m_items[row].pageIndex);
     const QModelIndex idx = index(row);
     emit dataChanged(idx, idx, {SelectedRole});
     emit selectedCountChanged();
@@ -108,26 +130,28 @@ void PptPageListModel::setSelected(int row, bool on)
 
 void PptPageListModel::clearSelection()
 {
-    bool any = false;
+    const bool any = !m_selectedPages.isEmpty();
+    m_selectedPages.clear();
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].selected) {
             m_items[i].selected = false;
-            any = true;
         }
     }
     if (!any)
         return;
-    emit dataChanged(index(0), index(m_items.size() - 1), {SelectedRole});
+    if (!m_items.isEmpty())
+        emit dataChanged(index(0), index(m_items.size() - 1), {SelectedRole});
     emit selectedCountChanged();
     emit selectedPagesTextChanged();
 }
 
 void PptPageListModel::clear()
 {
-    if (m_items.isEmpty())
+    if (m_items.isEmpty() && m_selectedPages.isEmpty())
         return;
     beginResetModel();
     m_items.clear();
+    m_selectedPages.clear();
     endResetModel();
     emit countChanged();
     emit selectedCountChanged();
@@ -136,11 +160,12 @@ void PptPageListModel::clear()
 
 QString PptPageListModel::selectedPagesText() const
 {
+    QList<int> pages = m_selectedPages.values();
+    std::sort(pages.begin(), pages.end());
     QStringList parts;
-    parts.reserve(m_items.size());
-    for (const auto &it : m_items)
-        if (it.selected)
-            parts << QString::number(it.pageIndex);
+    parts.reserve(pages.size());
+    for (int page : pages)
+        parts << QString::number(page);
     return parts.join(QLatin1Char(','));
 }
 
@@ -155,17 +180,21 @@ void PptPageListModel::setSelectedPagesText(const QString &text)
             requested.insert(page);
     }
 
-    bool changed = false;
+    const bool pagesChanged = requested != m_selectedPages;
+    m_selectedPages = requested;
+    bool itemChanged = false;
     for (int i = 0; i < m_items.size(); ++i) {
         const bool wantSel = requested.contains(m_items[i].pageIndex);
         if (m_items[i].selected != wantSel) {
             m_items[i].selected = wantSel;
-            changed = true;
+            itemChanged = true;
         }
     }
-    if (!changed)
+    if (!pagesChanged && !itemChanged)
         return;
-    emit dataChanged(index(0), index(m_items.size() - 1), {SelectedRole});
-    emit selectedCountChanged();
+    if (itemChanged) {
+        emit dataChanged(index(0), index(m_items.size() - 1), {SelectedRole});
+        emit selectedCountChanged();
+    }
     emit selectedPagesTextChanged();
 }

@@ -24,7 +24,10 @@ ApplicationWindow {
     }
     font.pixelSize: 13
 
-    Component.onCompleted: controller.loadDemoData()
+    Component.onCompleted: {
+        controller.loadDemoData()
+        controller.restorePersistentState()
+    }
 
     property string statusText: qsTr("就绪")
 
@@ -95,9 +98,10 @@ ApplicationWindow {
             GalleryPanel {
                 Layout.preferredWidth: 440
                 Layout.fillHeight: true
-                galleryModel:     galleryModel
+                styleGalleryModel: galleryModel
                 pagesModel:       pptPageModel
                 pptSelectedCount: pptPageModel.selectedCount
+                busy:             controller.busy
                 categoryText:     controller.categoryFilter
                 searchText:       controller.searchText
                 pptPath:          controller.pptPath

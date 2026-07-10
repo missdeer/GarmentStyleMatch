@@ -1,0 +1,7 @@
+{
+  "name": "garment-style-match",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "libarchive"
+  ]
+}

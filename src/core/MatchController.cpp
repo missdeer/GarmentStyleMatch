@@ -3,6 +3,7 @@
 #include "GalleryListModel.h"
 #include "PhotoListModel.h"
 #include "PptPageListModel.h"
+#include "PptStyleExtractor.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -11,9 +12,13 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QFutureWatcher>
+#include <QPointer>
 #include <QScopeGuard>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QUrl>
+#include <QtConcurrent/QtConcurrentRun>
 
 #ifdef Q_OS_WIN
 #include <QAxObject>
@@ -41,7 +46,13 @@ void MatchController::setPhotoModel(PhotoListModel *m)
 
 void MatchController::setPptPageModel(PptPageListModel *m)
 {
+    if (m_pptPageModel)
+        disconnect(m_pptPageModel, nullptr, this, nullptr);
     m_pptPageModel = m;
+    if (m_pptPageModel) {
+        connect(m_pptPageModel, &PptPageListModel::selectedPagesTextChanged,
+                this, &MatchController::persistSelectedPptPages);
+    }
 }
 
 QString MatchController::title() const
@@ -156,12 +167,23 @@ void MatchController::setOutputDir(const QString &v)
 
 void MatchController::setPptPath(const QString &v)
 {
-    if (v == m_pptPath)
-        return;
-    m_pptPath = v;
-    emit pptPathChanged();
-    emit logMessage(QStringLiteral("pptPath=%1").arg(v));
+    if (v != m_pptPath) {
+        m_pptPath = v;
+        QSettings settings;
+        settings.setValue(QStringLiteral("ppt/lastPath"), m_pptPath);
+        settings.sync();
+        emit pptPathChanged();
+        emit logMessage(QStringLiteral("pptPath=%1").arg(v));
+    }
+
+    const bool wasRestoring = m_restoringPptState;
+    m_restoringPptState = true;
+    auto restoreGuard = qScopeGuard([this, wasRestoring] {
+        m_restoringPptState = wasRestoring;
+    });
     loadPptPreviewsFromCache();
+    restoreSelectedPptPages();
+    loadPptStylesFromCache();
 }
 
 QString MatchController::pptCacheDir(const QString &pptFilePath) const
@@ -176,6 +198,41 @@ QString MatchController::pptCacheDir(const QString &pptFilePath) const
     const QString base = QStandardPaths::writableLocation(
         QStandardPaths::CacheLocation);
     return base + QStringLiteral("/ppt_slides/") + subDir;
+}
+
+QString MatchController::pptPagesSettingsKey(const QString &pptFilePath) const
+{
+    QString normalizedPath = QDir::fromNativeSeparators(
+        QFileInfo(pptFilePath).absoluteFilePath());
+#ifdef Q_OS_WIN
+    normalizedPath = normalizedPath.toCaseFolded();
+#endif
+    const QByteArray hash = QCryptographicHash::hash(
+        normalizedPath.toUtf8(), QCryptographicHash::Sha1);
+    return QStringLiteral("ppt/selectedPages/%1")
+        .arg(QString::fromLatin1(hash.toHex()));
+}
+
+void MatchController::persistSelectedPptPages()
+{
+    if (m_restoringPptState || !m_pptPageModel || m_pptPath.isEmpty())
+        return;
+    QSettings settings;
+    settings.setValue(pptPagesSettingsKey(m_pptPath),
+                      m_pptPageModel->selectedPagesText());
+    settings.sync();
+}
+
+void MatchController::restoreSelectedPptPages()
+{
+    if (!m_pptPageModel || m_pptPath.isEmpty())
+        return;
+    const QString pages = QSettings().value(
+        pptPagesSettingsKey(m_pptPath)).toString();
+    const bool wasRestoring = m_restoringPptState;
+    m_restoringPptState = true;
+    m_pptPageModel->setSelectedPagesText(pages);
+    m_restoringPptState = wasRestoring;
 }
 
 bool MatchController::loadPptPreviewsFromCache()
@@ -206,6 +263,22 @@ bool MatchController::loadPptPreviewsFromCache()
     }
     emit logMessage(QStringLiteral("从缓存加载 %1 页预览: %2").arg(files.size()).arg(dir));
     return true;
+}
+
+bool MatchController::loadPptStylesFromCache()
+{
+    if (!m_galleryModel)
+        return false;
+
+    const QString cacheRoot = pptCacheDir(m_pptPath);
+    const QString stylesDir = cacheRoot.isEmpty() ? QString() : QDir(cacheRoot).absoluteFilePath(QStringLiteral("styles"));
+    m_galleryModel->loadFromStyleCacheDir(stylesDir);
+
+    const int count = m_galleryModel->rowCount();
+    if (count > 0) {
+        emit logMessage(QStringLiteral("已从缓存载入 %1 张手绘图: %2").arg(count).arg(stylesDir));
+    }
+    return count > 0;
 }
 
 void MatchController::scanPhotoDir()
@@ -292,7 +365,15 @@ void MatchController::reloadPpt()
     setBusy(true);
     auto busyGuard = qScopeGuard([this] { setBusy(false); });
 
-    m_pptPageModel->clear();
+    {
+        const bool wasRestoring = m_restoringPptState;
+        m_restoringPptState = true;
+        auto restoreGuard = qScopeGuard([this, wasRestoring] {
+            m_restoringPptState = wasRestoring;
+        });
+        m_pptPageModel->clear();
+        restoreSelectedPptPages();
+    }
 
     if (m_pptPath.isEmpty())
         return;
@@ -401,6 +482,10 @@ void MatchController::extractFromSelectedPages()
         emit logMessage(QStringLiteral("extractFromSelectedPages: missing model"));
         return;
     }
+    if (m_busy) {
+        emit logMessage(QStringLiteral("款号和手绘图正在提取，请等待当前任务完成"));
+        return;
+    }
 
     const QVector<int> rows = m_pptPageModel->selectedRows();
     if (rows.isEmpty()) {
@@ -408,24 +493,97 @@ void MatchController::extractFromSelectedPages()
         return;
     }
 
-    QVector<GalleryItem> items;
-    constexpr int kStubStylesPerPage = 4;
-    items.reserve(rows.size() * kStubStylesPerPage);
+    const QFileInfo fi(m_pptPath);
+    if (m_pptPath.isEmpty() || !fi.isFile()) {
+        emit logMessage(QStringLiteral("PPT 文件不存在: %1").arg(m_pptPath));
+        return;
+    }
+    if (fi.suffix().toLower() != QStringLiteral("pptx")) {
+        emit logMessage(QStringLiteral("仅支持 .pptx (Open XML); 当前为 .%1").arg(fi.suffix()));
+        return;
+    }
+
+    const QString cacheRoot = pptCacheDir(m_pptPath);
+    if (cacheRoot.isEmpty()) {
+        emit logMessage(QStringLiteral("无法确定缓存目录"));
+        return;
+    }
+    const QString stylesDir = cacheRoot + QStringLiteral("/styles");
+
+    QVector<int> pages;
+    pages.reserve(rows.size());
     for (int row : rows) {
         const auto *page = m_pptPageModel->at(row);
-        if (!page) continue;
-        for (int j = 0; j < kStubStylesPerPage; ++j) {
-            GalleryItem it;
-            it.styleId = QStringLiteral("slide%1_T0JE26B38A%2B")
-                             .arg(page->pageIndex, 3, 10, QChar('0'))
-                             .arg(j, 3, 10, QChar('0'));
-            it.tag = QStringLiteral("baby");
-            items.push_back(it);
-        }
+        if (page)
+            pages.push_back(page->pageIndex);
     }
-    m_galleryModel->setItems(std::move(items));
-    emit logMessage(QStringLiteral("extractFromSelectedPages: %1 pages -> %2 styles")
-                        .arg(rows.size()).arg(items.size()));
+
+    PptStyleExtractor::Options opts;
+    opts.pptxPath   = m_pptPath;
+    opts.pages      = pages;
+    opts.outputDir  = stylesDir;
+    opts.openXmlDir = cacheRoot + QStringLiteral("/openxml");
+    const QPointer<MatchController> guard(this);
+    opts.progress = [guard](int current, int total, const QString &detail) {
+        if (!guard)
+            return;
+        const QString message = total > 0
+            ? QStringLiteral("提取进度 %1/%2｜%3").arg(current).arg(total).arg(detail)
+            : detail;
+        QMetaObject::invokeMethod(
+            guard.data(),
+            [guard, message] {
+                if (guard)
+                    emit guard->logMessage(message);
+            },
+            Qt::QueuedConnection);
+    };
+
+    auto *watcher = new QFutureWatcher<PptStyleExtractor::Result>(this);
+    connect(watcher, &QFutureWatcher<PptStyleExtractor::Result>::finished,
+            this, [this, watcher, pageCount = pages.size(), sourcePptPath = m_pptPath, stylesDir] {
+        const PptStyleExtractor::Result res = watcher->result();
+        watcher->deleteLater();
+
+        if (m_pptPath != sourcePptPath) {
+            setBusy(false);
+            emit logMessage(QStringLiteral("后台提取已完成，但当前 PPT 已切换，未替换款号小图库"));
+            return;
+        }
+
+        for (const QString &warning : res.warnings)
+            emit logMessage(warning);
+
+        qsizetype imageCount = 0;
+        for (const auto &style : res.styles)
+            imageCount += style.imagePaths.size();
+
+        QVector<GalleryItem> items;
+        items.reserve(imageCount);
+        for (const auto &style : res.styles) {
+            for (const QString &imagePath : style.imagePaths) {
+                GalleryItem item;
+                item.styleId   = style.styleId;
+                item.imagePath = imagePath;
+                item.tag       = QStringLiteral("baby");
+                items.push_back(std::move(item));
+            }
+        }
+        m_galleryModel->setItems(std::move(items));
+        setBusy(false);
+
+        emit logMessage(QStringLiteral("提取完成：从 %1 页提取到 %2 个款式、%3 张手绘图，已保存到 %4")
+                            .arg(pageCount)
+                            .arg(res.styles.size())
+                            .arg(imageCount)
+                            .arg(stylesDir));
+    });
+
+    setBusy(true);
+    emit logMessage(QStringLiteral("提取进度 0/%1｜正在启动后台提取任务...").arg(pages.size()));
+    watcher->setFuture(QtConcurrent::run([opts] {
+        return PptStyleExtractor::extract(opts);
+    }));
 }
 
 void MatchController::emitCurrentChanged()
@@ -467,6 +625,14 @@ void MatchController::loadDemoData()
         m_galleryModel->setItems(std::move(items));
     }
     setCurrentIndex(0);
+}
+
+void MatchController::restorePersistentState()
+{
+    const QString lastPptPath = QSettings().value(
+        QStringLiteral("ppt/lastPath")).toString();
+    if (!lastPptPath.isEmpty())
+        setPptPath(lastPptPath);
 }
 
 void MatchController::previousImage()

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -51,4 +52,5 @@ signals:
 
 private:
     QVector<PptPageItem> m_items;
+    QSet<int>            m_selectedPages;
 };

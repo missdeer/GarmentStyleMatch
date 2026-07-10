@@ -24,6 +24,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 find_package(Qt6 6.10 REQUIRED COMPONENTS
+    Concurrent
     Core
     Gui
     Qml
@@ -44,6 +45,11 @@ if(EXISTS "${GSM_3RDPARTY_DIR}/CMakeLists.txt")
 endif()
 
 add_subdirectory(src)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 install(TARGETS GarmentStyleMatch
     RUNTIME DESTINATION bin
