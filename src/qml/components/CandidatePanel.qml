@@ -58,7 +58,7 @@ Rectangle {
                         anchors.leftMargin:  8
                         anchors.rightMargin: 8
                         anchors.topMargin:   8
-                        label: qsTr("实拍图片目录")
+                        placeholderText: qsTr("实拍图片目录")
                         path:  root.photoDir
                         dialogTitle: qsTr("选择实拍图片目录")
                         onPathPicked:      (p) => root.photoDirEdited(p)
@@ -150,7 +150,7 @@ Rectangle {
                         anchors.leftMargin:  8
                         anchors.rightMargin: 8
                         anchors.topMargin:   8
-                        label: qsTr("输出目录")
+                        placeholderText: qsTr("输出目录")
                         path:  root.outputDir
                         dialogTitle: qsTr("选择输出目录")
                         onPathPicked:      (p) => root.outputDirEdited(p)

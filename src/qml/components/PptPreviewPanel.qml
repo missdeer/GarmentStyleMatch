@@ -36,7 +36,7 @@ Rectangle {
                 anchors.leftMargin:  8
                 anchors.rightMargin: 8
 
-                label: qsTr("fitting方案PPT")
+                placeholderText: qsTr("fitting方案PPT")
                 path:  root.pptPath
                 isFile: true
                 dialogTitle: qsTr("选择 fitting 方案 PPT 文件")

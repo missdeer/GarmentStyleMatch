@@ -6,7 +6,7 @@ import QtQuick.Dialogs
 Item {
     id: root
 
-    property string label: ""
+    property string placeholderText: ""
     property string path: ""
     property bool   isFile: false               // true = 文件选择,false = 目录选择
     property string dialogTitle: qsTr("选择")
@@ -17,39 +17,28 @@ Item {
     signal pathPicked(string path)
     signal searchRequested()
 
-    implicitHeight: column.implicitHeight
+    implicitHeight: row.implicitHeight
 
-    ColumnLayout {
-        id: column
+    RowLayout {
+        id: row
         anchors.left:  parent.left
         anchors.right: parent.right
         spacing: 4
 
-        Label {
-            text: root.label
-            font.pixelSize: 12
-            color: "#3a4a5a"
-        }
-
-        RowLayout {
+        TextField {
+            id: field
             Layout.fillWidth: true
-            spacing: 4
-
-            TextField {
-                id: field
-                Layout.fillWidth: true
-                text: root.path
-                placeholderText: root.label
-                onEditingFinished: root.pathPicked(text)
-            }
-            Button {
-                text: root.pickLabel
-                onClicked: root.isFile ? fileDlg.open() : folderDlg.open()
-            }
-            Button {
-                text: root.searchLabel
-                onClicked: root.searchRequested()
-            }
+            text: root.path
+            placeholderText: root.placeholderText
+            onEditingFinished: root.pathPicked(text)
+        }
+        Button {
+            text: root.pickLabel
+            onClicked: root.isFile ? fileDlg.open() : folderDlg.open()
+        }
+        Button {
+            text: root.searchLabel
+            onClicked: root.searchRequested()
         }
     }
 
