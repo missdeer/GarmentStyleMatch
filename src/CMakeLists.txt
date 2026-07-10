@@ -42,6 +42,13 @@ set(GSM_QML_FILES
     qml/components/ImagePropertiesPanel.qml
 )
 
+set(GSM_IMAGE_FILES
+    "${CMAKE_SOURCE_DIR}/GarmentStyleMatch.png"
+)
+set_source_files_properties(${GSM_IMAGE_FILES} PROPERTIES
+    QT_RESOURCE_ALIAS "images/GarmentStyleMatch.png"
+)
+
 set(GSM_PLATFORM_SOURCES)
 if(WIN32)
     list(APPEND GSM_PLATFORM_SOURCES GarmentStyleMatch.rc)
@@ -57,6 +64,7 @@ qt_add_qml_module(GarmentStyleMatch
     URI GarmentStyleMatch
     VERSION 1.0
     QML_FILES ${GSM_QML_FILES}
+    RESOURCES ${GSM_IMAGE_FILES}
 )
 
 target_include_directories(GarmentStyleMatch PRIVATE

@@ -42,8 +42,7 @@ ApplicationWindow {
 
         HeaderBar {
             Layout.fillWidth: true
-            titleText:    controller.title
-            subtitleText: controller.subtitle
+            titleText: controller.title
         }
 
         RowLayout {
