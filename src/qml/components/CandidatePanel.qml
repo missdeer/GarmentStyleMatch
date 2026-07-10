@@ -59,6 +59,7 @@ Rectangle {
                         anchors.rightMargin: 8
                         anchors.topMargin:   8
                         placeholderText: qsTr("实拍图片目录")
+                        uiStyle: controller.currentUiStyle
                         path:  root.photoDir
                         dialogTitle: qsTr("选择实拍图片目录")
                         onPathPicked:      (p) => root.photoDirEdited(p)
@@ -151,6 +152,7 @@ Rectangle {
                         anchors.rightMargin: 8
                         anchors.topMargin:   8
                         placeholderText: qsTr("输出目录")
+                        uiStyle: controller.currentUiStyle
                         path:  root.outputDir
                         dialogTitle: qsTr("选择输出目录")
                         onPathPicked:      (p) => root.outputDirEdited(p)

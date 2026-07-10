@@ -37,12 +37,14 @@ Rectangle {
                 anchors.rightMargin: 8
 
                 placeholderText: qsTr("fitting方案PPT")
+                uiStyle: controller.currentUiStyle
                 path:  root.pptPath
                 isFile: true
                 dialogTitle: qsTr("选择 fitting 方案 PPT 文件")
                 nameFilters: ["PowerPoint Open XML (*.pptx)", "All files (*)"]
                 pickLabel:   qsTr("选择PPT")
                 searchLabel: qsTr("重新加载")
+                searchIconName: "view-refresh"
                 onPathPicked:      (p) => root.pptPathEdited(p)
                 onSearchRequested: root.pptSearchRequested()
             }
