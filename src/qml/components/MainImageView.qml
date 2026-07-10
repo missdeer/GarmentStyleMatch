@@ -8,6 +8,8 @@ Rectangle {
     property string styleId:   ""
     property int    pageIndex: 0
     property int    pageCount: 0
+    property bool   previousEnabled: pageIndex > 0
+    property bool   nextEnabled: pageIndex + 1 < pageCount
 
     signal prev()
     signal next()
@@ -53,12 +55,12 @@ Rectangle {
 
                 Button {
                     text: qsTr("上一张")
-                    enabled: root.pageIndex > 0
+                    enabled: root.previousEnabled
                     onClicked: root.prev()
                 }
                 Button {
                     text: qsTr("下一张")
-                    enabled: root.pageIndex + 1 < root.pageCount
+                    enabled: root.nextEnabled
                     onClicked: root.next()
                 }
                 Button {

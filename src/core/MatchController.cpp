@@ -62,15 +62,6 @@ QString MatchController::title() const
     return QString::fromUtf8("Eidos\xE6\x9C\x8D\xE8\xA3\x85\xE6\xAC\xBE\xE5\xBC\x8F\xE5\x8C\xB9\xE9\x85\x8D\xE5\xB7\xA5\xE4\xBD\x9C\xE5\x8F\xB0");
 }
 
-QString MatchController::subtitle() const
-{
-    // "联网AI识别版 <date>"
-    const QString badge = QString::fromUtf8(
-        "\xE8\x81\x94\xE7\xBD\x91""AI"
-        "\xE8\xAF\x86\xE5\x88\xAB\xE7\x89\x88");
-    return QStringLiteral("%1 %2").arg(badge, QDate::currentDate().toString(Qt::ISODate));
-}
-
 int MatchController::currentImageCount() const
 {
     if (m_previewSource == PreviewPhoto)
@@ -649,16 +640,28 @@ void MatchController::restorePersistentState()
         setPptPath(lastPptPath);
 }
 
-void MatchController::previousImage()
+void MatchController::previousImage(bool inputTabActive)
 {
+    if (inputTabActive && m_currentPhotoIndex >= 0) {
+        if (m_currentPhotoIndex > 0)
+            setCurrentPhotoIndex(m_currentPhotoIndex - 1);
+        return;
+    }
+
     if (m_currentImagePage <= 0)
         return;
     --m_currentImagePage;
     emit currentImagePageChanged();
 }
 
-void MatchController::nextImage()
+void MatchController::nextImage(bool inputTabActive)
 {
+    if (inputTabActive && m_currentPhotoIndex >= 0) {
+        if (m_photoModel && m_currentPhotoIndex + 1 < m_photoModel->rowCount())
+            setCurrentPhotoIndex(m_currentPhotoIndex + 1);
+        return;
+    }
+
     const int total = currentImageCount();
     if (m_currentImagePage + 1 >= total)
         return;

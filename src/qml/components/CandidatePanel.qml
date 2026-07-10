@@ -9,6 +9,8 @@ Rectangle {
     property alias inputModel:  photoView.model
     property int   currentRow: -1        // 归类列表选中行
     property int   currentPhotoRow: -1   // 实拍图片选中行
+    readonly property bool inputTabActive: tabBar.currentIndex === 0
+    readonly property int inputItemCount: photoView.count
     property string photoDir: ""
     property string outputDir: ""
 

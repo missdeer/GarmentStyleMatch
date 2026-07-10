@@ -12,7 +12,7 @@ ApplicationWindow {
     minimumWidth: 1024
     minimumHeight: 640
     visible: true
-    title: controller.title + " - " + controller.subtitle
+    title: controller.title
 
     font.family: {
         switch (Qt.platform.os) {
@@ -52,6 +52,7 @@ ApplicationWindow {
             spacing: 0
 
             CandidatePanel {
+                id: candidatePanel
                 Layout.preferredWidth: 320
                 Layout.fillHeight: true
                 outputModel: candidateModel
@@ -80,8 +81,15 @@ ApplicationWindow {
                     styleId:         controller.currentStyleId
                     pageIndex:       controller.currentImagePage
                     pageCount:       controller.currentImageCount
-                    onPrev:          controller.previousImage()
-                    onNext:          controller.nextImage()
+                    previousEnabled: candidatePanel.inputTabActive
+                                     ? controller.currentPhotoIndex > 0
+                                     : controller.currentImagePage > 0
+                    nextEnabled:     candidatePanel.inputTabActive
+                                     ? controller.currentPhotoIndex >= 0
+                                       && controller.currentPhotoIndex + 1 < candidatePanel.inputItemCount
+                                     : controller.currentImagePage + 1 < controller.currentImageCount
+                    onPrev:          controller.previousImage(candidatePanel.inputTabActive)
+                    onNext:          controller.nextImage(candidatePanel.inputTabActive)
                     onOpenOriginal:  controller.openCurrentImageExternally()
                 }
 

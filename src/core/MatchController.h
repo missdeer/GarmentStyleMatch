@@ -13,7 +13,6 @@ class MatchController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString title             READ title           CONSTANT)
-    Q_PROPERTY(QString subtitle          READ subtitle        NOTIFY subtitleChanged)
     Q_PROPERTY(int     currentPhotoIndex READ currentPhotoIndex WRITE setCurrentPhotoIndex NOTIFY currentPhotoIndexChanged)
     Q_PROPERTY(int     currentIndex      READ currentIndex    WRITE setCurrentIndex NOTIFY currentIndexChanged)
     Q_PROPERTY(int     currentImagePage READ currentImagePage NOTIFY currentImagePageChanged)
@@ -37,7 +36,6 @@ public:
     void setPptPageModel(PptPageListModel *m);
 
     QString title() const;
-    QString subtitle() const;
     int     currentIndex() const     { return m_currentIndex; }
     int     currentPhotoIndex() const { return m_currentPhotoIndex; }
     int     currentImagePage() const { return m_currentImagePage; }
@@ -64,8 +62,8 @@ public slots:
     void loadDemoData();
     void restorePersistentState();
 
-    void previousImage();
-    void nextImage();
+    void previousImage(bool inputTabActive = false);
+    void nextImage(bool inputTabActive = false);
     void openCurrentImageExternally();
 
     void previousCandidate();
