@@ -19,6 +19,7 @@ class MatchController : public QObject
     Q_PROPERTY(int     currentImagePage READ currentImagePage NOTIFY currentImagePageChanged)
     Q_PROPERTY(int     currentImageCount READ currentImageCount NOTIFY currentImageCountChanged)
     Q_PROPERTY(QString currentImagePath READ currentImagePath NOTIFY currentImagePathChanged)
+    Q_PROPERTY(QString currentPhotoPath READ currentPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString currentStyleId  READ currentStyleId  NOTIFY currentStyleIdChanged)
     Q_PROPERTY(QString categoryFilter  READ categoryFilter  WRITE setCategoryFilter NOTIFY categoryFilterChanged)
     Q_PROPERTY(QString searchText      READ searchText      WRITE setSearchText     NOTIFY searchTextChanged)
@@ -42,6 +43,7 @@ public:
     int     currentImagePage() const { return m_currentImagePage; }
     int     currentImageCount() const;
     QString currentImagePath() const;
+    QString currentPhotoPath() const;
     QString currentStyleId() const;
     QString categoryFilter() const { return m_categoryFilter; }
     QString searchText() const     { return m_searchText; }
@@ -86,6 +88,7 @@ signals:
     void currentImagePageChanged();
     void currentImageCountChanged();
     void currentImagePathChanged();
+    void currentPhotoPathChanged();
     void currentStyleIdChanged();
     void categoryFilterChanged();
     void searchTextChanged();

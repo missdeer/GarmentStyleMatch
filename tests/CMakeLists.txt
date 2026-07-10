@@ -48,3 +48,20 @@ target_link_libraries(PptPageListModelTest PRIVATE
 )
 
 add_test(NAME PptPageListModelTest COMMAND PptPageListModelTest)
+
+add_executable(ImageMetadataTest
+    ImageMetadataTest.cpp
+    ../src/core/ImageMetadata.cpp
+    ../src/core/ImageMetadata.h
+)
+
+target_include_directories(ImageMetadataTest PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/core
+)
+
+target_link_libraries(ImageMetadataTest PRIVATE
+    Qt6::Core
+    Qt6::Gui
+)
+
+add_test(NAME ImageMetadataTest COMMAND ImageMetadataTest)

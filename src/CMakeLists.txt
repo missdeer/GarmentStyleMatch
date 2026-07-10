@@ -6,6 +6,7 @@ set(GSM_SOURCES
     core/PhotoListModel.cpp
     core/PptPageListModel.cpp
     core/PptStyleExtractor.cpp
+    core/ImageMetadata.cpp
 )
 
 set(GSM_HEADERS
@@ -15,6 +16,7 @@ set(GSM_HEADERS
     core/PhotoListModel.h
     core/PptPageListModel.h
     core/PptStyleExtractor.h
+    core/ImageMetadata.h
 )
 
 # Some localized MSVC installations emit /showIncludes output in a code page
@@ -37,6 +39,7 @@ set(GSM_QML_FILES
     qml/components/StyleGalleryPanel.qml
     qml/components/ConfirmBar.qml
     qml/components/PathPickerRow.qml
+    qml/components/ImagePropertiesPanel.qml
 )
 
 set(GSM_PLATFORM_SOURCES)

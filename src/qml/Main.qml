@@ -85,8 +85,10 @@ ApplicationWindow {
                     onOpenOriginal:  controller.openCurrentImageExternally()
                 }
 
-                ConfirmBar {
+                ImagePropertiesPanel {
                     Layout.fillWidth: true
+                    Layout.preferredHeight: 245
+                    Layout.minimumHeight: 170
                     styleId: controller.currentStyleId
                     onConfirmSelected: (idx) => controller.confirmSelectedThumb(idx)
                     onConfirmStyleId:  (id)  => controller.confirmStyleId(id)

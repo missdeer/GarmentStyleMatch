@@ -94,6 +94,14 @@ QString MatchController::currentImagePath() const
     return it ? it->imagePath : QString();
 }
 
+QString MatchController::currentPhotoPath() const
+{
+    if (!m_photoModel)
+        return {};
+    const auto *photo = m_photoModel->at(m_currentPhotoIndex);
+    return photo ? photo->imagePath : QString();
+}
+
 QString MatchController::currentStyleId() const
 {
     if (m_previewSource == PreviewPhoto) {
@@ -127,6 +135,7 @@ void MatchController::setCurrentPhotoIndex(int idx)
     m_previewSource = PreviewPhoto;
     m_currentImagePage = 0;
     emit currentPhotoIndexChanged();
+    emit currentPhotoPathChanged();
     emitCurrentChanged();
     emit logMessage(QStringLiteral("selectPhoto row=%1").arg(idx));
 }
@@ -315,6 +324,7 @@ void MatchController::scanPhotoDir()
     }
     m_photoModel->setItems(std::move(items));
     setCurrentPhotoIndex(m_photoModel->rowCount() > 0 ? 0 : -1);
+    emit currentPhotoPathChanged();
     emit logMessage(QStringLiteral("scanPhotoDir=%1 (%2 files)")
                     .arg(m_photoDir).arg(m_photoModel->rowCount()));
 }
