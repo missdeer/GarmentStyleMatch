@@ -65,3 +65,35 @@ target_link_libraries(ImageMetadataTest PRIVATE
 )
 
 add_test(NAME ImageMetadataTest COMMAND ImageMetadataTest)
+
+add_executable(MatchControllerTest
+    MatchControllerTest.cpp
+    ../src/core/MatchController.cpp
+    ../src/core/MatchController.h
+    ../src/core/CandidateListModel.cpp
+    ../src/core/CandidateListModel.h
+    ../src/core/GalleryListModel.cpp
+    ../src/core/GalleryListModel.h
+    ../src/core/PhotoListModel.cpp
+    ../src/core/PhotoListModel.h
+    ../src/core/PptPageListModel.cpp
+    ../src/core/PptPageListModel.h
+    ../src/core/PptStyleExtractor.cpp
+    ../src/core/PptStyleExtractor.h
+)
+
+target_include_directories(MatchControllerTest PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/core
+)
+
+target_link_libraries(MatchControllerTest PRIVATE
+    Qt6::Concurrent
+    Qt6::Core
+    Qt6::Gui
+    Qt6::QuickControls2
+    Qt6::Widgets
+    LibArchive::LibArchive
+    $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
+)
+
+add_test(NAME MatchControllerTest COMMAND MatchControllerTest)

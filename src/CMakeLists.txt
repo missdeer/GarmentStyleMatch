@@ -34,6 +34,7 @@ set(GSM_QML_FILES
     qml/components/HeaderBar.qml
     qml/components/CandidatePanel.qml
     qml/components/MainImageView.qml
+    qml/components/OutputImagePreview.qml
     qml/components/GalleryPanel.qml
     qml/components/PptPreviewPanel.qml
     qml/components/StyleGalleryPanel.qml

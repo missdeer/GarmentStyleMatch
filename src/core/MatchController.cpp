@@ -120,7 +120,7 @@ int MatchController::currentImageCount() const
     if (!m_candidateModel)
         return 0;
     const auto *it = m_candidateModel->at(m_currentIndex);
-    return it ? it->candidateCount : 0;
+    return it ? it->imagePaths.size() : 0;
 }
 
 QString MatchController::currentImagePath() const
@@ -133,7 +133,17 @@ QString MatchController::currentImagePath() const
     if (!m_candidateModel)
         return {};
     const auto *it = m_candidateModel->at(m_currentIndex);
-    return it ? it->imagePath : QString();
+    return it && m_currentImagePage >= 0 && m_currentImagePage < it->imagePaths.size()
+        ? it->imagePaths.at(m_currentImagePage)
+        : QString();
+}
+
+QStringList MatchController::currentOutputImagePaths() const
+{
+    if (!m_candidateModel)
+        return {};
+    const auto *it = m_candidateModel->at(m_currentIndex);
+    return it ? it->imagePaths : QStringList();
 }
 
 QString MatchController::currentPhotoPath() const
@@ -180,6 +190,15 @@ void MatchController::setCurrentPhotoIndex(int idx)
     emit currentPhotoPathChanged();
     emitCurrentChanged();
     emit logMessage(QStringLiteral("selectPhoto row=%1").arg(idx));
+}
+
+void MatchController::setCurrentImagePage(int page)
+{
+    if (page < 0 || page >= currentImageCount() || page == m_currentImagePage)
+        return;
+    m_currentImagePage = page;
+    emit currentImagePageChanged();
+    emit currentImagePathChanged();
 }
 
 void MatchController::setCategoryFilter(const QString &v)
@@ -384,15 +403,21 @@ void MatchController::scanOutputDir()
             QStringLiteral("*.webp"),
         };
         QDir dir(m_outputDir);
-        const auto entries = dir.entryInfoList(imgFilter,
-                                               QDir::Files | QDir::NoDotAndDotDot,
-                                               QDir::Name);
-        items.reserve(entries.size());
-        for (const QFileInfo &fi : entries) {
+        const auto directories = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot,
+                                                   QDir::Name | QDir::IgnoreCase);
+        items.reserve(directories.size());
+        for (const QFileInfo &directory : directories) {
+            const QDir styleDir(directory.absoluteFilePath());
+            const auto images = styleDir.entryInfoList(imgFilter,
+                                                       QDir::Files | QDir::NoDotAndDotDot,
+                                                       QDir::Name | QDir::IgnoreCase);
             CandidateItem it;
-            it.styleId        = fi.completeBaseName();
-            it.imagePath      = fi.absoluteFilePath();
-            it.candidateCount = 1;
+            it.styleId        = directory.fileName();
+            it.imagePaths.reserve(images.size());
+            for (const QFileInfo &image : images)
+                it.imagePaths.push_back(image.absoluteFilePath());
+            it.imagePath      = it.imagePaths.isEmpty() ? QString() : it.imagePaths.constFirst();
+            it.candidateCount = it.imagePaths.size();
             it.score          = 0.0;
             it.confirmed      = false;
             items.push_back(it);
@@ -400,7 +425,7 @@ void MatchController::scanOutputDir()
     }
     m_candidateModel->setItems(std::move(items));
     setCurrentIndex(m_candidateModel->rowCount() > 0 ? 0 : -1);
-    emit logMessage(QStringLiteral("scanOutputDir=%1 (%2 files)")
+    emit logMessage(QStringLiteral("scanOutputDir=%1 (%2 directories)")
                     .arg(m_outputDir).arg(m_candidateModel->rowCount()));
 }
 
@@ -648,22 +673,12 @@ void MatchController::emitCurrentChanged()
     emit currentImagePageChanged();
     emit currentImageCountChanged();
     emit currentImagePathChanged();
+    emit currentOutputImagePathsChanged();
     emit currentStyleIdChanged();
 }
 
 void MatchController::loadDemoData()
 {
-    if (m_candidateModel) {
-        QVector<CandidateItem> items;
-        for (int i = 0; i < 20; ++i) {
-            CandidateItem it;
-            it.styleId = QStringLiteral("slide43_T0JE26B38A%1B").arg(i, 3, 10, QChar('0'));
-            it.candidateCount = (i % 2) + 1;
-            it.score = 0.99 - i * 0.001;
-            items.push_back(it);
-        }
-        m_candidateModel->setItems(std::move(items));
-    }
     if (m_galleryModel) {
         QVector<GalleryItem> items;
         const QStringList ids = {
@@ -680,7 +695,6 @@ void MatchController::loadDemoData()
         }
         m_galleryModel->setItems(std::move(items));
     }
-    setCurrentIndex(0);
 }
 
 void MatchController::restorePersistentState()
@@ -689,6 +703,14 @@ void MatchController::restorePersistentState()
         QStringLiteral("ppt/lastPath")).toString();
     if (!lastPptPath.isEmpty())
         setPptPath(lastPptPath);
+}
+
+void MatchController::activatePreview(bool inputTabActive)
+{
+    if (inputTabActive)
+        setCurrentPhotoIndex(m_currentPhotoIndex);
+    else
+        setCurrentIndex(m_currentIndex);
 }
 
 void MatchController::previousImage(bool inputTabActive)
@@ -703,6 +725,7 @@ void MatchController::previousImage(bool inputTabActive)
         return;
     --m_currentImagePage;
     emit currentImagePageChanged();
+    emit currentImagePathChanged();
 }
 
 void MatchController::nextImage(bool inputTabActive)
@@ -718,6 +741,7 @@ void MatchController::nextImage(bool inputTabActive)
         return;
     ++m_currentImagePage;
     emit currentImagePageChanged();
+    emit currentImagePathChanged();
 }
 
 void MatchController::openCurrentImageExternally()

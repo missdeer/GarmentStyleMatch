@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QStringList>
 #include <QVector>
 #include <QString>
 
@@ -8,6 +9,7 @@ struct CandidateItem
 {
     QString styleId;        // e.g. "slide43_T0JE26B38A090B"
     QString imagePath;      // absolute path to model photo
+    QStringList imagePaths; // all images in the output category directory
     int     candidateCount = 0;   // e.g. "1 张" / "2 张"
     double  score          = 0.0; // e.g. 0.9776
     bool    confirmed      = false;

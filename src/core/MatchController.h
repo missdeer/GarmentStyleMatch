@@ -16,9 +16,10 @@ class MatchController : public QObject
     Q_PROPERTY(QString title             READ title           CONSTANT)
     Q_PROPERTY(int     currentPhotoIndex READ currentPhotoIndex WRITE setCurrentPhotoIndex NOTIFY currentPhotoIndexChanged)
     Q_PROPERTY(int     currentIndex      READ currentIndex    WRITE setCurrentIndex NOTIFY currentIndexChanged)
-    Q_PROPERTY(int     currentImagePage READ currentImagePage NOTIFY currentImagePageChanged)
+    Q_PROPERTY(int     currentImagePage READ currentImagePage WRITE setCurrentImagePage NOTIFY currentImagePageChanged)
     Q_PROPERTY(int     currentImageCount READ currentImageCount NOTIFY currentImageCountChanged)
     Q_PROPERTY(QString currentImagePath READ currentImagePath NOTIFY currentImagePathChanged)
+    Q_PROPERTY(QStringList currentOutputImagePaths READ currentOutputImagePaths NOTIFY currentOutputImagePathsChanged)
     Q_PROPERTY(QString currentPhotoPath READ currentPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString currentStyleId  READ currentStyleId  NOTIFY currentStyleIdChanged)
     Q_PROPERTY(QString categoryFilter  READ categoryFilter  WRITE setCategoryFilter NOTIFY categoryFilterChanged)
@@ -46,6 +47,7 @@ public:
     int     currentImagePage() const { return m_currentImagePage; }
     int     currentImageCount() const;
     QString currentImagePath() const;
+    QStringList currentOutputImagePaths() const;
     QString currentPhotoPath() const;
     QString currentStyleId() const;
     QString categoryFilter() const { return m_categoryFilter; }
@@ -59,6 +61,7 @@ public:
 
     void setCurrentIndex(int idx);
     void setCurrentPhotoIndex(int idx);
+    void setCurrentImagePage(int page);
     void setCategoryFilter(const QString &v);
     void setSearchText(const QString &v);
     void setPhotoDir(const QString &v);
@@ -70,6 +73,7 @@ public slots:
 
     void loadDemoData();
     void restorePersistentState();
+    void activatePreview(bool inputTabActive);
 
     void previousImage(bool inputTabActive = false);
     void nextImage(bool inputTabActive = false);
@@ -95,6 +99,7 @@ signals:
     void currentImagePageChanged();
     void currentImageCountChanged();
     void currentImagePathChanged();
+    void currentOutputImagePathsChanged();
     void currentPhotoPathChanged();
     void currentStyleIdChanged();
     void categoryFilterChanged();

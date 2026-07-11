@@ -81,6 +81,7 @@ ApplicationWindow {
                     onPhotoDirSearchRequested:  ()    => controller.scanPhotoDir()
                     onOutputDirEdited:           (p)   => controller.outputDir = p
                     onOutputDirSearchRequested: ()    => controller.scanOutputDir()
+                    onInputTabActiveChanged:     controller.activatePreview(inputTabActive)
                 }
 
                 ColumnLayout {
@@ -105,6 +106,17 @@ ApplicationWindow {
                         onPrev:          controller.previousImage(candidatePanel.inputTabActive)
                         onNext:          controller.nextImage(candidatePanel.inputTabActive)
                         onOpenOriginal:  controller.openCurrentImageExternally()
+                    }
+
+                    OutputImagePreview {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: visible ? 88 : 0
+                        visible: !candidatePanel.inputTabActive
+                                 && controller.currentIndex >= 0
+                                 && controller.currentImageCount > 0
+                        imagePaths: controller.currentOutputImagePaths
+                        currentIndex: controller.currentImagePage
+                        onImageActivated: (index) => controller.currentImagePage = index
                     }
 
                     ImagePropertiesPanel {

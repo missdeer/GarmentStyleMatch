@@ -1,5 +1,7 @@
 #include "CandidateListModel.h"
 
+#include <utility>
+
 CandidateListModel::CandidateListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -25,11 +27,9 @@ QVariant CandidateListModel::data(const QModelIndex &index, int role) const
     case ScoreRole:          return it.score;
     case ConfirmedRole:      return it.confirmed;
     case DisplayLineRole:
-        return QStringLiteral("%1 %2 (%3 \xE5\xBC\xA0) / %4")
+        return QStringLiteral("%1(%2)")
             .arg(it.styleId)
-            .arg(it.confirmed ? QStringLiteral("\xE2\x9C\x93") : QString())
-            .arg(it.candidateCount)
-            .arg(QString::number(it.score, 'f', 4));
+            .arg(it.candidateCount);
     default: return {};
     }
 }
