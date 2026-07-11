@@ -7,10 +7,7 @@ Rectangle {
 
     property string styleId: ""
 
-    signal confirmSelected(int galleryRow)
     signal confirmStyleId(string styleId)
-    signal previousItem()
-    signal generateModel()
 
     color: "#ffffff"
     border.color: "#dee3e8"
@@ -36,10 +33,7 @@ Rectangle {
 
             ConfirmBar {
                 styleId: root.styleId
-                onConfirmSelected: (idx) => root.confirmSelected(idx)
                 onConfirmStyleId: (id) => root.confirmStyleId(id)
-                onPreviousItem: root.previousItem()
-                onGenerateModel: root.generateModel()
             }
             PropertyList { entries: imageMetadata.fileInfo }
             PropertyList { entries: imageMetadata.imageInfo }

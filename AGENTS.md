@@ -1,12 +1,12 @@
-# CLAUDE.md — 6-rule
+# AGENTS.md — 6-rule
 
 These rules apply to every task in this project unless explicitly overridden.
 Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
 Each rule ends with a ❌/✅ pair — match the pattern, not the slogan.
 
-## Rule 0 — Modern CLI only (enforced by PreToolUse hook)
+## Rule 0 — Modern CLI only
 Mappings: `find`→`fd`, `grep`→`rg`, `cat`→`bat` (or Read), `ls`→`eza`, `diff`→`delta`, JSON parsing → `jq` (never `python -c "import json"`).
-The hook `.claude/hooks/legacy-cli-pretool.sh` will **deny** any Bash call whose first segment-token is a legacy tool and tell you the replacement — reissue with the modern equivalent, don't retry the same command. `git grep` / `git diff` are fine.
+`git grep` / `git diff` are fine.
 - ❌ `find . -name "*.go" | xargs grep TODO`
 - ✅ `fd -e go -x rg TODO`
 
@@ -78,7 +78,7 @@ Use C++20 and follow [C++ Core Guidelines](CppCoreGuideline.md). The repository 
 
 ## Automated checks
 
-`.claude/settings.json` enables the modern-CLI `PreToolUse` hook. It also registers clang-format, clang-tidy, and clazy `PostToolUse` hooks, but those scripts currently filter for the obsolete, absent `tools/crawler-webengine/` subtree and use its `cmake-build` directory. They do **not** check files under `src/`; do not report that static analysis passed unless it was run explicitly against `cmake-msvc-build/compile_commands.json`.
+`.claude/settings.json` enables a modern-CLI `PreToolUse` hook for Claude Code. It also registers clang-format, clang-tidy, and clazy `PostToolUse` hooks, but those scripts currently filter for the obsolete, absent `tools/crawler-webengine/` subtree and use its `cmake-build` directory. They do **not** check files under `src/`; do not report that static analysis passed unless it was run explicitly against `cmake-msvc-build/compile_commands.json`.
 
 The authoritative automated regression suite is CTest. It currently contains `PptStyleExtractorTest`, `GalleryListModelTest`, `PptPageListModelTest`, `ImageMetadataTest`, and `MatchControllerTest`.
 

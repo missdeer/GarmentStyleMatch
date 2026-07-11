@@ -127,10 +127,7 @@ ApplicationWindow {
                         Layout.preferredHeight: 245
                         Layout.minimumHeight: 170
                         styleId: controller.currentStyleId
-                        onConfirmSelected: (idx) => controller.confirmSelectedThumb(idx)
                         onConfirmStyleId:  (id)  => controller.confirmStyleId(id)
-                        onPreviousItem:    controller.previousCandidate()
-                        onGenerateModel:   controller.generateFineTuneModel()
                     }
                 }
 
