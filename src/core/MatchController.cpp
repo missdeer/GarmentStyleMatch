@@ -20,6 +20,7 @@
 #include "MatchController.h"
 #include "CandidateListModel.h"
 #include "GalleryListModel.h"
+#include "GarmentMatcher.h"
 #include "PhotoListModel.h"
 #include "PptPageListModel.h"
 #include "PptStyleExtractor.h"
@@ -35,7 +36,27 @@ namespace
     constexpr qint64 kBytesPerKibibyte = 1024;
 } // namespace
 
-MatchController::MatchController(QObject *parent) : QObject(parent), m_availableUiStyles(systemUiStyles()), m_currentUiStyle(QQuickStyle::name()) {}
+MatchController::MatchController(QObject *parent)
+    : QObject(parent),
+      m_availableUiStyles(systemUiStyles()),
+      m_currentUiStyle(QQuickStyle::name()),
+      m_availableInferenceEngines(GarmentMatcher::availableProviders())
+{
+    const QString savedEngine = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString();
+    for (const QString &availableEngine : std::as_const(m_availableInferenceEngines))
+    {
+        if (availableEngine.compare(savedEngine, Qt::CaseInsensitive) == 0)
+        {
+            m_currentInferenceEngine = availableEngine;
+            break;
+        }
+    }
+    if (m_currentInferenceEngine.isEmpty() && !m_availableInferenceEngines.isEmpty())
+    {
+        m_currentInferenceEngine = m_availableInferenceEngines.front();
+        QSettings().setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
+    }
+}
 
 QStringList MatchController::systemUiStyles()
 {
@@ -125,6 +146,38 @@ bool MatchController::setCurrentUiStyle(const QString &style)
         emit logMessage(QStringLiteral("无法保存界面风格: %1").arg(selectedStyle));
         return false;
     }
+    return true;
+}
+
+bool MatchController::setCurrentInferenceEngine(const QString &engine)
+{
+    QString selectedEngine;
+    for (const QString &availableEngine : std::as_const(m_availableInferenceEngines))
+    {
+        if (availableEngine.compare(engine, Qt::CaseInsensitive) == 0)
+        {
+            selectedEngine = availableEngine;
+            break;
+        }
+    }
+    if (selectedEngine.isEmpty())
+        return false;
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("matching/provider"), selectedEngine.toLower());
+    settings.sync();
+    if (settings.status() != QSettings::NoError)
+    {
+        emit logMessage(QStringLiteral("无法保存推理引擎设置: %1").arg(selectedEngine));
+        return false;
+    }
+
+    if (selectedEngine == m_currentInferenceEngine)
+        return false;
+
+    m_currentInferenceEngine = selectedEngine;
+    emit currentInferenceEngineChanged();
+    emit logMessage(QStringLiteral("推理引擎已切换为 %1，将在下次自动匹配时生效").arg(selectedEngine));
     return true;
 }
 
@@ -239,6 +292,11 @@ void MatchController::setCurrentPhotoIndex(int idx)
     }
     m_currentPhotoIndex = idx;
     m_previewSource     = PreviewPhoto;
+    if (!m_autoMatchedStyleIds.isEmpty())
+    {
+        m_autoMatchedStyleIds.clear();
+        emit autoMatchedStyleIdsChanged();
+    }
     QSettings settings;
     settings.setValue(QStringLiteral("selection/photoIndex"), m_currentPhotoIndex);
     settings.setValue(QStringLiteral("preview/inputTabActive"), true);
@@ -986,6 +1044,79 @@ void MatchController::confirmStyleId(const QString &styleId)
         m_candidateModel->markConfirmed(m_currentIndex, true);
     }
     emit logMessage(QStringLiteral("confirmStyleId=%1").arg(styleId));
+}
+
+void MatchController::autoMatchStyleIds()
+{
+    if (m_busy)
+    {
+        emit logMessage(QStringLiteral("已有后台任务正在运行，请等待完成"));
+        return;
+    }
+    if (!m_galleryModel)
+    {
+        emit logMessage(QStringLiteral("自动匹配失败：款号小图库模型不可用"));
+        return;
+    }
+
+    const QString photoPath = currentPhotoPath();
+    if (photoPath.isEmpty())
+    {
+        emit logMessage(QStringLiteral("自动匹配失败：请先选择一张实拍图"));
+        return;
+    }
+    const QVector<GalleryItem> galleryItems = m_galleryModel->allItems();
+    if (galleryItems.isEmpty())
+    {
+        emit logMessage(QStringLiteral("自动匹配失败：请先从 PPT 提取款号小图库"));
+        return;
+    }
+
+    const QString           modelsDir = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("models"));
+    const QSettings         settings;
+    GarmentMatcher::Options options;
+    options.segmentationModelPath =
+        settings.value(QStringLiteral("matching/segmentationModel"), QDir(modelsDir).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx")))
+            .toString();
+    options.embeddingModelPath =
+        settings.value(QStringLiteral("matching/embeddingModel"), QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx")))
+            .toString();
+    options.featureDatabasePath =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_embeddings.sqlite"));
+
+    auto *watcher = new QFutureWatcher<GarmentMatcher::Result>(this);
+    connect(watcher, &QFutureWatcher<GarmentMatcher::Result>::finished, this, [this, watcher, photoPath] {
+        const GarmentMatcher::Result result = watcher->result();
+        watcher->deleteLater();
+        setBusy(false);
+        if (currentPhotoPath() != photoPath)
+        {
+            emit logMessage(QStringLiteral("自动匹配已完成，但当前实拍图已切换，结果未回填"));
+            return;
+        }
+        if (!result.success)
+        {
+            emit logMessage(QStringLiteral("自动匹配失败：%1").arg(result.error));
+            return;
+        }
+
+        const QString styleIds = result.joinedStyleIds();
+        if (styleIds != m_autoMatchedStyleIds)
+        {
+            m_autoMatchedStyleIds = styleIds;
+            emit autoMatchedStyleIdsChanged();
+        }
+        emit logMessage(QStringLiteral("自动匹配完成（%1）：上衣 %2 (%3)，下装 %4 (%5)")
+                            .arg(result.provider,
+                                 result.upper.styleId.isEmpty() ? QStringLiteral("未检出") : result.upper.styleId,
+                                 QString::number(result.upper.score, 'f', 3),
+                                 result.lower.styleId.isEmpty() ? QStringLiteral("未检出") : result.lower.styleId,
+                                 QString::number(result.lower.score, 'f', 3)));
+    });
+
+    setBusy(true);
+    emit logMessage(QStringLiteral("正在分割服装并匹配 %1 张款号图片...").arg(galleryItems.size()));
+    watcher->setFuture(QtConcurrent::run([photoPath, galleryItems, options] { return GarmentMatcher::match(photoPath, galleryItems, options); }));
 }
 
 void MatchController::generateFineTuneModel()

@@ -126,8 +126,10 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 245
                         Layout.minimumHeight: 170
-                        styleId: controller.currentStyleId
+                        autoMatchedStyleIds: controller.autoMatchedStyleIds
+                        busy: controller.busy
                         onConfirmStyleId:  (id)  => controller.confirmStyleId(id)
+                        onAutoMatchRequested: controller.autoMatchStyleIds()
                     }
                 }
 

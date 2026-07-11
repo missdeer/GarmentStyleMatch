@@ -38,16 +38,34 @@ jobs:
         with:
           arch: x64
 
-      - name: Install libarchive (Linux)
+      - name: Install native dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libarchive-dev ninja-build
+          sudo apt-get install -y libarchive-dev libopencv-dev libsqlite3-dev ninja-build
 
-      - name: Install libarchive (macOS)
+      - name: Install native dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install libarchive ninja
+          brew install libarchive ninja opencv sqlite
+
+      - name: Set up Python for model preparation
+        if: runner.os != 'Windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache garment matching models
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: 3rdparty/models
+          key: garment-models-v1-${{ runner.os }}
+
+      - name: Prepare garment matching models
+        if: runner.os != 'Windows'
+        shell: pwsh
+        run: ./scripts/download-models.ps1
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
@@ -67,7 +85,10 @@ jobs:
         run: |
           cmake -S . -B build \
             -G "Ninja Multi-Config" \
-            -DLibArchive_ROOT="$(brew --prefix libarchive)"
+            -DLibArchive_ROOT="$(brew --prefix libarchive)" \
+            -DOpenCV_DIR="$(brew --prefix opencv)/lib/cmake/opencv4" \
+            -DSQLite3_INCLUDE_DIR="$(brew --prefix sqlite)/include" \
+            -DSQLite3_LIBRARY="$(brew --prefix sqlite)/lib/libsqlite3.dylib"
 
       - name: Build
         run: cmake --build build --config Release

@@ -39,6 +39,17 @@ endif()
 
 qt_standard_project_setup(REQUIRES 6.10)
 
+find_package(LibArchive REQUIRED)
+find_package(OpenCV CONFIG REQUIRED COMPONENTS core imgcodecs imgproc)
+find_package(unofficial-sqlite3 CONFIG QUIET)
+add_library(gsm_sqlite INTERFACE)
+if(TARGET unofficial::sqlite3::sqlite3)
+    target_link_libraries(gsm_sqlite INTERFACE unofficial::sqlite3::sqlite3)
+else()
+    find_package(SQLite3 REQUIRED)
+    target_link_libraries(gsm_sqlite INTERFACE SQLite::SQLite3)
+endif()
+
 set(GSM_3RDPARTY_DIR "${CMAKE_SOURCE_DIR}/3rdparty" CACHE PATH "Third-party libraries directory")
 if(EXISTS "${GSM_3RDPARTY_DIR}/CMakeLists.txt")
     add_subdirectory(3rdparty)

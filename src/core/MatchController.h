@@ -27,6 +27,7 @@ class MatchController : public QObject
     Q_PROPERTY(QStringList currentOutputImagePaths READ currentOutputImagePaths NOTIFY currentOutputImagePathsChanged)
     Q_PROPERTY(QString currentPhotoPath READ currentPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString currentStyleId READ currentStyleId NOTIFY currentStyleIdChanged)
+    Q_PROPERTY(QString autoMatchedStyleIds READ autoMatchedStyleIds NOTIFY autoMatchedStyleIdsChanged)
     Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
     Q_PROPERTY(QString inputFilterText READ inputFilterText WRITE setInputFilterText NOTIFY inputFilterTextChanged)
@@ -37,6 +38,8 @@ class MatchController : public QObject
     Q_PROPERTY(bool inputTabActive READ inputTabActive WRITE activatePreview NOTIFY inputTabActiveChanged)
     Q_PROPERTY(QStringList availableUiStyles READ availableUiStyles CONSTANT)
     Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
+    Q_PROPERTY(QStringList availableInferenceEngines READ availableInferenceEngines CONSTANT)
+    Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine NOTIFY currentInferenceEngineChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -67,7 +70,11 @@ public:
     [[nodiscard]] QStringList currentOutputImagePaths() const;
     [[nodiscard]] QString     currentPhotoPath() const;
     [[nodiscard]] QString     currentStyleId() const;
-    [[nodiscard]] QString     categoryFilter() const
+    [[nodiscard]] QString     autoMatchedStyleIds() const
+    {
+        return m_autoMatchedStyleIds;
+    }
+    [[nodiscard]] QString categoryFilter() const
     {
         return m_categoryFilter;
     }
@@ -107,6 +114,14 @@ public:
     {
         return m_currentUiStyle;
     }
+    [[nodiscard]] QStringList availableInferenceEngines() const
+    {
+        return m_availableInferenceEngines;
+    }
+    [[nodiscard]] QString currentInferenceEngine() const
+    {
+        return m_currentInferenceEngine;
+    }
     [[nodiscard]] bool busy() const
     {
         return m_busy;
@@ -125,6 +140,7 @@ public:
 
 public slots:
     bool setCurrentUiStyle(const QString &style);
+    bool setCurrentInferenceEngine(const QString &engine);
 
     void loadDemoData();
     void restorePersistentState();
@@ -139,6 +155,7 @@ public slots:
 
     void confirmSelectedThumb(int galleryRow);
     void confirmStyleId(const QString &styleId);
+    void autoMatchStyleIds();
     void generateFineTuneModel();
 
     void scanPhotoDir();
@@ -157,6 +174,8 @@ signals:
     void currentOutputImagePathsChanged();
     void currentPhotoPathChanged();
     void currentStyleIdChanged();
+    void autoMatchedStyleIdsChanged();
+    void currentInferenceEngineChanged();
     void categoryFilterChanged();
     void searchTextChanged();
     void inputFilterTextChanged();
@@ -197,6 +216,9 @@ private:
     QString     m_pptPath;
     QStringList m_availableUiStyles;
     QString     m_currentUiStyle;
+    QStringList m_availableInferenceEngines;
+    QString     m_currentInferenceEngine;
+    QString     m_autoMatchedStyleIds;
     bool        m_busy              = false;
     bool        m_restoringPptState = false;
 

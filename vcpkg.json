@@ -2,6 +2,11 @@
   "name": "garment-style-match",
   "version-string": "0.1.0",
   "dependencies": [
-    "libarchive"
+    "libarchive",
+    {
+      "name": "opencv4",
+      "default-features": false
+    },
+    "sqlite3"
   ]
 }

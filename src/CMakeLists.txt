@@ -7,6 +7,7 @@ set(GSM_SOURCES
     core/PptPageListModel.cpp
     core/PptStyleExtractor.cpp
     core/ImageMetadata.cpp
+    core/GarmentMatcher.cpp
 )
 
 set(GSM_HEADERS
@@ -17,6 +18,7 @@ set(GSM_HEADERS
     core/PptPageListModel.h
     core/PptStyleExtractor.h
     core/ImageMetadata.h
+    core/GarmentMatcher.h
 )
 
 # Some localized MSVC installations emit /showIncludes output in a code page
@@ -74,8 +76,6 @@ target_include_directories(GarmentStyleMatch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-find_package(LibArchive REQUIRED)
-
 target_link_libraries(GarmentStyleMatch PRIVATE
     Qt6::Concurrent
     Qt6::Core
@@ -85,8 +85,42 @@ target_link_libraries(GarmentStyleMatch PRIVATE
     Qt6::QuickControls2
     Qt6::Widgets
     LibArchive::LibArchive
+    gsm_onnxruntime_headers
+    ${OpenCV_LIBS}
+    gsm_sqlite
     $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
 )
+
+if(WIN32)
+    add_custom_command(TARGET GarmentStyleMatch POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/cuda"
+                "$<TARGET_FILE_DIR:GarmentStyleMatch>/onnxruntime/cuda"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/directml"
+                "$<TARGET_FILE_DIR:GarmentStyleMatch>/onnxruntime/directml"
+        COMMENT "Copying ONNX Runtime binaries"
+        VERBATIM
+    )
+else()
+    add_custom_command(TARGET GarmentStyleMatch POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/cpu"
+                "$<TARGET_FILE_DIR:GarmentStyleMatch>/onnxruntime/cpu"
+        COMMENT "Copying ONNX Runtime CPU binaries"
+        VERBATIM
+    )
+endif()
+
+if(GSM_MODELS_AVAILABLE)
+    add_custom_command(TARGET GarmentStyleMatch POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${GSM_MODEL_ROOT}"
+                "$<TARGET_FILE_DIR:GarmentStyleMatch>/models"
+        COMMENT "Copying garment matching models"
+        VERBATIM
+    )
+endif()
 
 set_target_properties(GarmentStyleMatch PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER  com.garmentstylematch.app
@@ -97,6 +131,23 @@ set_target_properties(GarmentStyleMatch PROPERTIES
 install(TARGETS GarmentStyleMatch
     RUNTIME DESTINATION bin
     BUNDLE  DESTINATION bin
+)
+
+if(APPLE)
+    set(_gsm_runtime_install_dir "bin/GarmentStyleMatch.app/Contents/MacOS")
+else()
+    set(_gsm_runtime_install_dir "bin")
+endif()
+install(DIRECTORY "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/"
+    DESTINATION "${_gsm_runtime_install_dir}/onnxruntime"
+)
+if(GSM_MODELS_AVAILABLE)
+    install(DIRECTORY "${GSM_MODEL_ROOT}/"
+        DESTINATION "${_gsm_runtime_install_dir}/models"
+    )
+endif()
+install(PROGRAMS "${CMAKE_SOURCE_DIR}/scripts/download-models.ps1"
+    DESTINATION bin/scripts
 )
 
 # ---- 开发期:写一个 qt.conf,让运行时直接去 Qt 安装目录找 qml/plugins ----

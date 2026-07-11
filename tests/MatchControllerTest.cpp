@@ -62,6 +62,21 @@ int main(int argc, char *argv[])
     controller.setCandidateModel(&model);
     controller.setOutputDir(temporary.path());
 
+    if (!check(controller.availableInferenceEngines().contains(QStringLiteral("CPU")),
+               QStringLiteral("推理引擎列表必须始终包含 CPU")))
+        return 1;
+    if (!check(controller.setCurrentInferenceEngine(QStringLiteral("CPU"))
+                   || controller.currentInferenceEngine() == QStringLiteral("CPU"),
+               QStringLiteral("应允许选择 CPU 推理引擎")))
+        return 1;
+    if (!check(QSettings().value(QStringLiteral("matching/provider")).toString()
+                   == QStringLiteral("cpu"),
+               QStringLiteral("推理引擎选择应持久化到 matching/provider")))
+        return 1;
+    if (!check(!controller.setCurrentInferenceEngine(QStringLiteral("unsupported")),
+               QStringLiteral("不应接受本机不支持的推理引擎")))
+        return 1;
+
     if (!check(QSettings().value(QStringLiteral("output/lastDir")).toString()
                    == temporary.path(),
                QStringLiteral("输出目录应持久化保存")))

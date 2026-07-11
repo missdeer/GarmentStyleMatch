@@ -66,6 +66,8 @@ int main(int argc, char *argv[])
     model.setFilterText(QStringLiteral("missing"));
     if (!check(model.rowCount() == 0, QStringLiteral("无匹配款号时图库应为空")))
         return 1;
+    if (!check(model.allItems().size() == 3, QStringLiteral("自动匹配必须使用完整图库，不能被界面搜索过滤缩小范围")))
+        return 1;
 
     model.setFilterText(QStringLiteral("  "));
     if (!check(model.rowCount() == 3, QStringLiteral("清空搜索内容后应恢复全部款号")))

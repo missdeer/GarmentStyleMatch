@@ -43,6 +43,10 @@ public:
         return m_filterText;
     }
     [[nodiscard]] const GalleryItem *at(int row) const;
+    [[nodiscard]] const QVector<GalleryItem> &allItems() const
+    {
+        return m_allItems;
+    }
     [[nodiscard]] int                selectedIndex() const
     {
         return m_selectedIndex;

@@ -15,6 +15,29 @@ Rectangle {
         exclusive: true
     }
 
+    ButtonGroup {
+        id: inferenceEngineButtonGroup
+        exclusive: true
+    }
+
+    Menu {
+        id: inferenceEngineMenu
+
+        Repeater {
+            model: controller.availableInferenceEngines
+
+            delegate: MenuItem {
+                required property string modelData
+
+                text: modelData
+                checkable: true
+                checked: modelData === controller.currentInferenceEngine
+                ButtonGroup.group: inferenceEngineButtonGroup
+                onTriggered: controller.setCurrentInferenceEngine(modelData)
+            }
+        }
+    }
+
     Menu {
         id: styleMenu
 
@@ -163,6 +186,22 @@ Rectangle {
         }
 
         Item { Layout.fillWidth: true }
+
+        Label {
+            id: inferenceEngineLink
+            text: qsTr("推理引擎：%1").arg(controller.currentInferenceEngine)
+            color: inferenceEngineMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            font.pixelSize: 13
+            font.underline: true
+
+            MouseArea {
+                id: inferenceEngineMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: inferenceEngineMenu.popup()
+            }
+        }
 
         Label {
             id: styleLink

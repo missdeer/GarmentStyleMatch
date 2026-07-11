@@ -4,9 +4,16 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    property string styleId: ""
+    property string autoMatchedStyleIds: ""
+    property bool busy: false
 
     signal confirmStyleId(string styleId)
+    signal autoMatchRequested()
+
+    onAutoMatchedStyleIdsChanged: {
+        if (autoMatchedStyleIds !== "")
+            styleIdField.text = autoMatchedStyleIds
+    }
 
     implicitHeight: layout.implicitHeight + 20
     color: "#eef1f4"
@@ -23,7 +30,8 @@ Rectangle {
         Button {
             Layout.fillWidth: true
             text: qsTr("自动匹配款号")
-            onClicked: styleIdField.text = root.styleId
+            enabled: !root.busy
+            onClicked: root.autoMatchRequested()
         }
 
         ClearableTextField {

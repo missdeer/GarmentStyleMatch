@@ -5,9 +5,11 @@ import QtQuick.Layouts
 Rectangle {
     id: root
 
-    property string styleId: ""
+    property string autoMatchedStyleIds: ""
+    property bool busy: false
 
     signal confirmStyleId(string styleId)
+    signal autoMatchRequested()
 
     color: "#ffffff"
     border.color: "#dee3e8"
@@ -32,8 +34,10 @@ Rectangle {
             currentIndex: categoryTabs.currentIndex
 
             ConfirmBar {
-                styleId: root.styleId
+                autoMatchedStyleIds: root.autoMatchedStyleIds
+                busy: root.busy
                 onConfirmStyleId: (id) => root.confirmStyleId(id)
+                onAutoMatchRequested: root.autoMatchRequested()
             }
             PropertyList { entries: imageMetadata.fileInfo }
             PropertyList { entries: imageMetadata.imageInfo }
