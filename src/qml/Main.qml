@@ -131,6 +131,7 @@ ApplicationWindow {
                         Layout.minimumHeight: 170
                         busy: controller.busy
                         onAutoMatchRequested: controller.autoMatchStyleIds()
+                        onCopyStyleIdsRequested: (offset, part) => controller.copyAdjacentStyleIds(offset, part)
                     }
                 }
 

@@ -189,6 +189,54 @@ int main(int argc, char *argv[])
                QStringLiteral("实拍图片列表应显示相对于实拍图片目录的路径，实际为: %1")
                    .arg(nestedPhotoDisplay)))
         return 1;
+
+    const QString databasePath = root.filePath(QStringLiteral("photos/gsm.db"));
+    StoredMatchResult previousResult;
+    previousResult.upper = {QStringLiteral("PREVIOUS-UPPER"), QStringLiteral("previous-upper.png"), true};
+    previousResult.lower = {QStringLiteral("PREVIOUS-LOWER"), QStringLiteral("previous-lower.png"), true};
+    StoredMatchResult currentResult;
+    currentResult.lower = {QStringLiteral("CURRENT-LOWER"), QStringLiteral("current-lower.png"), true};
+    StoredMatchResult nextResult;
+    nextResult.upper = {QStringLiteral("NEXT-UPPER"), QStringLiteral("next-upper.png"), true};
+    nextResult.lower = {QStringLiteral("NEXT-LOWER"), QStringLiteral("next-lower.png"), true};
+    QString matchStoreError;
+    if (!check(MatchResultStore::save(databasePath, photoModel.at(0)->imagePath, previousResult, &matchStoreError)
+                   && MatchResultStore::save(databasePath, photoModel.at(1)->imagePath, currentResult, &matchStoreError)
+                   && MatchResultStore::save(databasePath, photoModel.at(2)->imagePath, nextResult, &matchStoreError),
+               QStringLiteral("无法准备相邻款号复制测试数据: %1").arg(matchStoreError)))
+        return 1;
+
+    controller.setCurrentPhotoIndex(0);
+    controller.setCurrentPhotoIndex(1);
+    if (!check(controller.copyAdjacentStyleIds(-1, QStringLiteral("upper")),
+               QStringLiteral("应能复制上一张的上衣款号")))
+        return 1;
+    auto copiedResult = MatchResultStore::load(databasePath, photoModel.at(1)->imagePath, &matchStoreError);
+    if (!check(copiedResult && copiedResult->upper.styleId == QStringLiteral("PREVIOUS-UPPER")
+                   && !copiedResult->upper.confirmed && copiedResult->lower.styleId == QStringLiteral("CURRENT-LOWER")
+                   && copiedResult->lower.confirmed,
+               QStringLiteral("只复制上衣时应将上衣设为待确认，并保留当前裤裙记录")))
+        return 1;
+
+    if (!check(controller.copyAdjacentStyleIds(1, QStringLiteral("all")),
+               QStringLiteral("应能复制下一张的全部款号")))
+        return 1;
+    copiedResult = MatchResultStore::load(databasePath, photoModel.at(1)->imagePath, &matchStoreError);
+    if (!check(copiedResult && copiedResult->upper.styleId == QStringLiteral("NEXT-UPPER")
+                   && copiedResult->lower.styleId == QStringLiteral("NEXT-LOWER")
+                   && !copiedResult->upper.confirmed && !copiedResult->lower.confirmed,
+               QStringLiteral("复制全部款号时应替换上衣和裤裙，并将两者设为待确认")))
+        return 1;
+
+    controller.setCurrentPhotoIndex(0);
+    if (!check(!controller.copyAdjacentStyleIds(-1, QStringLiteral("all")),
+               QStringLiteral("第一张实拍图不应允许复制上一张款号")))
+        return 1;
+    const auto unchangedPrevious = MatchResultStore::load(databasePath, photoModel.at(0)->imagePath, &matchStoreError);
+    if (!check(unchangedPrevious && unchangedPrevious->upper.confirmed && unchangedPrevious->lower.confirmed,
+               QStringLiteral("越界复制失败时不得修改当前图片的款号记录")))
+        return 1;
+
     controller.setCurrentPhotoIndex(1);
     controller.setCurrentIndex(0);
     controller.setCurrentImagePage(1);
