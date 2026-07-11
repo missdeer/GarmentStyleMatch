@@ -6,6 +6,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QLibraryInfo>
@@ -1067,8 +1068,10 @@ void MatchController::autoMatchStyleIds()
     options.featureDatabasePath =
         QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_embeddings.sqlite"));
 
+    QElapsedTimer matchTimer;
+    matchTimer.start();
     auto *watcher = new QFutureWatcher<GarmentMatcher::Result>(this);
-    connect(watcher, &QFutureWatcher<GarmentMatcher::Result>::finished, this, [this, watcher, photoPath] {
+    connect(watcher, &QFutureWatcher<GarmentMatcher::Result>::finished, this, [this, watcher, photoPath, matchTimer] {
         const GarmentMatcher::Result result = watcher->result();
         watcher->deleteLater();
         setBusy(false);
@@ -1105,12 +1108,13 @@ void MatchController::autoMatchStyleIds()
             m_autoMatchedImagePaths = imagePaths;
             emit autoMatchedImagePathsChanged();
         }
-        emit logMessage(QStringLiteral("自动匹配完成（%1）：上衣 %2 (%3)，下装 %4 (%5)")
+        emit logMessage(QStringLiteral("自动匹配完成（%1）：上衣 %2 (%3)，下装 %4 (%5)，耗时 %6 毫秒")
                             .arg(result.provider,
                                  result.upper.styleId.isEmpty() ? QStringLiteral("未检出") : result.upper.styleId,
                                  QString::number(result.upper.score, 'f', 3),
                                  result.lower.styleId.isEmpty() ? QStringLiteral("未检出") : result.lower.styleId,
-                                 QString::number(result.lower.score, 'f', 3)));
+                                 QString::number(result.lower.score, 'f', 3))
+                            .arg(matchTimer.elapsed()));
     });
 
     setBusy(true);
