@@ -97,9 +97,7 @@ ApplicationWindow {
                         Layout.fillHeight: true
                         imagePath:       controller.currentImagePath
                         styleId:         controller.currentStyleId
-                        matchedImagePaths: candidatePanel.inputTabActive ? controller.autoMatchedImagePaths : []
-                        matchedStyleIds: candidatePanel.inputTabActive && controller.autoMatchedStyleIds !== ""
-                                         ? controller.autoMatchedStyleIds.split(",") : []
+                        matchedItems:     controller.autoMatchedItems
                         pageIndex:       controller.currentImagePage
                         pageCount:       controller.currentImageCount
                         previousEnabled: candidatePanel.inputTabActive
@@ -112,6 +110,8 @@ ApplicationWindow {
                         onPrev:          controller.previousImage(candidatePanel.inputTabActive)
                         onNext:          controller.nextImage(candidatePanel.inputTabActive)
                         onOpenOriginal:  controller.openCurrentImageExternally()
+                        onMatchConfirmed: (part) => controller.confirmAutoMatch(part)
+                        onMatchRejected:  (part) => controller.rejectAutoMatch(part)
                     }
 
                     OutputImagePreview {
@@ -129,9 +129,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 245
                         Layout.minimumHeight: 170
-                        autoMatchedStyleIds: controller.autoMatchedStyleIds
                         busy: controller.busy
-                        onConfirmStyleId:  (id)  => controller.confirmStyleId(id)
                         onAutoMatchRequested: controller.autoMatchStyleIds()
                     }
                 }

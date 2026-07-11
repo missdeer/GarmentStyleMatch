@@ -64,6 +64,23 @@ target_link_libraries(ImageMetadataTest PRIVATE
 
 add_test(NAME ImageMetadataTest COMMAND ImageMetadataTest)
 
+add_executable(MatchResultStoreTest
+    MatchResultStoreTest.cpp
+    ../src/core/MatchResultStore.cpp
+    ../src/core/MatchResultStore.h
+)
+
+target_include_directories(MatchResultStoreTest PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/core
+)
+
+target_link_libraries(MatchResultStoreTest PRIVATE
+    Qt6::Core
+    gsm_sqlite
+)
+
+add_test(NAME MatchResultStoreTest COMMAND MatchResultStoreTest)
+
 add_executable(MatchControllerTest
     MatchControllerTest.cpp
     ../src/core/MatchController.cpp
@@ -80,6 +97,8 @@ add_executable(MatchControllerTest
     ../src/core/PptPageListModel.h
     ../src/core/PptStyleExtractor.cpp
     ../src/core/PptStyleExtractor.h
+    ../src/core/MatchResultStore.cpp
+    ../src/core/MatchResultStore.h
 )
 
 target_include_directories(MatchControllerTest PRIVATE

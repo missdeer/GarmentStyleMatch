@@ -16,6 +16,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QUrl>
+#include <QVariantMap>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include "MatchController.h"
@@ -82,10 +83,15 @@ void MatchController::setCandidateModel(CandidateListModel *m)
 
 void MatchController::setGalleryModel(GalleryListModel *m)
 {
+    if (m_galleryModel)
+    {
+        disconnect(m_galleryModel, nullptr, this, nullptr);
+    }
     m_galleryModel = m;
     if (m_galleryModel)
     {
         m_galleryModel->setFilterText(m_searchText);
+        connect(m_galleryModel, &GalleryListModel::countChanged, this, &MatchController::rebuildAutoMatchedItems);
     }
 }
 
@@ -268,6 +274,7 @@ void MatchController::setCurrentIndex(int idx)
     {
         emit inputTabActiveChanged();
     }
+    restoreAutoMatchResult();
 }
 
 void MatchController::setCurrentPhotoIndex(int idx)
@@ -279,7 +286,6 @@ void MatchController::setCurrentPhotoIndex(int idx)
     }
     m_currentPhotoIndex = idx;
     m_previewSource     = PreviewPhoto;
-    clearAutoMatchResult();
     QSettings settings;
     settings.setValue(QStringLiteral("selection/photoIndex"), m_currentPhotoIndex);
     settings.setValue(QStringLiteral("preview/inputTabActive"), true);
@@ -291,6 +297,7 @@ void MatchController::setCurrentPhotoIndex(int idx)
         emit inputTabActiveChanged();
     }
     emit logMessage(QStringLiteral("selectPhoto row=%1").arg(idx));
+    restoreAutoMatchResult();
 }
 
 void MatchController::setCurrentImagePage(int page)
@@ -303,6 +310,7 @@ void MatchController::setCurrentImagePage(int page)
     QSettings().setValue(QStringLiteral("selection/outputImagePage"), m_currentImagePage);
     emit currentImagePageChanged();
     emit currentImagePathChanged();
+    restoreAutoMatchResult();
 }
 
 void MatchController::setCategoryFilter(const QString &v)
@@ -546,8 +554,12 @@ void MatchController::scanPhotoDir()
         std::sort(items.begin(), items.end(), [](const PhotoItem &a, const PhotoItem &b) { return a.imagePath < b.imagePath; });
     }
     m_photoModel->setItems(std::move(items));
-    setCurrentPhotoIndex(m_photoModel->rowCount() > 0 ? 0 : -1);
+    const int  nextPhotoIndex   = m_photoModel->rowCount() > 0 ? 0 : -1;
+    const bool selectionChanges = nextPhotoIndex != m_currentPhotoIndex || m_previewSource != PreviewPhoto;
+    setCurrentPhotoIndex(nextPhotoIndex);
     emit currentPhotoPathChanged();
+    if (!selectionChanges)
+        restoreAutoMatchResult();
     emit logMessage(QStringLiteral("scanPhotoDir=%1 (%2 files)").arg(m_photoDir).arg(m_photoModel->rowCount()));
 }
 
@@ -590,7 +602,14 @@ void MatchController::scanOutputDir()
         }
     }
     m_candidateModel->setItems(std::move(items));
-    setCurrentIndex(m_candidateModel->rowCount() > 0 ? 0 : -1);
+    const int  nextIndex        = m_candidateModel->rowCount() > 0 ? 0 : -1;
+    const bool selectionChanges = nextIndex != m_currentIndex || m_previewSource != PreviewOutput;
+    setCurrentIndex(nextIndex);
+    if (!selectionChanges)
+    {
+        emitCurrentChanged();
+        restoreAutoMatchResult();
+    }
     emit logMessage(QStringLiteral("scanOutputDir=%1 (%2 directories)").arg(m_outputDir).arg(m_candidateModel->rowCount()));
 }
 
@@ -964,6 +983,7 @@ void MatchController::previousImage(bool inputTabActive)
     --m_currentImagePage;
     emit currentImagePageChanged();
     emit currentImagePathChanged();
+    restoreAutoMatchResult();
 }
 
 void MatchController::nextImage(bool inputTabActive)
@@ -985,6 +1005,7 @@ void MatchController::nextImage(bool inputTabActive)
     ++m_currentImagePage;
     emit currentImagePageChanged();
     emit currentImagePathChanged();
+    restoreAutoMatchResult();
 }
 
 void MatchController::openCurrentImageExternally() const
@@ -1021,15 +1042,6 @@ void MatchController::confirmSelectedThumb(int galleryRow)
     emit logMessage(QStringLiteral("confirmSelectedThumb row=%1").arg(galleryRow));
 }
 
-void MatchController::confirmStyleId(const QString &styleId)
-{
-    if (m_candidateModel)
-    {
-        m_candidateModel->markConfirmed(m_currentIndex, true);
-    }
-    emit logMessage(QStringLiteral("confirmStyleId=%1").arg(styleId));
-}
-
 void MatchController::autoMatchStyleIds()
 {
     if (m_busy)
@@ -1043,10 +1055,10 @@ void MatchController::autoMatchStyleIds()
         return;
     }
 
-    const QString photoPath = currentPhotoPath();
-    if (photoPath.isEmpty())
+    const QString imagePath = currentImagePath();
+    if (imagePath.isEmpty())
     {
-        emit logMessage(QStringLiteral("自动匹配失败：请先选择一张实拍图"));
+        emit logMessage(QStringLiteral("自动匹配失败：当前没有可匹配的图片"));
         return;
     }
     const QVector<GalleryItem> galleryItems = m_galleryModel->allItems();
@@ -1071,13 +1083,13 @@ void MatchController::autoMatchStyleIds()
     QElapsedTimer matchTimer;
     matchTimer.start();
     auto *watcher = new QFutureWatcher<GarmentMatcher::Result>(this);
-    connect(watcher, &QFutureWatcher<GarmentMatcher::Result>::finished, this, [this, watcher, photoPath, matchTimer] {
+    connect(watcher, &QFutureWatcher<GarmentMatcher::Result>::finished, this, [this, watcher, imagePath, matchTimer] {
         const GarmentMatcher::Result result = watcher->result();
         watcher->deleteLater();
         setBusy(false);
-        if (currentPhotoPath() != photoPath)
+        if (currentImagePath() != imagePath)
         {
-            emit logMessage(QStringLiteral("自动匹配已完成，但当前实拍图已切换，结果未回填"));
+            emit logMessage(QStringLiteral("自动匹配已完成，但当前图片已切换，结果未回填"));
             return;
         }
         if (!result.success)
@@ -1086,55 +1098,155 @@ void MatchController::autoMatchStyleIds()
             return;
         }
 
-        const QString styleIds = result.joinedStyleIds();
-        if (styleIds != m_autoMatchedStyleIds)
-        {
-            m_autoMatchedStyleIds = styleIds;
-            emit autoMatchedStyleIdsChanged();
-        }
-        QStringList imagePaths;
-        QStringList matchedStyleIds;
-        const auto  appendMatch = [&imagePaths, &matchedStyleIds](const GarmentMatcher::Match &match) {
-            if (!match.styleId.isEmpty() && !match.imagePath.isEmpty() && !matchedStyleIds.contains(match.styleId))
-            {
-                matchedStyleIds.push_back(match.styleId);
-                imagePaths.push_back(match.imagePath);
-            }
-        };
-        appendMatch(result.upper);
-        appendMatch(result.lower);
-        if (imagePaths != m_autoMatchedImagePaths)
-        {
-            m_autoMatchedImagePaths = imagePaths;
-            emit autoMatchedImagePathsChanged();
-        }
-        emit logMessage(QStringLiteral("自动匹配完成（%1）：上衣 %2 (%3)，下装 %4 (%5)，耗时 %6 毫秒")
-                            .arg(result.provider,
-                                 result.upper.styleId.isEmpty() ? QStringLiteral("未检出") : result.upper.styleId,
-                                 QString::number(result.upper.score, 'f', 3),
-                                 result.lower.styleId.isEmpty() ? QStringLiteral("未检出") : result.lower.styleId,
-                                 QString::number(result.lower.score, 'f', 3))
-                            .arg(matchTimer.elapsed()));
+        m_autoMatchResult       = {};
+        m_autoMatchResult.upper = {result.upper.styleId, QFileInfo(result.upper.imagePath).fileName(), false};
+        m_autoMatchResult.lower = {result.lower.styleId, QFileInfo(result.lower.imagePath).fileName(), false};
+        m_autoMatchImagePath    = imagePath;
+        rebuildAutoMatchedItems();
+
+        QString message = QStringLiteral("自动匹配完成（%1）：上衣 %2 (%3)，下装 %4 (%5)，耗时 %6 毫秒")
+                              .arg(result.provider,
+                                   result.upper.styleId.isEmpty() ? QStringLiteral("未检出") : result.upper.styleId,
+                                   QString::number(result.upper.score, 'f', 3),
+                                   result.lower.styleId.isEmpty() ? QStringLiteral("未检出") : result.lower.styleId,
+                                   QString::number(result.lower.score, 'f', 3))
+                              .arg(matchTimer.elapsed());
+        QString persistenceError;
+        if (!persistAutoMatchResult(&persistenceError))
+            message += QStringLiteral("；未写入 gsm.db：%1").arg(persistenceError);
+        emit logMessage(message);
     });
 
     setBusy(true);
     clearAutoMatchResult();
     emit logMessage(QStringLiteral("正在分割服装并匹配 %1 张款号图片...").arg(galleryItems.size()));
-    watcher->setFuture(QtConcurrent::run([photoPath, galleryItems, options] { return GarmentMatcher::match(photoPath, galleryItems, options); }));
+    watcher->setFuture(QtConcurrent::run([imagePath, galleryItems, options] { return GarmentMatcher::match(imagePath, galleryItems, options); }));
 }
 
 void MatchController::clearAutoMatchResult()
 {
-    if (!m_autoMatchedStyleIds.isEmpty())
+    const bool hadItems = !m_autoMatchedItems.isEmpty();
+    m_autoMatchResult   = {};
+    m_autoMatchImagePath.clear();
+    m_autoMatchedItems.clear();
+    if (hadItems)
+        emit autoMatchedItemsChanged();
+}
+
+void MatchController::restoreAutoMatchResult()
+{
+    clearAutoMatchResult();
+    const QString imagePath = currentImagePath();
+    if (imagePath.isEmpty() || m_photoDir.isEmpty())
+        return;
+
+    QString    error;
+    const auto result = MatchResultStore::load(matchDatabasePath(), imagePath, &error);
+    if (!error.isEmpty())
     {
-        m_autoMatchedStyleIds.clear();
-        emit autoMatchedStyleIdsChanged();
+        emit logMessage(QStringLiteral("读取 gsm.db 失败：%1").arg(error));
+        return;
     }
-    if (!m_autoMatchedImagePaths.isEmpty())
+    if (!result)
+        return;
+
+    m_autoMatchResult    = *result;
+    m_autoMatchImagePath = imagePath;
+    rebuildAutoMatchedItems();
+}
+
+void MatchController::rebuildAutoMatchedItems()
+{
+    QVariantList items;
+    const auto   append = [this, &items](const StoredGarmentMatch &match, const QString &part, const QString &garment) {
+        if (match.isEmpty())
+            return;
+        QVariantMap item;
+        item.insert(QStringLiteral("part"), part);
+        item.insert(QStringLiteral("garment"), garment);
+        item.insert(QStringLiteral("styleId"), match.styleId);
+        item.insert(QStringLiteral("imagePath"), galleryImagePath(match));
+        item.insert(QStringLiteral("confirmed"), match.confirmed);
+        items.push_back(item);
+    };
+    append(m_autoMatchResult.upper, QStringLiteral("upper"), QStringLiteral("上衣"));
+    append(m_autoMatchResult.lower, QStringLiteral("lower"), QStringLiteral("裤裙"));
+    if (items == m_autoMatchedItems)
+        return;
+    m_autoMatchedItems = items;
+    emit autoMatchedItemsChanged();
+}
+
+bool MatchController::persistAutoMatchResult(QString *error) const
+{
+    if (m_photoDir.isEmpty())
     {
-        m_autoMatchedImagePaths.clear();
-        emit autoMatchedImagePathsChanged();
+        if (error)
+            *error = QStringLiteral("请先选择实拍图输入目录");
+        return false;
     }
+    return MatchResultStore::save(matchDatabasePath(), m_autoMatchImagePath, m_autoMatchResult, error);
+}
+
+QString MatchController::matchDatabasePath() const
+{
+    return QDir(m_photoDir).absoluteFilePath(QStringLiteral("gsm.db"));
+}
+
+QString MatchController::galleryImagePath(const StoredGarmentMatch &match) const
+{
+    if (!m_galleryModel)
+        return {};
+    for (const GalleryItem &item : m_galleryModel->allItems())
+    {
+        if (item.styleId == match.styleId && QFileInfo(item.imagePath).fileName().compare(match.imageName, Qt::CaseInsensitive) == 0)
+            return item.imagePath;
+    }
+    return {};
+}
+
+void MatchController::confirmAutoMatch(const QString &part)
+{
+    if (m_autoMatchImagePath != currentImagePath())
+        return;
+    StoredGarmentMatch *match = part == QLatin1String("upper")   ? &m_autoMatchResult.upper
+                                : part == QLatin1String("lower") ? &m_autoMatchResult.lower
+                                                                 : nullptr;
+    if (!match || match->isEmpty())
+        return;
+
+    match->confirmed = true;
+    rebuildAutoMatchedItems();
+    QString error;
+    if (!persistAutoMatchResult(&error))
+    {
+        emit logMessage(QStringLiteral("确认结果未写入 gsm.db：%1").arg(error));
+        return;
+    }
+    emit logMessage(
+        QStringLiteral("%1款号 %2 已确认").arg(part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙"), match->styleId));
+}
+
+void MatchController::rejectAutoMatch(const QString &part)
+{
+    if (m_autoMatchImagePath != currentImagePath())
+        return;
+    StoredGarmentMatch *match = part == QLatin1String("upper")   ? &m_autoMatchResult.upper
+                                : part == QLatin1String("lower") ? &m_autoMatchResult.lower
+                                                                 : nullptr;
+    if (!match || match->isEmpty())
+        return;
+
+    const QString garment = part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙");
+    *match                = {};
+    rebuildAutoMatchedItems();
+    QString error;
+    if (!persistAutoMatchResult(&error))
+    {
+        emit logMessage(QStringLiteral("删除%1匹配后未能更新 gsm.db：%2").arg(garment, error));
+        return;
+    }
+    emit logMessage(QStringLiteral("已删除错误的%1匹配记录").arg(garment));
 }
 
 void MatchController::generateFineTuneModel()

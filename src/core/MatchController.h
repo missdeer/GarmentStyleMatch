@@ -6,6 +6,9 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariantList>
+
+#include "MatchResultStore.h"
 
 // Qt-facing declarations retain concise parameter names that mirror their property bindings.
 // NOLINTBEGIN(readability-identifier-length)
@@ -27,8 +30,7 @@ class MatchController : public QObject
     Q_PROPERTY(QStringList currentOutputImagePaths READ currentOutputImagePaths NOTIFY currentOutputImagePathsChanged)
     Q_PROPERTY(QString currentPhotoPath READ currentPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString currentStyleId READ currentStyleId NOTIFY currentStyleIdChanged)
-    Q_PROPERTY(QString autoMatchedStyleIds READ autoMatchedStyleIds NOTIFY autoMatchedStyleIdsChanged)
-    Q_PROPERTY(QStringList autoMatchedImagePaths READ autoMatchedImagePaths NOTIFY autoMatchedImagePathsChanged)
+    Q_PROPERTY(QVariantList autoMatchedItems READ autoMatchedItems NOTIFY autoMatchedItemsChanged)
     Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
     Q_PROPERTY(QString inputFilterText READ inputFilterText WRITE setInputFilterText NOTIFY inputFilterTextChanged)
@@ -66,18 +68,14 @@ public:
     {
         return m_previewSource == PreviewPhoto ? 0 : m_currentImagePage;
     }
-    [[nodiscard]] int         currentImageCount() const;
-    [[nodiscard]] QString     currentImagePath() const;
-    [[nodiscard]] QStringList currentOutputImagePaths() const;
-    [[nodiscard]] QString     currentPhotoPath() const;
-    [[nodiscard]] QString     currentStyleId() const;
-    [[nodiscard]] QString     autoMatchedStyleIds() const
+    [[nodiscard]] int          currentImageCount() const;
+    [[nodiscard]] QString      currentImagePath() const;
+    [[nodiscard]] QStringList  currentOutputImagePaths() const;
+    [[nodiscard]] QString      currentPhotoPath() const;
+    [[nodiscard]] QString      currentStyleId() const;
+    [[nodiscard]] QVariantList autoMatchedItems() const
     {
-        return m_autoMatchedStyleIds;
-    }
-    [[nodiscard]] QStringList autoMatchedImagePaths() const
-    {
-        return m_autoMatchedImagePaths;
+        return m_autoMatchedItems;
     }
     [[nodiscard]] QString categoryFilter() const
     {
@@ -159,8 +157,9 @@ public slots:
     void nextCandidate();
 
     void confirmSelectedThumb(int galleryRow);
-    void confirmStyleId(const QString &styleId);
     void autoMatchStyleIds();
+    void confirmAutoMatch(const QString &part);
+    void rejectAutoMatch(const QString &part);
     void generateFineTuneModel();
 
     void scanPhotoDir();
@@ -179,8 +178,7 @@ signals:
     void currentOutputImagePathsChanged();
     void currentPhotoPathChanged();
     void currentStyleIdChanged();
-    void autoMatchedStyleIdsChanged();
-    void autoMatchedImagePathsChanged();
+    void autoMatchedItemsChanged();
     void categoryFilterChanged();
     void searchTextChanged();
     void inputFilterTextChanged();
@@ -194,8 +192,13 @@ signals:
     void logMessage(const QString &msg);
 
 private:
-    void emitCurrentChanged();
-    void clearAutoMatchResult();
+    void                  emitCurrentChanged();
+    void                  clearAutoMatchResult();
+    void                  restoreAutoMatchResult();
+    void                  rebuildAutoMatchedItems();
+    bool                  persistAutoMatchResult(QString *error = nullptr) const;
+    [[nodiscard]] QString matchDatabasePath() const;
+    [[nodiscard]] QString galleryImagePath(const StoredGarmentMatch &match) const;
 
     enum PreviewSource : std::uint8_t
     {
@@ -213,21 +216,22 @@ private:
     int           m_currentImagePage  = 0; // 0-based
     PreviewSource m_previewSource     = PreviewPhoto;
 
-    QString     m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
-    QString     m_searchText;
-    QString     m_inputFilterText;
-    QString     m_outputFilterText;
-    QString     m_photoDir;
-    QString     m_outputDir;
-    QString     m_pptPath;
-    QStringList m_availableUiStyles;
-    QString     m_currentUiStyle;
-    QStringList m_availableInferenceEngines;
-    QString     m_currentInferenceEngine;
-    QString     m_autoMatchedStyleIds;
-    QStringList m_autoMatchedImagePaths;
-    bool        m_busy              = false;
-    bool        m_restoringPptState = false;
+    QString           m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
+    QString           m_searchText;
+    QString           m_inputFilterText;
+    QString           m_outputFilterText;
+    QString           m_photoDir;
+    QString           m_outputDir;
+    QString           m_pptPath;
+    QStringList       m_availableUiStyles;
+    QString           m_currentUiStyle;
+    QStringList       m_availableInferenceEngines;
+    QString           m_currentInferenceEngine;
+    QVariantList      m_autoMatchedItems;
+    StoredMatchResult m_autoMatchResult;
+    QString           m_autoMatchImagePath;
+    bool              m_busy              = false;
+    bool              m_restoringPptState = false;
 
     void                         setBusy(bool on);
     [[nodiscard]] static QString pptCacheDir(const QString &pptFilePath);

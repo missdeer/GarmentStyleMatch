@@ -7,8 +7,7 @@ Rectangle {
     id: root
     property string imagePath: ""
     property string styleId:   ""
-    property var matchedImagePaths: []
-    property var matchedStyleIds: []
+    property var matchedItems: []
     property int    pageIndex: 0
     property int    pageCount: 0
     property bool   previousEnabled: pageIndex > 0
@@ -18,6 +17,8 @@ Rectangle {
     signal prev()
     signal next()
     signal openOriginal()
+    signal matchConfirmed(string part)
+    signal matchRejected(string part)
 
     color: "#ffffff"
     border.color: "#dee3e8"
@@ -57,7 +58,7 @@ Rectangle {
             Rectangle {
                 Layout.fillHeight: true
                 Layout.preferredWidth: visible ? Math.min(220, Math.max(140, imageArea.width * 0.24)) : 0
-                visible: root.matchedImagePaths.length > 0
+                visible: root.matchedItems.length > 0
                 color: "#f5f7fa"
                 border.color: "#cfd8df"
 
@@ -67,12 +68,11 @@ Rectangle {
                     spacing: 6
 
                     Repeater {
-                        model: root.matchedImagePaths
+                        model: root.matchedItems
 
                         delegate: Rectangle {
                             id: matchCell
-                            required property int index
-                            required property string modelData
+                            required property var modelData
 
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -84,9 +84,37 @@ Rectangle {
                                 anchors.fill: parent
                                 anchors.bottomMargin: matchLabel.height + 4
                                 anchors.margins: 4
-                                source: matchCell.modelData !== "" ? "file:///" + matchCell.modelData : ""
+                                source: matchCell.modelData.imagePath !== "" ? "file:///" + matchCell.modelData.imagePath : ""
                                 fillMode: Image.PreserveAspectFit
                                 asynchronous: true
+                            }
+
+                            Row {
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 5
+                                spacing: 4
+
+                                Button {
+                                    width: 28
+                                    height: 28
+                                    text: "×"
+                                    font.pixelSize: 18
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("匹配错误，删除记录")
+                                    onClicked: root.matchRejected(matchCell.modelData.part)
+                                }
+
+                                Button {
+                                    width: 28
+                                    height: 28
+                                    text: "✓"
+                                    enabled: !matchCell.modelData.confirmed
+                                    highlighted: matchCell.modelData.confirmed
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: matchCell.modelData.confirmed ? qsTr("已确认") : qsTr("确认匹配")
+                                    onClicked: root.matchConfirmed(matchCell.modelData.part)
+                                }
                             }
 
                             Label {
@@ -95,9 +123,7 @@ Rectangle {
                                 anchors.right: parent.right
                                 anchors.bottom: parent.bottom
                                 anchors.margins: 6
-                                text: matchCell.index < root.matchedStyleIds.length
-                                      ? qsTr("款号：%1").arg(root.matchedStyleIds[matchCell.index])
-                                      : ""
+                                text: qsTr("%1款号：%2").arg(matchCell.modelData.garment).arg(matchCell.modelData.styleId)
                                 horizontalAlignment: Text.AlignHCenter
                                 elide: Label.ElideRight
                                 font.pixelSize: 11

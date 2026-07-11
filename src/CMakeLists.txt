@@ -8,6 +8,7 @@ set(GSM_SOURCES
     core/PptStyleExtractor.cpp
     core/ImageMetadata.cpp
     core/GarmentMatcher.cpp
+    core/MatchResultStore.cpp
 )
 
 set(GSM_HEADERS
@@ -19,6 +20,7 @@ set(GSM_HEADERS
     core/PptStyleExtractor.h
     core/ImageMetadata.h
     core/GarmentMatcher.h
+    core/MatchResultStore.h
 )
 
 # Some localized MSVC installations emit /showIncludes output in a code page
