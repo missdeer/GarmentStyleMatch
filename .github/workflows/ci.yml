@@ -32,6 +32,12 @@ jobs:
           modules: ${{ matrix.qt_modules }}
           cache: true
 
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install libarchive (Linux)
         if: runner.os == 'Linux'
         run: |

@@ -34,6 +34,12 @@ jobs:
           modules: ${{ matrix.qt_modules }}
           cache: true
 
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install libarchive (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -75,7 +81,7 @@ jobs:
         run: ctest --output-on-failure -C Release
 
       - name: Install
-        run: cmake --install build --prefix install --config Release
+        run: cmake --install build --prefix "${{ github.workspace }}/install" --config Release
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
