@@ -57,7 +57,8 @@ jobs:
         run: |
           cmake -S . -B build `
             -G "Ninja Multi-Config" `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
@@ -82,6 +83,70 @@ jobs:
 
       - name: Install
         run: cmake --install build --prefix "${{ github.workspace }}/install" --config Release
+
+      - name: Deploy Windows runtime dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Keep every runtime file next to GarmentStyleMatch.exe (or in one of
+          # Qt's standard subdirectories below it), so the extracted package is
+          # independent of both the runner's Qt installation and vcpkg tree.
+          $appDir = Join-Path $env:GITHUB_WORKSPACE 'install/bin'
+          $exe = Join-Path $appDir 'GarmentStyleMatch.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "Installed executable not found: $exe"
+          }
+
+          $winDeployQt = (Get-Command windeployqt.exe -ErrorAction Stop).Source
+          & $winDeployQt `
+            --release `
+            --force `
+            --compiler-runtime `
+            --qmldir (Join-Path $env:GITHUB_WORKSPACE 'src/qml') `
+            --dir $appDir `
+            $exe
+          if ($LASTEXITCODE -ne 0) {
+            throw "windeployqt failed with exit code $LASTEXITCODE"
+          }
+
+          # windeployqt only follows Qt dependencies. libarchive and its
+          # transitive dependencies are supplied by vcpkg and must be copied
+          # separately from the manifest-mode installed tree.
+          $vcpkgBin = Join-Path $env:GITHUB_WORKSPACE 'build/vcpkg_installed/x64-windows/bin'
+          $vcpkgDlls = @(Get-ChildItem -LiteralPath $vcpkgBin -Filter '*.dll' -File)
+          if ($vcpkgDlls.Count -eq 0) {
+            throw "No vcpkg runtime DLLs found in $vcpkgBin"
+          }
+          $vcpkgDlls | Copy-Item -Destination $appDir -Force
+
+          # Fail the job before creating a release if either the native or QML
+          # deployment regresses. These are representative required files;
+          # windeployqt remains responsible for resolving the complete Qt set.
+          $requiredFiles = @(
+            'archive.dll',
+            'Qt6Core.dll',
+            'Qt6Gui.dll',
+            'Qt6Qml.dll',
+            'Qt6Quick.dll',
+            'Qt6QuickControls2.dll',
+            'platforms/qwindows.dll',
+            'qml/QtQml/qmldir',
+            'qml/QtQuick/qmldir',
+            'qml/QtQuick/Controls/qmldir'
+          )
+          $missingFiles = @($requiredFiles | Where-Object {
+            -not (Test-Path -LiteralPath (Join-Path $appDir $_))
+          })
+          if ($missingFiles.Count -ne 0) {
+            throw "Windows deployment is incomplete. Missing: $($missingFiles -join ', ')"
+          }
+
+          Write-Host "Windows deployment contents:"
+          Get-ChildItem -LiteralPath $appDir -Recurse | ForEach-Object {
+            $_.FullName.Substring($appDir.Length + 1)
+          }
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
