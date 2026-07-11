@@ -156,12 +156,20 @@ int main(int argc, char *argv[])
         return 1;
 
     const QString photoDir = root.filePath(QStringLiteral("photos"));
-    if (!check(root.mkpath(QStringLiteral("photos"))
+    if (!check(root.mkpath(QStringLiteral("photos/z"))
                    && createFile(root.filePath(QStringLiteral("photos/input.jpg")))
-                   && createFile(root.filePath(QStringLiteral("photos/second.jpg"))),
+                   && createFile(root.filePath(QStringLiteral("photos/second.jpg")))
+                   && createFile(root.filePath(QStringLiteral("photos/z/third.jpg"))),
                QStringLiteral("无法创建实拍图片目录")))
         return 1;
     controller.setPhotoDir(photoDir);
+    const QString nestedPhotoDisplay = photoModel.data(
+        photoModel.index(2), PhotoListModel::DisplayLineRole).toString();
+    if (!check(nestedPhotoDisplay
+                   == QDir::toNativeSeparators(QStringLiteral("z/third.jpg")),
+               QStringLiteral("实拍图片列表应显示相对于实拍图片目录的路径，实际为: %1")
+                   .arg(nestedPhotoDisplay)))
+        return 1;
     controller.setCurrentPhotoIndex(1);
     controller.setCurrentIndex(0);
     controller.setCurrentImagePage(1);
@@ -178,7 +186,7 @@ int main(int argc, char *argv[])
     restoredController.setPhotoModel(&restoredPhotoModel);
     restoredController.restorePersistentState();
     if (!check(restoredController.photoDir() == photoDir
-                   && restoredPhotoModel.rowCount() == 2,
+                   && restoredPhotoModel.rowCount() == 3,
                QStringLiteral("启动恢复后应自动加载实拍图片目录")))
         return 1;
     if (!check(restoredController.outputDir() == temporary.path()

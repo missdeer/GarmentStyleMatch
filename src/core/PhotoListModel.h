@@ -6,9 +6,10 @@
 
 struct PhotoItem
 {
-    QString fileName;   // 文件名(不含目录)
-    QString imagePath;  // 绝对路径
+    QString fileName;     // 文件名(不含目录)
+    QString imagePath;    // 绝对路径
     bool    processed = false; // 是否已归类
+    QString relativePath; // 相对于实拍图片目录的路径
 };
 
 class PhotoListModel : public QAbstractListModel

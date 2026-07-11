@@ -412,6 +412,7 @@ void MatchController::scanPhotoDir()
 
     QVector<PhotoItem> items;
     if (!m_photoDir.isEmpty()) {
+        const QDir photoDirectory(m_photoDir);
         static const QStringList imgFilter = {
             QStringLiteral("*.jpg"), QStringLiteral("*.jpeg"),
         };
@@ -422,8 +423,9 @@ void MatchController::scanPhotoDir()
             it.next();
             const QFileInfo fi = it.fileInfo();
             PhotoItem p;
-            p.fileName  = fi.fileName();
-            p.imagePath = fi.absoluteFilePath();
+            p.fileName     = fi.fileName();
+            p.imagePath    = fi.absoluteFilePath();
+            p.relativePath = photoDirectory.relativeFilePath(p.imagePath);
             items.push_back(p);
         }
         std::sort(items.begin(), items.end(),

@@ -27,9 +27,8 @@ QVariant PhotoListModel::data(const QModelIndex &index, int role) const
     case ImagePathRole: return it.imagePath;
     case ProcessedRole: return it.processed;
     case DisplayLineRole:
-        return QStringLiteral("%1  %2")
-            .arg(it.processed ? QStringLiteral("\xE2\x9C\x93") : QStringLiteral(" "),
-                 QDir::toNativeSeparators(it.imagePath));
+        return QDir::toNativeSeparators(
+            it.relativePath.isEmpty() ? it.fileName : it.relativePath);
     default: return {};
     }
 }
@@ -72,6 +71,7 @@ void PhotoListModel::rebuildVisibleRows()
         const PhotoItem &item = m_items.at(row);
         if (m_filterText.isEmpty()
             || item.fileName.contains(m_filterText, Qt::CaseInsensitive)
+            || item.relativePath.contains(m_filterText, Qt::CaseInsensitive)
             || item.imagePath.contains(m_filterText, Qt::CaseInsensitive))
             m_visibleRows.push_back(row);
     }
