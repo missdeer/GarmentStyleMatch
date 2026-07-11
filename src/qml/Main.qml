@@ -73,6 +73,7 @@ ApplicationWindow {
                     inputModel:  photoModel
                     currentRow:      controller.currentIndex
                     currentPhotoRow: controller.currentPhotoIndex
+                    inputTabActive: controller.inputTabActive
                     photoDir:   controller.photoDir
                     outputDir:  controller.outputDir
                     onRowActivated:             (row) => controller.currentIndex = row
@@ -81,7 +82,7 @@ ApplicationWindow {
                     onPhotoDirSearchRequested:  ()    => controller.scanPhotoDir()
                     onOutputDirEdited:           (p)   => controller.outputDir = p
                     onOutputDirSearchRequested: ()    => controller.scanOutputDir()
-                    onInputTabActiveChanged:     controller.activatePreview(inputTabActive)
+                    onInputTabActiveEdited:      (active) => controller.activatePreview(active)
                 }
 
                 ColumnLayout {

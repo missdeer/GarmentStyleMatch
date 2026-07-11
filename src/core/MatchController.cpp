@@ -172,10 +172,18 @@ void MatchController::setCurrentIndex(int idx)
     const bool sourceChanged = (m_previewSource != PreviewOutput);
     if (idx == m_currentIndex && !sourceChanged)
         return;
+    const bool indexChanged = idx != m_currentIndex;
     m_currentIndex = idx;
     m_previewSource = PreviewOutput;
-    m_currentImagePage = 0;
+    if (indexChanged)
+        m_currentImagePage = 0;
+    QSettings settings;
+    settings.setValue(QStringLiteral("selection/outputIndex"), m_currentIndex);
+    settings.setValue(QStringLiteral("selection/outputImagePage"), m_currentImagePage);
+    settings.setValue(QStringLiteral("preview/inputTabActive"), false);
     emitCurrentChanged();
+    if (sourceChanged)
+        emit inputTabActiveChanged();
 }
 
 void MatchController::setCurrentPhotoIndex(int idx)
@@ -185,10 +193,14 @@ void MatchController::setCurrentPhotoIndex(int idx)
         return;
     m_currentPhotoIndex = idx;
     m_previewSource = PreviewPhoto;
-    m_currentImagePage = 0;
+    QSettings settings;
+    settings.setValue(QStringLiteral("selection/photoIndex"), m_currentPhotoIndex);
+    settings.setValue(QStringLiteral("preview/inputTabActive"), true);
     emit currentPhotoIndexChanged();
     emit currentPhotoPathChanged();
     emitCurrentChanged();
+    if (sourceChanged)
+        emit inputTabActiveChanged();
     emit logMessage(QStringLiteral("selectPhoto row=%1").arg(idx));
 }
 
@@ -197,6 +209,8 @@ void MatchController::setCurrentImagePage(int page)
     if (page < 0 || page >= currentImageCount() || page == m_currentImagePage)
         return;
     m_currentImagePage = page;
+    QSettings().setValue(QStringLiteral("selection/outputImagePage"),
+                         m_currentImagePage);
     emit currentImagePageChanged();
     emit currentImagePathChanged();
 }
@@ -224,6 +238,9 @@ void MatchController::setPhotoDir(const QString &v)
     if (v == m_photoDir)
         return;
     m_photoDir = v;
+    QSettings settings;
+    settings.setValue(QStringLiteral("photo/lastDir"), m_photoDir);
+    settings.sync();
     emit photoDirChanged();
     emit logMessage(QStringLiteral("photoDir=%1").arg(v));
     scanPhotoDir();
@@ -234,6 +251,9 @@ void MatchController::setOutputDir(const QString &v)
     if (v == m_outputDir)
         return;
     m_outputDir = v;
+    QSettings settings;
+    settings.setValue(QStringLiteral("output/lastDir"), m_outputDir);
+    settings.sync();
     emit outputDirChanged();
     emit logMessage(QStringLiteral("outputDir=%1").arg(v));
     scanOutputDir();
@@ -699,10 +719,37 @@ void MatchController::loadDemoData()
 
 void MatchController::restorePersistentState()
 {
-    const QString lastPptPath = QSettings().value(
+    const QSettings settings;
+    const QString lastPhotoDir = settings.value(
+        QStringLiteral("photo/lastDir")).toString();
+    const QString lastOutputDir = settings.value(
+        QStringLiteral("output/lastDir")).toString();
+    const QString lastPptPath = settings.value(
         QStringLiteral("ppt/lastPath")).toString();
+    const int lastPhotoIndex = settings.value(
+        QStringLiteral("selection/photoIndex"), -1).toInt();
+    const int lastOutputIndex = settings.value(
+        QStringLiteral("selection/outputIndex"), -1).toInt();
+    const int lastOutputImagePage = settings.value(
+        QStringLiteral("selection/outputImagePage"), 0).toInt();
+    const bool lastInputTabActive = settings.value(
+        QStringLiteral("preview/inputTabActive"), true).toBool();
+    if (!lastPhotoDir.isEmpty())
+        setPhotoDir(lastPhotoDir);
+    if (!lastOutputDir.isEmpty())
+        setOutputDir(lastOutputDir);
     if (!lastPptPath.isEmpty())
         setPptPath(lastPptPath);
+    if (m_photoModel && lastPhotoIndex >= 0
+        && lastPhotoIndex < m_photoModel->rowCount())
+        setCurrentPhotoIndex(lastPhotoIndex);
+    if (m_candidateModel && lastOutputIndex >= 0
+        && lastOutputIndex < m_candidateModel->rowCount())
+        setCurrentIndex(lastOutputIndex);
+    if (lastOutputImagePage >= 0
+        && lastOutputImagePage < currentImageCount())
+        setCurrentImagePage(lastOutputImagePage);
+    activatePreview(lastInputTabActive);
 }
 
 void MatchController::activatePreview(bool inputTabActive)

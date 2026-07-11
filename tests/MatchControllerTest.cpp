@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QSettings>
 #include <QTemporaryDir>
 
 #include <iostream>
@@ -31,8 +32,17 @@ int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
     QTemporaryDir temporary;
-    if (!check(temporary.isValid(), QStringLiteral("无法创建临时目录")))
+    QTemporaryDir settingsTemporary;
+    if (!check(temporary.isValid() && settingsTemporary.isValid(),
+               QStringLiteral("无法创建临时目录")))
         return 1;
+
+    QCoreApplication::setOrganizationName(QStringLiteral("EidosTest"));
+    QCoreApplication::setApplicationName(QStringLiteral("MatchControllerTest"));
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
+                       settingsTemporary.path());
+    QSettings().clear();
 
     QDir root(temporary.path());
     if (!check(root.mkpath(QStringLiteral("Alpha/nested"))
@@ -51,6 +61,11 @@ int main(int argc, char *argv[])
     MatchController controller;
     controller.setCandidateModel(&model);
     controller.setOutputDir(temporary.path());
+
+    if (!check(QSettings().value(QStringLiteral("output/lastDir")).toString()
+                   == temporary.path(),
+               QStringLiteral("输出目录应持久化保存")))
+        return 1;
 
     if (!check(model.rowCount() == 2,
                QStringLiteral("输出列表应只包含两个直接子目录")))
@@ -117,6 +132,52 @@ int main(int argc, char *argv[])
                    && controller.currentImagePath()
                        == root.filePath(QStringLiteral("photo-2.jpg")),
                QStringLiteral("输入 Tab 的下一张应切换实拍图列表项")))
+        return 1;
+
+    const QString photoDir = root.filePath(QStringLiteral("photos"));
+    if (!check(root.mkpath(QStringLiteral("photos"))
+                   && createFile(root.filePath(QStringLiteral("photos/input.jpg")))
+                   && createFile(root.filePath(QStringLiteral("photos/second.jpg"))),
+               QStringLiteral("无法创建实拍图片目录")))
+        return 1;
+    controller.setPhotoDir(photoDir);
+    controller.setCurrentPhotoIndex(1);
+    controller.setCurrentIndex(0);
+    controller.setCurrentImagePage(1);
+    controller.activatePreview(true);
+    if (!check(QSettings().value(QStringLiteral("photo/lastDir")).toString()
+                   == photoDir,
+               QStringLiteral("实拍图片目录应持久化保存")))
+        return 1;
+
+    CandidateListModel restoredCandidateModel;
+    PhotoListModel restoredPhotoModel;
+    MatchController restoredController;
+    restoredController.setCandidateModel(&restoredCandidateModel);
+    restoredController.setPhotoModel(&restoredPhotoModel);
+    restoredController.restorePersistentState();
+    if (!check(restoredController.photoDir() == photoDir
+                   && restoredPhotoModel.rowCount() == 2,
+               QStringLiteral("启动恢复后应自动加载实拍图片目录")))
+        return 1;
+    if (!check(restoredController.outputDir() == temporary.path()
+                   && restoredCandidateModel.rowCount() == 3,
+               QStringLiteral("启动恢复后应自动加载输出目录")))
+        return 1;
+    if (!check(restoredController.currentPhotoIndex() == 1
+                   && restoredController.currentIndex() == 0,
+               QStringLiteral("启动恢复后应还原输入和输出列表的选中项")))
+        return 1;
+    if (!check(restoredController.inputTabActive()
+                   && restoredController.currentImagePath()
+                       == root.filePath(QStringLiteral("photos/second.jpg")),
+               QStringLiteral("启动恢复后应还原激活的输入 Tab 及其主图")))
+        return 1;
+    restoredController.activatePreview(false);
+    if (!check(restoredController.currentImagePage() == 1
+                   && restoredController.currentImagePath()
+                       == root.filePath(QStringLiteral("Alpha/02.PNG")),
+               QStringLiteral("启动恢复后应还原输出 Tab 当前浏览的主图")))
         return 1;
 
     return 0;

@@ -9,7 +9,7 @@ Rectangle {
     property alias inputModel:  photoView.model
     property int   currentRow: -1        // 归类列表选中行
     property int   currentPhotoRow: -1   // 实拍图片选中行
-    readonly property bool inputTabActive: tabBar.currentIndex === 0
+    property bool inputTabActive: true
     readonly property int inputItemCount: photoView.count
     property string photoDir: ""
     property string outputDir: ""
@@ -20,6 +20,7 @@ Rectangle {
     signal photoDirSearchRequested()
     signal outputDirEdited(string path)
     signal outputDirSearchRequested()
+    signal inputTabActiveEdited(bool active)
 
     color: "#f5f7fa"
     border.color: "#dee3e8"
@@ -31,8 +32,18 @@ Rectangle {
         TabBar {
             id: tabBar
             Layout.fillWidth: true
-            TabButton { text: qsTr("输入") }
-            TabButton { text: qsTr("输出") }
+            TabButton {
+                text: qsTr("输入")
+                onClicked: root.inputTabActiveEdited(true)
+            }
+            TabButton {
+                text: qsTr("输出")
+                onClicked: root.inputTabActiveEdited(false)
+            }
+
+            Binding on currentIndex {
+                value: root.inputTabActive ? 0 : 1
+            }
         }
 
         StackLayout {

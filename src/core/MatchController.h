@@ -27,6 +27,7 @@ class MatchController : public QObject
     Q_PROPERTY(QString photoDir        READ photoDir        WRITE setPhotoDir       NOTIFY photoDirChanged)
     Q_PROPERTY(QString outputDir       READ outputDir       WRITE setOutputDir      NOTIFY outputDirChanged)
     Q_PROPERTY(QString pptPath         READ pptPath         WRITE setPptPath        NOTIFY pptPathChanged)
+    Q_PROPERTY(bool    inputTabActive  READ inputTabActive  WRITE activatePreview   NOTIFY inputTabActiveChanged)
     Q_PROPERTY(QStringList availableUiStyles READ availableUiStyles CONSTANT)
     Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
     Q_PROPERTY(bool    busy            READ busy                                   NOTIFY busyChanged)
@@ -44,7 +45,7 @@ public:
     QString title() const;
     int     currentIndex() const     { return m_currentIndex; }
     int     currentPhotoIndex() const { return m_currentPhotoIndex; }
-    int     currentImagePage() const { return m_currentImagePage; }
+    int     currentImagePage() const { return m_previewSource == PreviewPhoto ? 0 : m_currentImagePage; }
     int     currentImageCount() const;
     QString currentImagePath() const;
     QStringList currentOutputImagePaths() const;
@@ -55,6 +56,7 @@ public:
     QString photoDir() const       { return m_photoDir; }
     QString outputDir() const      { return m_outputDir; }
     QString pptPath() const        { return m_pptPath; }
+    bool inputTabActive() const    { return m_previewSource == PreviewPhoto; }
     QStringList availableUiStyles() const { return m_availableUiStyles; }
     QString currentUiStyle() const { return m_currentUiStyle; }
     bool    busy() const           { return m_busy; }
@@ -107,6 +109,7 @@ signals:
     void photoDirChanged();
     void outputDirChanged();
     void pptPathChanged();
+    void inputTabActiveChanged();
     void busyChanged();
 
     void logMessage(const QString &msg);
