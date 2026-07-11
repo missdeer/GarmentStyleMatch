@@ -9,6 +9,7 @@ Rectangle {
 
     signal autoMatchRequested()
     signal copyStyleIdsRequested(int offset, string part)
+    signal copyStyleIdsToAdjacentRequested(int offset, string part)
 
     color: "#ffffff"
     border.color: "#dee3e8"
@@ -36,6 +37,7 @@ Rectangle {
                 busy: root.busy
                 onAutoMatchRequested: root.autoMatchRequested()
                 onCopyStyleIdsRequested: (offset, part) => root.copyStyleIdsRequested(offset, part)
+                onCopyStyleIdsToAdjacentRequested: (offset, part) => root.copyStyleIdsToAdjacentRequested(offset, part)
             }
             PropertyList { entries: imageMetadata.fileInfo }
             PropertyList { entries: imageMetadata.imageInfo }

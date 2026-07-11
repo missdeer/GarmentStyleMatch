@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 800
     minimumWidth: 1024
     minimumHeight: 640
-    visible: true
+    visibility: Window.Maximized
     title: controller.title
 
     font.family: {
@@ -34,10 +34,51 @@ ApplicationWindow {
     }
 
     property string statusText: qsTr("就绪")
+    property int pendingCopyOffset: 0
+    property string pendingCopyPart: ""
+    property bool pendingCopyToAdjacent: false
+
+    function requestStyleIdCopy(offset, part, toAdjacent) {
+        if (!controller.copyWouldOverwriteConfirmedStyleIds(offset, part, toAdjacent)) {
+            if (toAdjacent)
+                controller.copyStyleIdsToAdjacent(offset, part, false)
+            else
+                controller.copyAdjacentStyleIds(offset, part, false)
+            return
+        }
+        pendingCopyOffset = offset
+        pendingCopyPart = part
+        pendingCopyToAdjacent = toAdjacent
+        overwriteConfirmedStyleIdsDialog.open()
+    }
+
+    function overwriteConfirmedStyleIds() {
+        if (pendingCopyToAdjacent)
+            controller.copyStyleIdsToAdjacent(pendingCopyOffset, pendingCopyPart, true)
+        else
+            controller.copyAdjacentStyleIds(pendingCopyOffset, pendingCopyPart, true)
+    }
 
     Connections {
         target: controller
         function onLogMessage(msg) { root.statusText = msg }
+    }
+
+    Dialog {
+        id: overwriteConfirmedStyleIdsDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(440, parent.width - 32)
+        modal: true
+        title: qsTr("确认覆盖款号")
+        standardButtons: Dialog.Yes | Dialog.No
+        closePolicy: Popup.CloseOnEscape
+        onAccepted: root.overwriteConfirmedStyleIds()
+
+        contentItem: Label {
+            text: qsTr("目标实拍图已有被确认的款号，是否仍要复制并覆盖原有款号？")
+            wrapMode: Text.Wrap
+        }
     }
 
     ColumnLayout {
@@ -127,11 +168,12 @@ ApplicationWindow {
 
                     ImagePropertiesPanel {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 245
+                        Layout.preferredHeight: 265
                         Layout.minimumHeight: 170
                         busy: controller.busy
                         onAutoMatchRequested: controller.autoMatchStyleIds()
-                        onCopyStyleIdsRequested: (offset, part) => controller.copyAdjacentStyleIds(offset, part)
+                        onCopyStyleIdsRequested: (offset, part) => root.requestStyleIdCopy(offset, part, false)
+                        onCopyStyleIdsToAdjacentRequested: (offset, part) => root.requestStyleIdCopy(offset, part, true)
                     }
                 }
 

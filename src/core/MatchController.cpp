@@ -36,6 +36,15 @@
 namespace
 {
     constexpr qint64 kBytesPerKibibyte = 1024;
+
+    bool hasConfirmedMatch(const StoredMatchResult &result, const QString &part)
+    {
+        const auto confirmed = [](const StoredGarmentMatch &match) { return !match.isEmpty() && match.confirmed; };
+        return part == QLatin1String("all")     ? confirmed(result.upper) || confirmed(result.lower)
+               : part == QLatin1String("upper") ? confirmed(result.upper)
+               : part == QLatin1String("lower") ? confirmed(result.lower)
+                                                : false;
+    }
 } // namespace
 
 MatchController::MatchController(QObject *parent)
@@ -1123,7 +1132,42 @@ void MatchController::autoMatchStyleIds()
     watcher->setFuture(QtConcurrent::run([imagePath, galleryItems, options] { return GarmentMatcher::match(imagePath, galleryItems, options); }));
 }
 
-bool MatchController::copyAdjacentStyleIds(int offset, const QString &part)
+bool MatchController::copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const
+{
+    if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0 || (offset != -1 && offset != 1))
+        return false;
+
+    if (!targetAdjacent)
+    {
+        const PhotoItem *sourcePhoto = m_photoModel->at(m_currentPhotoIndex + offset);
+        if (!sourcePhoto)
+            return false;
+        QString    error;
+        const auto sourceResult = MatchResultStore::load(matchDatabasePath(), sourcePhoto->imagePath, &error);
+        if (!sourceResult || !error.isEmpty())
+            return false;
+        const bool hasSource = part == QLatin1String("all")     ? !sourceResult->isEmpty()
+                               : part == QLatin1String("upper") ? !sourceResult->upper.isEmpty()
+                               : part == QLatin1String("lower") ? !sourceResult->lower.isEmpty()
+                                                                : false;
+        return hasSource && m_autoMatchImagePath == currentPhotoPath() && hasConfirmedMatch(m_autoMatchResult, part);
+    }
+
+    const PhotoItem *targetPhoto = m_photoModel->at(m_currentPhotoIndex + offset);
+    if (!targetPhoto || m_autoMatchImagePath != currentPhotoPath())
+        return false;
+    const bool hasSource = part == QLatin1String("all")     ? !m_autoMatchResult.isEmpty()
+                           : part == QLatin1String("upper") ? !m_autoMatchResult.upper.isEmpty()
+                           : part == QLatin1String("lower") ? !m_autoMatchResult.lower.isEmpty()
+                                                            : false;
+    if (!hasSource)
+        return false;
+    QString    error;
+    const auto targetResult = MatchResultStore::load(matchDatabasePath(), targetPhoto->imagePath, &error);
+    return targetResult && error.isEmpty() && hasConfirmedMatch(*targetResult, part);
+}
+
+bool MatchController::copyAdjacentStyleIds(int offset, const QString &part, bool overwriteConfirmed)
 {
     if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0)
     {
@@ -1179,6 +1223,12 @@ bool MatchController::copyAdjacentStyleIds(int offset, const QString &part)
         (part == QLatin1String("upper") ? copied.upper : copied.lower) = unconfirmed(sourceMatch);
     }
 
+    if (!overwriteConfirmed && m_autoMatchImagePath == currentPhotoPath() && hasConfirmedMatch(m_autoMatchResult, part))
+    {
+        emit logMessage(QStringLiteral("复制款号已取消：目标实拍图已有被确认的款号"));
+        return false;
+    }
+
     const QString targetImagePath = currentPhotoPath();
     if (!MatchResultStore::save(matchDatabasePath(), targetImagePath, copied, &error))
     {
@@ -1194,6 +1244,83 @@ bool MatchController::copyAdjacentStyleIds(int offset, const QString &part)
                               : part == QLatin1String("upper") ? QStringLiteral("上衣")
                                                                : QStringLiteral("裤裙");
     emit          logMessage(QStringLiteral("已复制%1%2款号").arg(direction, garment));
+    return true;
+}
+
+bool MatchController::copyStyleIdsToAdjacent(int offset, const QString &part, bool overwriteConfirmed)
+{
+    if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0 || m_autoMatchImagePath != currentPhotoPath())
+    {
+        emit logMessage(QStringLiteral("复制款号失败：当前实拍图没有款号记录"));
+        return false;
+    }
+    if ((offset != -1 && offset != 1) || (part != QLatin1String("all") && part != QLatin1String("upper") && part != QLatin1String("lower")))
+    {
+        emit logMessage(QStringLiteral("复制款号失败：参数无效"));
+        return false;
+    }
+
+    const int        targetIndex = m_currentPhotoIndex + offset;
+    const PhotoItem *targetPhoto = m_photoModel->at(targetIndex);
+    if (!targetPhoto)
+    {
+        emit logMessage(offset < 0 ? QStringLiteral("复制款号失败：当前已是第一张实拍图") : QStringLiteral("复制款号失败：当前已是最后一张实拍图"));
+        return false;
+    }
+
+    const StoredGarmentMatch &sourceMatch = part == QLatin1String("upper") ? m_autoMatchResult.upper : m_autoMatchResult.lower;
+    if ((part == QLatin1String("all") && m_autoMatchResult.isEmpty()) || (part != QLatin1String("all") && sourceMatch.isEmpty()))
+    {
+        const QString garment = part == QLatin1String("upper")   ? QStringLiteral("上衣")
+                                : part == QLatin1String("lower") ? QStringLiteral("裤裙")
+                                                                  : QString();
+        emit logMessage(QStringLiteral("复制款号失败：当前实拍图没有%1款号").arg(garment));
+        return false;
+    }
+
+    QString           error;
+    StoredMatchResult targetResult;
+    const auto        existingResult = MatchResultStore::load(matchDatabasePath(), targetPhoto->imagePath, &error);
+    if (!error.isEmpty())
+    {
+        emit logMessage(QStringLiteral("复制款号失败：读取目标图片记录时出错：%1").arg(error));
+        return false;
+    }
+    if (existingResult)
+        targetResult = *existingResult;
+
+    if (!overwriteConfirmed && hasConfirmedMatch(targetResult, part))
+    {
+        emit logMessage(QStringLiteral("复制款号已取消：目标实拍图已有被确认的款号"));
+        return false;
+    }
+
+    const auto unconfirmed = [](StoredGarmentMatch match) {
+        match.confirmed = false;
+        return match;
+    };
+    if (part == QLatin1String("all"))
+    {
+        targetResult = {};
+        targetResult.upper = unconfirmed(m_autoMatchResult.upper);
+        targetResult.lower = unconfirmed(m_autoMatchResult.lower);
+    }
+    else
+    {
+        (part == QLatin1String("upper") ? targetResult.upper : targetResult.lower) = unconfirmed(sourceMatch);
+    }
+
+    if (!MatchResultStore::save(matchDatabasePath(), targetPhoto->imagePath, targetResult, &error))
+    {
+        emit logMessage(QStringLiteral("复制款号失败：%1").arg(error));
+        return false;
+    }
+
+    const QString direction = offset < 0 ? QStringLiteral("上一张") : QStringLiteral("下一张");
+    const QString garment   = part == QLatin1String("all")     ? QString()
+                              : part == QLatin1String("upper") ? QStringLiteral("上衣")
+                                                               : QStringLiteral("裤裙");
+    emit          logMessage(QStringLiteral("已将%1款号复制到%2").arg(garment, direction));
     return true;
 }
 

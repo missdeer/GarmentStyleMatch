@@ -158,7 +158,9 @@ public slots:
 
     void confirmSelectedThumb(int galleryRow);
     void autoMatchStyleIds();
-    bool copyAdjacentStyleIds(int offset, const QString &part);
+    [[nodiscard]] bool copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const;
+    bool               copyAdjacentStyleIds(int offset, const QString &part, bool overwriteConfirmed);
+    bool               copyStyleIdsToAdjacent(int offset, const QString &part, bool overwriteConfirmed);
     void confirmAutoMatch(const QString &part);
     void rejectAutoMatch(const QString &part);
     void generateFineTuneModel();

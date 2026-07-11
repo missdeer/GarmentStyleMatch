@@ -8,6 +8,7 @@ Rectangle {
 
     signal autoMatchRequested()
     signal copyStyleIdsRequested(int offset, string part)
+    signal copyStyleIdsToAdjacentRequested(int offset, string part)
 
     implicitHeight: layout.implicitHeight + 20
     color: "#eef1f4"
@@ -64,6 +65,46 @@ Rectangle {
                     text: modelData.label
                     enabled: !root.busy
                     onClicked: root.copyStyleIdsRequested(1, modelData.part)
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+
+            Repeater {
+                model: [
+                    { label: qsTr("款号复制到上一张"), part: "all" },
+                    { label: qsTr("上衣款号复制到上一张"), part: "upper" },
+                    { label: qsTr("裤裙款号复制到上一张"), part: "lower" }
+                ]
+                delegate: Button {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    text: modelData.label
+                    enabled: !root.busy
+                    onClicked: root.copyStyleIdsToAdjacentRequested(-1, modelData.part)
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+
+            Repeater {
+                model: [
+                    { label: qsTr("款号复制到下一张"), part: "all" },
+                    { label: qsTr("上衣款号复制到下一张"), part: "upper" },
+                    { label: qsTr("裤裙款号复制到下一张"), part: "lower" }
+                ]
+                delegate: Button {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    text: modelData.label
+                    enabled: !root.busy
+                    onClicked: root.copyStyleIdsToAdjacentRequested(1, modelData.part)
                 }
             }
         }
