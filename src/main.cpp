@@ -4,10 +4,10 @@
 #include <QQuickStyle>
 #include <QSettings>
 
-#include "core/MatchController.h"
 #include "core/CandidateListModel.h"
 #include "core/GalleryListModel.h"
 #include "core/ImageMetadata.h"
+#include "core/MatchController.h"
 #include "core/PhotoListModel.h"
 #include "core/PptPageListModel.h"
 
@@ -20,11 +20,12 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     const QStringList availableUiStyles = MatchController::systemUiStyles();
-    const QString savedUiStyle = QSettings().value(
-        QStringLiteral("ui/style"), QStringLiteral("FluentWinUI3")).toString();
-    QString selectedUiStyle = QStringLiteral("FluentWinUI3");
-    for (const QString &availableUiStyle : availableUiStyles) {
-        if (availableUiStyle.compare(savedUiStyle, Qt::CaseInsensitive) == 0) {
+    const QString     savedUiStyle      = QSettings().value(QStringLiteral("ui/style"), QStringLiteral("FluentWinUI3")).toString();
+    QString           selectedUiStyle   = QStringLiteral("FluentWinUI3");
+    for (const QString &availableUiStyle : availableUiStyles)
+    {
+        if (availableUiStyle.compare(savedUiStyle, Qt::CaseInsensitive) == 0)
+        {
             selectedUiStyle = availableUiStyle;
             break;
         }
@@ -42,25 +43,20 @@ int main(int argc, char *argv[])
     controller.setPhotoModel(&photoModel);
     controller.setPptPageModel(&pptPageModel);
 
-    const auto refreshImageMetadata = [&controller, &imageMetadata] {
-        imageMetadata.setImagePath(controller.currentPhotoPath());
-    };
-    QObject::connect(&controller, &MatchController::currentPhotoPathChanged,
-                     &imageMetadata, refreshImageMetadata);
+    const auto refreshImageMetadata = [&controller, &imageMetadata] { imageMetadata.setImagePath(controller.currentPhotoPath()); };
+    QObject::connect(&controller, &MatchController::currentPhotoPathChanged, &imageMetadata, refreshImageMetadata);
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty(QStringLiteral("controller"),     &controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("controller"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("candidateModel"), &candidateModel);
-    engine.rootContext()->setContextProperty(QStringLiteral("galleryModel"),   &galleryModel);
-    engine.rootContext()->setContextProperty(QStringLiteral("photoModel"),     &photoModel);
-    engine.rootContext()->setContextProperty(QStringLiteral("pptPageModel"),   &pptPageModel);
-    engine.rootContext()->setContextProperty(QStringLiteral("imageMetadata"),  &imageMetadata);
+    engine.rootContext()->setContextProperty(QStringLiteral("galleryModel"), &galleryModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("photoModel"), &photoModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("pptPageModel"), &pptPageModel);
+    engine.rootContext()->setContextProperty(QStringLiteral("imageMetadata"), &imageMetadata);
 
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
-                     &app, []() { QCoreApplication::exit(-1); },
-                     Qt::QueuedConnection);
+    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
     engine.loadFromModule("GarmentStyleMatch", "Main");
 
-    return app.exec();
+    return QGuiApplication::exec();
 }

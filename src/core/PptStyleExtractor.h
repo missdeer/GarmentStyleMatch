@@ -31,5 +31,5 @@ public:
         QStringList             warnings;
     };
 
-    static Result extract(const Options &opts);
+    static Result extract(const Options &options);
 };

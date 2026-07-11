@@ -1,9 +1,4 @@
-#include "MatchController.h"
-#include "CandidateListModel.h"
-#include "GalleryListModel.h"
-#include "PhotoListModel.h"
-#include "PptPageListModel.h"
-#include "PptStyleExtractor.h"
+#include <utility>
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -22,35 +17,44 @@
 #include <QUrl>
 #include <QtConcurrent/QtConcurrentRun>
 
-#include <utility>
+#include "MatchController.h"
+#include "CandidateListModel.h"
+#include "GalleryListModel.h"
+#include "PhotoListModel.h"
+#include "PptPageListModel.h"
+#include "PptStyleExtractor.h"
 
 #ifdef Q_OS_WIN
-#include <QAxObject>
+#    include <QAxObject>
 #endif
 
-MatchController::MatchController(QObject *parent)
-    : QObject(parent)
-    , m_availableUiStyles(systemUiStyles())
-    , m_currentUiStyle(QQuickStyle::name())
+// Short iterator and model names are conventional within this Qt controller implementation.
+// NOLINTBEGIN(readability-identifier-length)
+namespace
 {
-}
+    constexpr qint64 kBytesPerKibibyte = 1024;
+} // namespace
+
+MatchController::MatchController(QObject *parent) : QObject(parent), m_availableUiStyles(systemUiStyles()), m_currentUiStyle(QQuickStyle::name()) {}
 
 QStringList MatchController::systemUiStyles()
 {
     static const QStringList styles = [] {
-        const QDir controlsDir(QDir(QLibraryInfo::path(QLibraryInfo::QmlImportsPath))
-                                   .absoluteFilePath(QStringLiteral("QtQuick/Controls")));
-        const QFileInfoList directories = controlsDir.entryInfoList(
-            QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
+        const QDir          controlsDir(QDir(QLibraryInfo::path(QLibraryInfo::QmlImportsPath)).absoluteFilePath(QStringLiteral("QtQuick/Controls")));
+        const QFileInfoList directories = controlsDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
 
         QStringList result;
-        for (const QFileInfo &directory : directories) {
+        for (const QFileInfo &directory : directories)
+        {
             const QString name = directory.fileName();
-            if (name.compare(QStringLiteral("designer"), Qt::CaseInsensitive) == 0
-                || name.compare(QStringLiteral("impl"), Qt::CaseInsensitive) == 0)
+            if (name.compare(QStringLiteral("designer"), Qt::CaseInsensitive) == 0 || name.compare(QStringLiteral("impl"), Qt::CaseInsensitive) == 0)
+            {
                 continue;
+            }
             if (QFileInfo::exists(QDir(directory.absoluteFilePath()).absoluteFilePath(QStringLiteral("qmldir"))))
+            {
                 result.push_back(name);
+            }
         }
         return result;
     }();
@@ -61,91 +65,113 @@ void MatchController::setCandidateModel(CandidateListModel *m)
 {
     m_candidateModel = m;
     if (m_candidateModel)
+    {
         m_candidateModel->setFilterText(m_outputFilterText);
+    }
 }
 
 void MatchController::setGalleryModel(GalleryListModel *m)
 {
     m_galleryModel = m;
     if (m_galleryModel)
+    {
         m_galleryModel->setFilterText(m_searchText);
+    }
 }
 
 void MatchController::setPhotoModel(PhotoListModel *m)
 {
     m_photoModel = m;
     if (m_photoModel)
+    {
         m_photoModel->setFilterText(m_inputFilterText);
+    }
 }
 
 void MatchController::setPptPageModel(PptPageListModel *m)
 {
     if (m_pptPageModel)
+    {
         disconnect(m_pptPageModel, nullptr, this, nullptr);
+    }
     m_pptPageModel = m;
-    if (m_pptPageModel) {
-        connect(m_pptPageModel, &PptPageListModel::selectedPagesTextChanged,
-                this, &MatchController::persistSelectedPptPages);
+    if (m_pptPageModel)
+    {
+        connect(m_pptPageModel, &PptPageListModel::selectedPagesTextChanged, this, &MatchController::persistSelectedPptPages);
     }
 }
 
 bool MatchController::setCurrentUiStyle(const QString &style)
 {
     QString selectedStyle;
-    for (const QString &availableStyle : std::as_const(m_availableUiStyles)) {
-        if (availableStyle.compare(style, Qt::CaseInsensitive) == 0) {
+    for (const QString &availableStyle : std::as_const(m_availableUiStyles))
+    {
+        if (availableStyle.compare(style, Qt::CaseInsensitive) == 0)
+        {
             selectedStyle = availableStyle;
             break;
         }
     }
-    if (selectedStyle.isEmpty()
-        || selectedStyle.compare(m_currentUiStyle, Qt::CaseInsensitive) == 0)
+    if (selectedStyle.isEmpty() || selectedStyle.compare(m_currentUiStyle, Qt::CaseInsensitive) == 0)
+    {
         return false;
+    }
 
     QSettings settings;
     settings.setValue(QStringLiteral("ui/style"), selectedStyle);
     settings.sync();
-    if (settings.status() != QSettings::NoError) {
+    if (settings.status() != QSettings::NoError)
+    {
         emit logMessage(QStringLiteral("无法保存界面风格: %1").arg(selectedStyle));
         return false;
     }
     return true;
 }
 
-QString MatchController::title() const
+QString MatchController::title()
 {
-    return QString::fromUtf8("Eidos\xE6\x9C\x8D\xE8\xA3\x85\xE6\xAC\xBE\xE5\xBC\x8F\xE5\x8C\xB9\xE9\x85\x8D\xE5\xB7\xA5\xE4\xBD\x9C\xE5\x8F\xB0");
+    return QStringLiteral("Eidos服装款式匹配工作台");
 }
 
 int MatchController::currentImageCount() const
 {
     if (m_previewSource == PreviewPhoto)
+    {
         return m_photoModel && m_currentPhotoIndex >= 0 ? 1 : 0;
+    }
     if (!m_candidateModel)
+    {
         return 0;
+    }
     const auto *it = m_candidateModel->at(m_currentIndex);
-    return it ? it->imagePaths.size() : 0;
+    return it ? static_cast<int>(it->imagePaths.size()) : 0;
 }
 
 QString MatchController::currentImagePath() const
 {
-    if (m_previewSource == PreviewPhoto) {
-        if (!m_photoModel) return {};
+    if (m_previewSource == PreviewPhoto)
+    {
+        if (!m_photoModel)
+        {
+            return {};
+        }
         const auto *p = m_photoModel->at(m_currentPhotoIndex);
         return p ? p->imagePath : QString();
     }
     if (!m_candidateModel)
+    {
         return {};
+    }
     const auto *it = m_candidateModel->at(m_currentIndex);
-    return it && m_currentImagePage >= 0 && m_currentImagePage < it->imagePaths.size()
-        ? it->imagePaths.at(m_currentImagePage)
-        : QString();
+    return it && m_currentImagePage >= 0 && m_currentImagePage < it->imagePaths.size() ? it->imagePaths.at(m_currentImagePage) : QString();
 }
 
 QStringList MatchController::currentOutputImagePaths() const
 {
     if (!m_candidateModel)
+    {
         return {};
+    }
     const auto *it = m_candidateModel->at(m_currentIndex);
     return it ? it->imagePaths : QStringList();
 }
@@ -153,20 +179,28 @@ QStringList MatchController::currentOutputImagePaths() const
 QString MatchController::currentPhotoPath() const
 {
     if (!m_photoModel)
+    {
         return {};
+    }
     const auto *photo = m_photoModel->at(m_currentPhotoIndex);
     return photo ? photo->imagePath : QString();
 }
 
 QString MatchController::currentStyleId() const
 {
-    if (m_previewSource == PreviewPhoto) {
-        if (!m_photoModel) return {};
+    if (m_previewSource == PreviewPhoto)
+    {
+        if (!m_photoModel)
+        {
+            return {};
+        }
         const auto *p = m_photoModel->at(m_currentPhotoIndex);
         return p ? p->fileName : QString();
     }
     if (!m_candidateModel)
+    {
         return {};
+    }
     const auto *it = m_candidateModel->at(m_currentIndex);
     return it ? it->styleId : QString();
 }
@@ -175,28 +209,36 @@ void MatchController::setCurrentIndex(int idx)
 {
     const bool sourceChanged = (m_previewSource != PreviewOutput);
     if (idx == m_currentIndex && !sourceChanged)
+    {
         return;
+    }
     const bool indexChanged = idx != m_currentIndex;
-    m_currentIndex = idx;
-    m_previewSource = PreviewOutput;
+    m_currentIndex          = idx;
+    m_previewSource         = PreviewOutput;
     if (indexChanged)
+    {
         m_currentImagePage = 0;
+    }
     QSettings settings;
     settings.setValue(QStringLiteral("selection/outputIndex"), m_currentIndex);
     settings.setValue(QStringLiteral("selection/outputImagePage"), m_currentImagePage);
     settings.setValue(QStringLiteral("preview/inputTabActive"), false);
     emitCurrentChanged();
     if (sourceChanged)
+    {
         emit inputTabActiveChanged();
+    }
 }
 
 void MatchController::setCurrentPhotoIndex(int idx)
 {
     const bool sourceChanged = (m_previewSource != PreviewPhoto);
     if (idx == m_currentPhotoIndex && !sourceChanged)
+    {
         return;
+    }
     m_currentPhotoIndex = idx;
-    m_previewSource = PreviewPhoto;
+    m_previewSource     = PreviewPhoto;
     QSettings settings;
     settings.setValue(QStringLiteral("selection/photoIndex"), m_currentPhotoIndex);
     settings.setValue(QStringLiteral("preview/inputTabActive"), true);
@@ -204,17 +246,20 @@ void MatchController::setCurrentPhotoIndex(int idx)
     emit currentPhotoPathChanged();
     emitCurrentChanged();
     if (sourceChanged)
+    {
         emit inputTabActiveChanged();
+    }
     emit logMessage(QStringLiteral("selectPhoto row=%1").arg(idx));
 }
 
 void MatchController::setCurrentImagePage(int page)
 {
     if (page < 0 || page >= currentImageCount() || page == m_currentImagePage)
+    {
         return;
+    }
     m_currentImagePage = page;
-    QSettings().setValue(QStringLiteral("selection/outputImagePage"),
-                         m_currentImagePage);
+    QSettings().setValue(QStringLiteral("selection/outputImagePage"), m_currentImagePage);
     emit currentImagePageChanged();
     emit currentImagePathChanged();
 }
@@ -222,7 +267,9 @@ void MatchController::setCurrentImagePage(int page)
 void MatchController::setCategoryFilter(const QString &v)
 {
     if (v == m_categoryFilter)
+    {
         return;
+    }
     m_categoryFilter = v;
     emit categoryFilterChanged();
 }
@@ -230,19 +277,26 @@ void MatchController::setCategoryFilter(const QString &v)
 void MatchController::setSearchText(const QString &v)
 {
     if (v == m_searchText)
+    {
         return;
+    }
     m_searchText = v;
     if (m_galleryModel)
+    {
         m_galleryModel->setFilterText(v);
+    }
     emit searchTextChanged();
 }
 
 void MatchController::setInputFilterText(const QString &v)
 {
     if (v == m_inputFilterText)
+    {
         return;
+    }
     m_inputFilterText = v;
-    if (m_photoModel) {
+    if (m_photoModel)
+    {
         m_photoModel->setFilterText(v);
         setCurrentPhotoIndex(m_photoModel->rowCount() > 0 ? 0 : -1);
     }
@@ -252,9 +306,12 @@ void MatchController::setInputFilterText(const QString &v)
 void MatchController::setOutputFilterText(const QString &v)
 {
     if (v == m_outputFilterText)
+    {
         return;
+    }
     m_outputFilterText = v;
-    if (m_candidateModel) {
+    if (m_candidateModel)
+    {
         m_candidateModel->setFilterText(v);
         setCurrentIndex(m_candidateModel->rowCount() > 0 ? 0 : -1);
     }
@@ -264,7 +321,9 @@ void MatchController::setOutputFilterText(const QString &v)
 void MatchController::setPhotoDir(const QString &v)
 {
     if (v == m_photoDir)
+    {
         return;
+    }
     m_photoDir = v;
     QSettings settings;
     settings.setValue(QStringLiteral("photo/lastDir"), m_photoDir);
@@ -277,7 +336,9 @@ void MatchController::setPhotoDir(const QString &v)
 void MatchController::setOutputDir(const QString &v)
 {
     if (v == m_outputDir)
+    {
         return;
+    }
     m_outputDir = v;
     QSettings settings;
     settings.setValue(QStringLiteral("output/lastDir"), m_outputDir);
@@ -289,7 +350,8 @@ void MatchController::setOutputDir(const QString &v)
 
 void MatchController::setPptPath(const QString &v)
 {
-    if (v != m_pptPath) {
+    if (v != m_pptPath)
+    {
         m_pptPath = v;
         QSettings settings;
         settings.setValue(QStringLiteral("ppt/lastPath"), m_pptPath);
@@ -299,60 +361,57 @@ void MatchController::setPptPath(const QString &v)
     }
 
     const bool wasRestoring = m_restoringPptState;
-    m_restoringPptState = true;
-    auto restoreGuard = qScopeGuard([this, wasRestoring] {
-        m_restoringPptState = wasRestoring;
-    });
+    m_restoringPptState     = true;
+    auto restoreGuard       = qScopeGuard([this, wasRestoring] { m_restoringPptState = wasRestoring; });
     loadPptPreviewsFromCache();
     restoreSelectedPptPages();
     loadPptStylesFromCache();
 }
 
-QString MatchController::pptCacheDir(const QString &pptFilePath) const
+QString MatchController::pptCacheDir(const QString &pptFilePath)
 {
     const QFileInfo fi(pptFilePath);
     if (!fi.exists() || !fi.isFile())
+    {
         return {};
-    const QString key = fi.fileName() + QLatin1Char(':') + QString::number(fi.size());
-    const QByteArray hash = QCryptographicHash::hash(
-        key.toUtf8(), QCryptographicHash::Sha1);
-    const QString subDir = QString::fromLatin1(hash.toHex().left(16));
-    const QString base = QStandardPaths::writableLocation(
-        QStandardPaths::CacheLocation);
+    }
+    const QString    key    = fi.fileName() + QLatin1Char(':') + QString::number(fi.size());
+    const QByteArray hash   = QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1);
+    const QString    subDir = QString::fromLatin1(hash.toHex().left(16));
+    const QString    base   = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     return base + QStringLiteral("/ppt_slides/") + subDir;
 }
 
-QString MatchController::pptPagesSettingsKey(const QString &pptFilePath) const
+QString MatchController::pptPagesSettingsKey(const QString &pptFilePath)
 {
-    QString normalizedPath = QDir::fromNativeSeparators(
-        QFileInfo(pptFilePath).absoluteFilePath());
+    QString normalizedPath = QDir::fromNativeSeparators(QFileInfo(pptFilePath).absoluteFilePath());
 #ifdef Q_OS_WIN
     normalizedPath = normalizedPath.toCaseFolded();
 #endif
-    const QByteArray hash = QCryptographicHash::hash(
-        normalizedPath.toUtf8(), QCryptographicHash::Sha1);
-    return QStringLiteral("ppt/selectedPages/%1")
-        .arg(QString::fromLatin1(hash.toHex()));
+    const QByteArray hash = QCryptographicHash::hash(normalizedPath.toUtf8(), QCryptographicHash::Sha1);
+    return QStringLiteral("ppt/selectedPages/%1").arg(QString::fromLatin1(hash.toHex()));
 }
 
 void MatchController::persistSelectedPptPages()
 {
     if (m_restoringPptState || !m_pptPageModel || m_pptPath.isEmpty())
+    {
         return;
+    }
     QSettings settings;
-    settings.setValue(pptPagesSettingsKey(m_pptPath),
-                      m_pptPageModel->selectedPagesText());
+    settings.setValue(pptPagesSettingsKey(m_pptPath), m_pptPageModel->selectedPagesText());
     settings.sync();
 }
 
 void MatchController::restoreSelectedPptPages()
 {
     if (!m_pptPageModel || m_pptPath.isEmpty())
+    {
         return;
-    const QString pages = QSettings().value(
-        pptPagesSettingsKey(m_pptPath)).toString();
-    const bool wasRestoring = m_restoringPptState;
-    m_restoringPptState = true;
+    }
+    const QString pages        = QSettings().value(pptPagesSettingsKey(m_pptPath)).toString();
+    const bool    wasRestoring = m_restoringPptState;
+    m_restoringPptState        = true;
     m_pptPageModel->setSelectedPagesText(pages);
     m_restoringPptState = wasRestoring;
 }
@@ -360,24 +419,33 @@ void MatchController::restoreSelectedPptPages()
 bool MatchController::loadPptPreviewsFromCache()
 {
     if (!m_pptPageModel)
+    {
         return false;
+    }
     m_pptPageModel->clear();
     if (m_pptPath.isEmpty())
+    {
         return false;
+    }
 
     const QString dir = pptCacheDir(m_pptPath);
     if (dir.isEmpty())
+    {
         return false;
+    }
     QDir d(dir);
     if (!d.exists())
+    {
         return false;
-    const auto files = d.entryInfoList({QStringLiteral("slide_*.png")},
-                                       QDir::Files | QDir::NoDotAndDotDot,
-                                       QDir::Name);
+    }
+    const auto files = d.entryInfoList({QStringLiteral("slide_*.png")}, QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
     if (files.isEmpty())
+    {
         return false;
+    }
 
-    for (int i = 0; i < files.size(); ++i) {
+    for (int i = 0; i < files.size(); ++i)
+    {
         PptPageItem p;
         p.pageIndex = i + 1;
         p.imagePath = files.at(i).absoluteFilePath();
@@ -390,14 +458,17 @@ bool MatchController::loadPptPreviewsFromCache()
 bool MatchController::loadPptStylesFromCache()
 {
     if (!m_galleryModel)
+    {
         return false;
+    }
 
     const QString cacheRoot = pptCacheDir(m_pptPath);
     const QString stylesDir = cacheRoot.isEmpty() ? QString() : QDir(cacheRoot).absoluteFilePath(QStringLiteral("styles"));
     m_galleryModel->loadFromStyleCacheDir(stylesDir);
 
     const int count = m_galleryModel->rowCount();
-    if (count > 0) {
+    if (count > 0)
+    {
         emit logMessage(QStringLiteral("已从缓存载入 %1 张手绘图: %2").arg(count).arg(stylesDir));
     }
     return count > 0;
@@ -405,69 +476,72 @@ bool MatchController::loadPptStylesFromCache()
 
 void MatchController::scanPhotoDir()
 {
-    if (!m_photoModel) {
+    if (!m_photoModel)
+    {
         emit logMessage(QStringLiteral("scanPhotoDir: no photoModel"));
         return;
     }
 
     QVector<PhotoItem> items;
-    if (!m_photoDir.isEmpty()) {
-        const QDir photoDirectory(m_photoDir);
+    if (!m_photoDir.isEmpty())
+    {
+        const QDir               photoDirectory(m_photoDir);
         static const QStringList imgFilter = {
-            QStringLiteral("*.jpg"), QStringLiteral("*.jpeg"),
+            QStringLiteral("*.jpg"),
+            QStringLiteral("*.jpeg"),
         };
-        QDirIterator it(m_photoDir, imgFilter,
-                        QDir::Files | QDir::NoDotAndDotDot,
-                        QDirIterator::Subdirectories);
-        while (it.hasNext()) {
+        QDirIterator it(m_photoDir, imgFilter, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (it.hasNext())
+        {
             it.next();
             const QFileInfo fi = it.fileInfo();
-            PhotoItem p;
+            PhotoItem       p;
             p.fileName     = fi.fileName();
             p.imagePath    = fi.absoluteFilePath();
             p.relativePath = photoDirectory.relativeFilePath(p.imagePath);
             items.push_back(p);
         }
-        std::sort(items.begin(), items.end(),
-                  [](const PhotoItem &a, const PhotoItem &b) {
-                      return a.imagePath < b.imagePath;
-                  });
+        std::sort(items.begin(), items.end(), [](const PhotoItem &a, const PhotoItem &b) { return a.imagePath < b.imagePath; });
     }
     m_photoModel->setItems(std::move(items));
     setCurrentPhotoIndex(m_photoModel->rowCount() > 0 ? 0 : -1);
     emit currentPhotoPathChanged();
-    emit logMessage(QStringLiteral("scanPhotoDir=%1 (%2 files)")
-                    .arg(m_photoDir).arg(m_photoModel->rowCount()));
+    emit logMessage(QStringLiteral("scanPhotoDir=%1 (%2 files)").arg(m_photoDir).arg(m_photoModel->rowCount()));
 }
 
 void MatchController::scanOutputDir()
 {
     if (!m_candidateModel)
+    {
         return;
+    }
 
     QVector<CandidateItem> items;
-    if (!m_outputDir.isEmpty()) {
+    if (!m_outputDir.isEmpty())
+    {
         static const QStringList imgFilter = {
-            QStringLiteral("*.png"),  QStringLiteral("*.jpg"),
-            QStringLiteral("*.jpeg"), QStringLiteral("*.bmp"),
+            QStringLiteral("*.png"),
+            QStringLiteral("*.jpg"),
+            QStringLiteral("*.jpeg"),
+            QStringLiteral("*.bmp"),
             QStringLiteral("*.webp"),
         };
-        QDir dir(m_outputDir);
-        const auto directories = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot,
-                                                   QDir::Name | QDir::IgnoreCase);
+        QDir       dir(m_outputDir);
+        const auto directories = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
         items.reserve(directories.size());
-        for (const QFileInfo &directory : directories) {
-            const QDir styleDir(directory.absoluteFilePath());
-            const auto images = styleDir.entryInfoList(imgFilter,
-                                                       QDir::Files | QDir::NoDotAndDotDot,
-                                                       QDir::Name | QDir::IgnoreCase);
+        for (const QFileInfo &directory : directories)
+        {
+            const QDir    styleDir(directory.absoluteFilePath());
+            const auto    images = styleDir.entryInfoList(imgFilter, QDir::Files | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
             CandidateItem it;
-            it.styleId        = directory.fileName();
+            it.styleId = directory.fileName();
             it.imagePaths.reserve(images.size());
             for (const QFileInfo &image : images)
+            {
                 it.imagePaths.push_back(image.absoluteFilePath());
+            }
             it.imagePath      = it.imagePaths.isEmpty() ? QString() : it.imagePaths.constFirst();
-            it.candidateCount = it.imagePaths.size();
+            it.candidateCount = static_cast<int>(it.imagePaths.size());
             it.score          = 0.0;
             it.confirmed      = false;
             items.push_back(it);
@@ -475,14 +549,15 @@ void MatchController::scanOutputDir()
     }
     m_candidateModel->setItems(std::move(items));
     setCurrentIndex(m_candidateModel->rowCount() > 0 ? 0 : -1);
-    emit logMessage(QStringLiteral("scanOutputDir=%1 (%2 directories)")
-                    .arg(m_outputDir).arg(m_candidateModel->rowCount()));
+    emit logMessage(QStringLiteral("scanOutputDir=%1 (%2 directories)").arg(m_outputDir).arg(m_candidateModel->rowCount()));
 }
 
 void MatchController::setBusy(bool on)
 {
     if (m_busy == on)
+    {
         return;
+    }
     m_busy = on;
     emit busyChanged();
 }
@@ -491,52 +566,61 @@ void MatchController::reloadPpt()
 {
     emit logMessage(QStringLiteral("reloadPpt=%1").arg(m_pptPath));
     if (!m_pptPageModel)
+    {
         return;
+    }
 
     setBusy(true);
     auto busyGuard = qScopeGuard([this] { setBusy(false); });
 
     {
         const bool wasRestoring = m_restoringPptState;
-        m_restoringPptState = true;
-        auto restoreGuard = qScopeGuard([this, wasRestoring] {
-            m_restoringPptState = wasRestoring;
-        });
+        m_restoringPptState     = true;
+        auto restoreGuard       = qScopeGuard([this, wasRestoring] { m_restoringPptState = wasRestoring; });
         m_pptPageModel->clear();
         restoreSelectedPptPages();
     }
 
     if (m_pptPath.isEmpty())
+    {
         return;
+    }
 
     const QFileInfo fi(m_pptPath);
-    if (!fi.exists() || !fi.isFile()) {
+    if (!fi.exists() || !fi.isFile())
+    {
         emit logMessage(QStringLiteral("PPT 文件不存在: %1").arg(m_pptPath));
         return;
     }
 
 #ifdef Q_OS_WIN
     const QString cacheDir = pptCacheDir(m_pptPath);
-    if (cacheDir.isEmpty()) {
+    if (cacheDir.isEmpty())
+    {
         emit logMessage(QStringLiteral("无法确定缓存目录"));
         return;
     }
     QDir dir(cacheDir);
     if (!dir.exists())
+    {
         QDir().mkpath(cacheDir);
-    const auto stale = dir.entryInfoList({QStringLiteral("slide_*.png")},
-                                         QDir::Files | QDir::NoDotAndDotDot);
+    }
+    const auto stale = dir.entryInfoList({QStringLiteral("slide_*.png")}, QDir::Files | QDir::NoDotAndDotDot);
     for (const QFileInfo &f : stale)
+    {
         QFile::remove(f.absoluteFilePath());
+    }
 
     QAxObject ppApp(QStringLiteral("PowerPoint.Application"));
-    if (ppApp.isNull()) {
+    if (ppApp.isNull())
+    {
         emit logMessage(QStringLiteral("PowerPoint COM 启动失败,请确认已安装 Microsoft PowerPoint"));
         return;
     }
 
     QAxObject *presentations = ppApp.querySubObject("Presentations");
-    if (!presentations) {
+    if (!presentations)
+    {
         emit logMessage(QStringLiteral("获取 Presentations 集合失败"));
         ppApp.dynamicCall("Quit()");
         return;
@@ -544,10 +628,9 @@ void MatchController::reloadPpt()
 
     const QString nativePath = QDir::toNativeSeparators(fi.absoluteFilePath());
     // Open(FileName, ReadOnly=msoTrue, Untitled=msoFalse, WithWindow=msoFalse)
-    QAxObject *pres = presentations->querySubObject(
-        "Open(const QString&,int,int,int)",
-        nativePath, -1, 0, 0);
-    if (!pres) {
+    QAxObject *pres = presentations->querySubObject("Open(const QString&,int,int,int)", nativePath, -1, 0, 0);
+    if (!pres)
+    {
         emit logMessage(QStringLiteral("PPT 打开失败: %1").arg(nativePath));
         delete presentations;
         ppApp.dynamicCall("Quit()");
@@ -555,25 +638,26 @@ void MatchController::reloadPpt()
     }
 
     QAxObject *slides = pres->querySubObject("Slides");
-    const int count = slides ? slides->property("Count").toInt() : 0;
-    emit logMessage(QStringLiteral("PPT 共 %1 页,开始导出预览...").arg(count));
+    const int  count  = slides ? slides->property("Count").toInt() : 0;
+    emit       logMessage(QStringLiteral("PPT 共 %1 页,开始导出预览...").arg(count));
 
     constexpr int kExportW = 800;
     constexpr int kExportH = 600;
-    for (int i = 1; i <= count; ++i) {
+    for (int i = 1; i <= count; ++i)
+    {
         QAxObject *slide = slides->querySubObject("Item(int)", i);
         if (!slide)
+        {
             continue;
-        const QString outPath = QDir::toNativeSeparators(
-            cacheDir + QStringLiteral("/slide_%1.png").arg(i, 4, 10, QChar('0')));
-        slide->dynamicCall("Export(const QString&,const QString&,int,int)",
-                           outPath, QStringLiteral("PNG"), kExportW, kExportH);
+        }
+        const QString outPath = QDir::toNativeSeparators(cacheDir + QStringLiteral("/slide_%1.png").arg(i, 4, 10, QChar('0')));
+        slide->dynamicCall("Export(const QString&,const QString&,int,int)", outPath, QStringLiteral("PNG"), kExportW, kExportH);
         delete slide;
 
         const QFileInfo outFi(outPath);
-        if (!outFi.exists() || outFi.size() <= 0) {
-            emit logMessage(QStringLiteral("警告: slide %1 导出失败或文件为空: %2")
-                                .arg(i).arg(outPath));
+        if (!outFi.exists() || outFi.size() <= 0)
+        {
+            emit logMessage(QStringLiteral("警告: slide %1 导出失败或文件为空: %2").arg(i).arg(outPath));
             QCoreApplication::processEvents();
             continue;
         }
@@ -584,7 +668,9 @@ void MatchController::reloadPpt()
         m_pptPageModel->appendItem(p);
 
         emit logMessage(QStringLiteral("导出 slide %1/%2 (%3 KB, rowCount=%4)")
-                            .arg(i).arg(count).arg(outFi.size() / 1024)
+                            .arg(i)
+                            .arg(count)
+                            .arg(outFi.size() / kBytesPerKibibyte)
                             .arg(m_pptPageModel->rowCount()));
         QCoreApplication::processEvents();
     }
@@ -604,38 +690,46 @@ void MatchController::reloadPpt()
 void MatchController::togglePptPageSelected(int row)
 {
     if (m_pptPageModel)
+    {
         m_pptPageModel->toggleSelected(row);
+    }
 }
 
-void MatchController::extractFromSelectedPages()
+void MatchController::extractFromSelectedPages() // NOLINT(readability-function-cognitive-complexity)
 {
-    if (!m_pptPageModel || !m_galleryModel) {
+    if (!m_pptPageModel || !m_galleryModel)
+    {
         emit logMessage(QStringLiteral("extractFromSelectedPages: missing model"));
         return;
     }
-    if (m_busy) {
+    if (m_busy)
+    {
         emit logMessage(QStringLiteral("款号和手绘图正在提取，请等待当前任务完成"));
         return;
     }
 
     const QVector<int> rows = m_pptPageModel->selectedRows();
-    if (rows.isEmpty()) {
+    if (rows.isEmpty())
+    {
         emit logMessage(QStringLiteral("extractFromSelectedPages: no pages selected"));
         return;
     }
 
     const QFileInfo fi(m_pptPath);
-    if (m_pptPath.isEmpty() || !fi.isFile()) {
+    if (m_pptPath.isEmpty() || !fi.isFile())
+    {
         emit logMessage(QStringLiteral("PPT 文件不存在: %1").arg(m_pptPath));
         return;
     }
-    if (fi.suffix().toLower() != QStringLiteral("pptx")) {
+    if (fi.suffix().toLower() != QStringLiteral("pptx"))
+    {
         emit logMessage(QStringLiteral("仅支持 .pptx (Open XML); 当前为 .%1").arg(fi.suffix()));
         return;
     }
 
     const QString cacheRoot = pptCacheDir(m_pptPath);
-    if (cacheRoot.isEmpty()) {
+    if (cacheRoot.isEmpty())
+    {
         emit logMessage(QStringLiteral("无法确定缓存目录"));
         return;
     }
@@ -643,10 +737,13 @@ void MatchController::extractFromSelectedPages()
 
     QVector<int> pages;
     pages.reserve(rows.size());
-    for (int row : rows) {
+    for (int row : rows)
+    {
         const auto *page = m_pptPageModel->at(row);
         if (page)
+        {
             pages.push_back(page->pageIndex);
+        }
     }
 
     PptStyleExtractor::Options opts;
@@ -657,64 +754,73 @@ void MatchController::extractFromSelectedPages()
     const QPointer<MatchController> guard(this);
     opts.progress = [guard](int current, int total, const QString &detail) {
         if (!guard)
+        {
             return;
-        const QString message = total > 0
-            ? QStringLiteral("提取进度 %1/%2｜%3").arg(current).arg(total).arg(detail)
-            : detail;
+        }
+        const QString message = total > 0 ? QStringLiteral("提取进度 %1/%2｜%3").arg(current).arg(total).arg(detail) : detail;
         QMetaObject::invokeMethod(
             guard.data(),
             [guard, message] {
                 if (guard)
+                {
                     emit guard->logMessage(message);
+                }
             },
             Qt::QueuedConnection);
     };
 
     auto *watcher = new QFutureWatcher<PptStyleExtractor::Result>(this);
-    connect(watcher, &QFutureWatcher<PptStyleExtractor::Result>::finished,
-            this, [this, watcher, pageCount = pages.size(), sourcePptPath = m_pptPath, stylesDir] {
-        const PptStyleExtractor::Result res = watcher->result();
-        watcher->deleteLater();
+    connect(watcher,
+            &QFutureWatcher<PptStyleExtractor::Result>::finished,
+            this,
+            [this, watcher, pageCount = static_cast<int>(pages.size()), sourcePptPath = m_pptPath, stylesDir] {
+                const PptStyleExtractor::Result res = watcher->result();
+                watcher->deleteLater();
 
-        if (m_pptPath != sourcePptPath) {
-            setBusy(false);
-            emit logMessage(QStringLiteral("后台提取已完成，但当前 PPT 已切换，未替换款号小图库"));
-            return;
-        }
+                if (m_pptPath != sourcePptPath)
+                {
+                    setBusy(false);
+                    emit logMessage(QStringLiteral("后台提取已完成，但当前 PPT 已切换，未替换款号小图库"));
+                    return;
+                }
 
-        for (const QString &warning : res.warnings)
-            emit logMessage(warning);
+                for (const QString &warning : res.warnings)
+                {
+                    emit logMessage(warning);
+                }
 
-        qsizetype imageCount = 0;
-        for (const auto &style : res.styles)
-            imageCount += style.imagePaths.size();
+                qsizetype imageCount = 0;
+                for (const auto &style : res.styles)
+                {
+                    imageCount += style.imagePaths.size();
+                }
 
-        QVector<GalleryItem> items;
-        items.reserve(imageCount);
-        for (const auto &style : res.styles) {
-            for (const QString &imagePath : style.imagePaths) {
-                GalleryItem item;
-                item.styleId   = style.styleId;
-                item.imagePath = imagePath;
-                item.tag       = QStringLiteral("baby");
-                items.push_back(std::move(item));
-            }
-        }
-        m_galleryModel->setItems(std::move(items));
-        setBusy(false);
+                QVector<GalleryItem> items;
+                items.reserve(imageCount);
+                for (const auto &style : res.styles)
+                {
+                    for (const QString &imagePath : style.imagePaths)
+                    {
+                        GalleryItem item;
+                        item.styleId   = style.styleId;
+                        item.imagePath = imagePath;
+                        item.tag       = QStringLiteral("baby");
+                        items.push_back(std::move(item));
+                    }
+                }
+                m_galleryModel->setItems(std::move(items));
+                setBusy(false);
 
-        emit logMessage(QStringLiteral("提取完成：从 %1 页提取到 %2 个款式、%3 张手绘图，已保存到 %4")
-                            .arg(pageCount)
-                            .arg(res.styles.size())
-                            .arg(imageCount)
-                            .arg(stylesDir));
-    });
+                emit logMessage(QStringLiteral("提取完成：从 %1 页提取到 %2 个款式、%3 张手绘图，已保存到 %4")
+                                    .arg(pageCount)
+                                    .arg(res.styles.size())
+                                    .arg(imageCount)
+                                    .arg(stylesDir));
+            });
 
     setBusy(true);
     emit logMessage(QStringLiteral("提取进度 0/%1｜正在启动后台提取任务...").arg(pages.size()));
-    watcher->setFuture(QtConcurrent::run([opts] {
-        return PptStyleExtractor::extract(opts);
-    }));
+    watcher->setFuture(QtConcurrent::run([opts] { return PptStyleExtractor::extract(opts); }));
 }
 
 void MatchController::emitCurrentChanged()
@@ -729,18 +835,20 @@ void MatchController::emitCurrentChanged()
 
 void MatchController::loadDemoData()
 {
-    if (m_galleryModel) {
+    if (m_galleryModel)
+    {
         QVector<GalleryItem> items;
-        const QStringList ids = {
+        const QStringList    ids = {
             QStringLiteral("T0JE26B38A008"),
             QStringLiteral("T0YC26B38A110B"),
             QStringLiteral("T0LB26B38A160A"),
             QStringLiteral("T0JE26B38A005"),
         };
-        for (const QString &id : ids) {
+        for (const QString &id : ids)
+        {
             GalleryItem it;
             it.styleId = id;
-            it.tag = QStringLiteral("baby");
+            it.tag     = QStringLiteral("baby");
             items.push_back(it);
         }
         m_galleryModel->setItems(std::move(items));
@@ -750,56 +858,67 @@ void MatchController::loadDemoData()
 void MatchController::restorePersistentState()
 {
     const QSettings settings;
-    const QString lastPhotoDir = settings.value(
-        QStringLiteral("photo/lastDir")).toString();
-    const QString lastOutputDir = settings.value(
-        QStringLiteral("output/lastDir")).toString();
-    const QString lastPptPath = settings.value(
-        QStringLiteral("ppt/lastPath")).toString();
-    const int lastPhotoIndex = settings.value(
-        QStringLiteral("selection/photoIndex"), -1).toInt();
-    const int lastOutputIndex = settings.value(
-        QStringLiteral("selection/outputIndex"), -1).toInt();
-    const int lastOutputImagePage = settings.value(
-        QStringLiteral("selection/outputImagePage"), 0).toInt();
-    const bool lastInputTabActive = settings.value(
-        QStringLiteral("preview/inputTabActive"), true).toBool();
+    const QString   lastPhotoDir        = settings.value(QStringLiteral("photo/lastDir")).toString();
+    const QString   lastOutputDir       = settings.value(QStringLiteral("output/lastDir")).toString();
+    const QString   lastPptPath         = settings.value(QStringLiteral("ppt/lastPath")).toString();
+    const int       lastPhotoIndex      = settings.value(QStringLiteral("selection/photoIndex"), -1).toInt();
+    const int       lastOutputIndex     = settings.value(QStringLiteral("selection/outputIndex"), -1).toInt();
+    const int       lastOutputImagePage = settings.value(QStringLiteral("selection/outputImagePage"), 0).toInt();
+    const bool      lastInputTabActive  = settings.value(QStringLiteral("preview/inputTabActive"), true).toBool();
     if (!lastPhotoDir.isEmpty())
+    {
         setPhotoDir(lastPhotoDir);
+    }
     if (!lastOutputDir.isEmpty())
+    {
         setOutputDir(lastOutputDir);
+    }
     if (!lastPptPath.isEmpty())
+    {
         setPptPath(lastPptPath);
-    if (m_photoModel && lastPhotoIndex >= 0
-        && lastPhotoIndex < m_photoModel->rowCount())
+    }
+    if (m_photoModel && lastPhotoIndex >= 0 && lastPhotoIndex < m_photoModel->rowCount())
+    {
         setCurrentPhotoIndex(lastPhotoIndex);
-    if (m_candidateModel && lastOutputIndex >= 0
-        && lastOutputIndex < m_candidateModel->rowCount())
+    }
+    if (m_candidateModel && lastOutputIndex >= 0 && lastOutputIndex < m_candidateModel->rowCount())
+    {
         setCurrentIndex(lastOutputIndex);
-    if (lastOutputImagePage >= 0
-        && lastOutputImagePage < currentImageCount())
+    }
+    if (lastOutputImagePage >= 0 && lastOutputImagePage < currentImageCount())
+    {
         setCurrentImagePage(lastOutputImagePage);
+    }
     activatePreview(lastInputTabActive);
 }
 
 void MatchController::activatePreview(bool inputTabActive)
 {
     if (inputTabActive)
+    {
         setCurrentPhotoIndex(m_currentPhotoIndex);
+    }
     else
+    {
         setCurrentIndex(m_currentIndex);
+    }
 }
 
 void MatchController::previousImage(bool inputTabActive)
 {
-    if (inputTabActive && m_currentPhotoIndex >= 0) {
+    if (inputTabActive && m_currentPhotoIndex >= 0)
+    {
         if (m_currentPhotoIndex > 0)
+        {
             setCurrentPhotoIndex(m_currentPhotoIndex - 1);
+        }
         return;
     }
 
     if (m_currentImagePage <= 0)
+    {
         return;
+    }
     --m_currentImagePage;
     emit currentImagePageChanged();
     emit currentImagePathChanged();
@@ -807,39 +926,52 @@ void MatchController::previousImage(bool inputTabActive)
 
 void MatchController::nextImage(bool inputTabActive)
 {
-    if (inputTabActive && m_currentPhotoIndex >= 0) {
+    if (inputTabActive && m_currentPhotoIndex >= 0)
+    {
         if (m_photoModel && m_currentPhotoIndex + 1 < m_photoModel->rowCount())
+        {
             setCurrentPhotoIndex(m_currentPhotoIndex + 1);
+        }
         return;
     }
 
     const int total = currentImageCount();
     if (m_currentImagePage + 1 >= total)
+    {
         return;
+    }
     ++m_currentImagePage;
     emit currentImagePageChanged();
     emit currentImagePathChanged();
 }
 
-void MatchController::openCurrentImageExternally()
+void MatchController::openCurrentImageExternally() const
 {
     const QString p = currentImagePath();
     if (!p.isEmpty())
+    {
         QDesktopServices::openUrl(QUrl::fromLocalFile(p));
+    }
 }
 
 void MatchController::previousCandidate()
 {
     if (m_currentIndex > 0)
+    {
         setCurrentIndex(m_currentIndex - 1);
+    }
 }
 
 void MatchController::nextCandidate()
 {
     if (!m_candidateModel)
+    {
         return;
+    }
     if (m_currentIndex + 1 < m_candidateModel->rowCount())
+    {
         setCurrentIndex(m_currentIndex + 1);
+    }
 }
 
 void MatchController::confirmSelectedThumb(int galleryRow)
@@ -850,7 +982,9 @@ void MatchController::confirmSelectedThumb(int galleryRow)
 void MatchController::confirmStyleId(const QString &styleId)
 {
     if (m_candidateModel)
+    {
         m_candidateModel->markConfirmed(m_currentIndex, true);
+    }
     emit logMessage(QStringLiteral("confirmStyleId=%1").arg(styleId));
 }
 
@@ -858,3 +992,4 @@ void MatchController::generateFineTuneModel()
 {
     emit logMessage(QStringLiteral("generateFineTuneModel triggered"));
 }
+// NOLINTEND(readability-identifier-length)

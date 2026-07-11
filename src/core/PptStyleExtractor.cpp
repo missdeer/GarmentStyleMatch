@@ -1,7 +1,8 @@
 #include <algorithm>
-#include <cmath>
 #include <archive.h>
 #include <archive_entry.h>
+#include <cmath>
+#include <ranges>
 
 #include <QDir>
 #include <QFile>
@@ -15,6 +16,8 @@
 
 #include "PptStyleExtractor.h"
 
+// PPTX parsing and layout matching use format-defined constants and indices validated by surrounding control flow.
+// NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-avoid-magic-numbers,cppcoreguidelines-pro-bounds-array-to-pointer-decay,cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,modernize-avoid-c-arrays,readability-function-cognitive-complexity,readability-identifier-length,readability-magic-numbers)
 namespace
 {
 
@@ -26,19 +29,19 @@ namespace
         double cy    = 0.0;
         bool   valid = false;
 
-        double centerX() const
+        [[nodiscard]] double centerX() const
         {
             return x + cx / 2.0;
         }
-        double centerY() const
+        [[nodiscard]] double centerY() const
         {
             return y + cy / 2.0;
         }
-        double right() const
+        [[nodiscard]] double right() const
         {
             return x + cx;
         }
-        double bottom() const
+        [[nodiscard]] double bottom() const
         {
             return y + cy;
         }
@@ -58,7 +61,7 @@ namespace
     {
         RawTransform value;
 
-        Box map(const Box &box) const
+        [[nodiscard]] Box map(const Box &box) const
         {
             if (!box.valid || !value.outer.valid || !value.hasChildBox || value.childCx == 0.0 || value.childCy == 0.0)
             {
@@ -135,9 +138,13 @@ namespace
     bool isSafeRelativePath(const QString &path)
     {
         if (path.isEmpty() || QDir::isAbsolutePath(path))
+        {
             return false;
+        }
         if (path == QLatin1String("..") || path.startsWith(QLatin1String("../")))
+        {
             return false;
+        }
         return !QRegularExpression(QStringLiteral("^[A-Za-z]:")).match(path).hasMatch();
     }
 
@@ -167,7 +174,9 @@ namespace
     bool unpackPptx(const QString &pptxPath, const QString &openXmlDir, QStringList &warnings)
     {
         if (!recreateDirectory(openXmlDir, warnings))
+        {
             return false;
+        }
 
         struct archive *reader = archive_read_new();
         archive_read_support_format_zip(reader);
@@ -247,7 +256,9 @@ namespace
                     return false;
                 }
                 if (count == 0)
+                {
                     break;
+                }
                 if (output.write(buffer, count) != count)
                 {
                     warnings << QStringLiteral("写入解压文件失败: %1").arg(outputPath);
@@ -297,7 +308,9 @@ namespace
     {
         target.replace(QLatin1Char('\\'), QLatin1Char('/'));
         while (target.startsWith(QLatin1Char('/')))
+        {
             target.remove(0, 1);
+        }
 
         const QString resolved = QDir::cleanPath(QFileInfo(sourcePart).path() + QLatin1Char('/') + target);
         return isSafeRelativePath(resolved) ? resolved : QString();
@@ -308,7 +321,9 @@ namespace
         QMap<QString, QString> relationships;
         const QByteArray       xml = readPart(openXmlDir, relationshipPartName(sourcePart), warnings);
         if (xml.isEmpty())
+        {
             return relationships;
+        }
 
         QXmlStreamReader reader(xml);
         while (!reader.atEnd())
@@ -350,7 +365,9 @@ namespace
         for (const auto &attribute : attributes)
         {
             if (attribute.name() != localName)
+            {
                 continue;
+            }
             if (attribute.namespaceUri().contains(QLatin1String("relationships")) || attribute.qualifiedName().contains(QLatin1Char(':')))
             {
                 return attribute.value().toString();
@@ -366,20 +383,26 @@ namespace
         const QMap<QString, QString> slideRelationships = readRelationships(openXmlDir, presentationPart, QStringLiteral("/slide"), warnings);
         const QByteArray             xml                = readPart(openXmlDir, presentationPart, warnings);
         if (xml.isEmpty())
+        {
             return result;
+        }
 
         QXmlStreamReader reader(xml);
         while (!reader.atEnd())
         {
             reader.readNext();
             if (!reader.isStartElement())
+            {
                 continue;
+            }
             if (reader.name() == QLatin1String("sldId"))
             {
                 const QString id   = relationshipId(reader.attributes(), QStringLiteral("id"));
                 const QString part = slideRelationships.value(id);
                 if (!part.isEmpty())
+                {
                     result.slideParts.push_back(part);
+                }
             }
             else if (reader.name() == QLatin1String("sldSz"))
             {
@@ -401,9 +424,13 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == QLatin1String("xfrm"))
+            {
                 break;
+            }
             if (!reader.isStartElement())
+            {
                 continue;
+            }
 
             const auto attributes = reader.attributes();
             if (reader.name() == QLatin1String("off"))
@@ -441,13 +468,19 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == endElement)
+            {
                 break;
+            }
             if (!reader.isStartElement())
+            {
                 continue;
+            }
             if (reader.name() == QLatin1String("p"))
             {
                 if (hasParagraph)
+                {
                     text += QLatin1Char('\n');
+                }
                 hasParagraph = true;
             }
             else if (reader.name() == QLatin1String("t"))
@@ -460,8 +493,10 @@ namespace
 
     Box applyGroupTransforms(Box box, const QVector<GroupTransform> &transforms)
     {
-        for (auto iterator = transforms.crbegin(); iterator != transforms.crend(); ++iterator)
-            box = iterator->map(box);
+        for (const auto &transform : std::views::reverse(transforms))
+        {
+            box = transform.map(box);
+        }
         return box;
     }
 
@@ -472,13 +507,21 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == QLatin1String("sp"))
+            {
                 break;
+            }
             if (!reader.isStartElement())
+            {
                 continue;
+            }
             if (reader.name() == QLatin1String("xfrm"))
+            {
                 result.box = readTransform(reader).outer;
+            }
             else if (reader.name() == QLatin1String("txBody"))
+            {
                 result.text = readTextBody(reader, QLatin1String("txBody"));
+            }
         }
         result.box = applyGroupTransforms(result.box, transforms);
         return result;
@@ -491,9 +534,13 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == QLatin1String("pic"))
+            {
                 break;
+            }
             if (!reader.isStartElement())
+            {
                 continue;
+            }
             if (reader.name() == QLatin1String("xfrm"))
             {
                 result.box = readTransform(reader).outer;
@@ -514,7 +561,9 @@ namespace
         bool      spanOk = false;
         const int span   = reader.attributes().value(QLatin1String("gridSpan")).toInt(&spanOk);
         if (spanOk && span > 1)
+        {
             result.columnSpan = span;
+        }
         result.text = readTextBody(reader, QLatin1String("tc"));
         return result;
     }
@@ -528,9 +577,13 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == QLatin1String("tr"))
+            {
                 break;
+            }
             if (!reader.isStartElement() || reader.name() != QLatin1String("tc"))
+            {
                 continue;
+            }
             TableCell cell = readTableCell(reader, column);
             column += cell.columnSpan;
             result.cells.push_back(std::move(cell));
@@ -545,9 +598,13 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == QLatin1String("tbl"))
+            {
                 break;
+            }
             if (!reader.isStartElement())
+            {
                 continue;
+            }
             if (reader.name() == QLatin1String("gridCol"))
             {
                 result.columnWidths.push_back(reader.attributes().value(QLatin1String("w")).toDouble());
@@ -563,20 +620,30 @@ namespace
     void appendTableTexts(const Box &frame, const TableData &table, const QVector<GroupTransform> &transforms, QVector<TextShape> &texts)
     {
         if (!frame.valid || table.columnWidths.isEmpty() || table.rows.isEmpty())
+        {
             return;
+        }
 
         double tableWidth = 0.0;
         for (double width : table.columnWidths)
+        {
             tableWidth += width;
+        }
         double tableHeight = 0.0;
         for (const auto &row : table.rows)
+        {
             tableHeight += row.height;
+        }
         if (tableWidth <= 0.0 || tableHeight <= 0.0)
+        {
             return;
+        }
 
         QVector<double> columnOffsets(table.columnWidths.size() + 1, 0.0);
         for (int i = 0; i < table.columnWidths.size(); ++i)
+        {
             columnOffsets[i + 1] = columnOffsets[i] + table.columnWidths[i];
+        }
 
         double rowOffset = 0.0;
         for (const auto &row : table.rows)
@@ -587,7 +654,7 @@ namespace
                 {
                     continue;
                 }
-                const int endColumn = std::min(cell.column + cell.columnSpan, int(table.columnWidths.size()));
+                const int endColumn = std::min(cell.column + cell.columnSpan, static_cast<int>(table.columnWidths.size()));
                 Box       cellBox;
                 cellBox.x     = frame.x + columnOffsets[cell.column] * frame.cx / tableWidth;
                 cellBox.y     = frame.y + rowOffset * frame.cy / tableHeight;
@@ -612,11 +679,17 @@ namespace
                 break;
             }
             if (!reader.isStartElement())
+            {
                 continue;
+            }
             if (reader.name() == QLatin1String("xfrm"))
+            {
                 frame = readTransform(reader).outer;
+            }
             else if (reader.name() == QLatin1String("tbl"))
+            {
                 table = readTable(reader);
+            }
         }
         appendTableTexts(frame, table, transforms, texts);
     }
@@ -628,9 +701,13 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == QLatin1String("grpSpPr"))
+            {
                 break;
+            }
             if (reader.isStartElement() && reader.name() == QLatin1String("xfrm"))
+            {
                 result.value = readTransform(reader);
+            }
         }
         return result;
     }
@@ -645,27 +722,37 @@ namespace
         {
             reader.readNext();
             if (reader.isEndElement() && reader.name() == endElement)
+            {
                 break;
+            }
             if (!reader.isStartElement())
+            {
                 continue;
+            }
 
             if (reader.name() == QLatin1String("grpSpPr") && endElement == QLatin1String("grpSp"))
             {
                 const GroupTransform transform = readGroupProperties(reader);
                 if (transform.value.outer.valid && transform.value.hasChildBox)
+                {
                     transforms.push_back(transform);
+                }
             }
             else if (reader.name() == QLatin1String("sp"))
             {
                 TextShape text = readTextShape(reader, transforms);
                 if (!text.text.trimmed().isEmpty() && text.box.valid)
+                {
                     contents.texts.push_back(std::move(text));
+                }
             }
             else if (reader.name() == QLatin1String("pic"))
             {
                 PictureShape picture = readPictureShape(reader, transforms);
                 if (!picture.relationshipId.isEmpty() && picture.box.valid)
+                {
                     contents.pictures.push_back(std::move(picture));
+                }
             }
             else if (reader.name() == QLatin1String("graphicFrame"))
             {
@@ -701,18 +788,26 @@ namespace
     bool looksLikeStyleId(const QString &candidate)
     {
         if (candidate.size() < 6 || candidate.size() > 20)
+        {
             return false;
+        }
 
         bool hasLetter = false;
         bool hasDigit  = false;
         for (const QChar character : candidate)
         {
             if (character >= QLatin1Char('A') && character <= QLatin1Char('Z'))
+            {
                 hasLetter = true;
+            }
             else if (character.isDigit())
+            {
                 hasDigit = true;
+            }
             else
+            {
                 return false;
+            }
         }
         return hasLetter && hasDigit;
     }
@@ -728,17 +823,23 @@ namespace
             for (const QChar character : line)
             {
                 if (!character.isSpace())
+                {
                     compact += character;
+                }
             }
             if (looksLikeStyleId(compact))
+            {
                 return compact;
+            }
 
             auto iterator = token.globalMatch(line);
             while (iterator.hasNext())
             {
                 const QString candidate = iterator.next().captured();
                 if (looksLikeStyleId(candidate))
+                {
                     return candidate;
+                }
             }
         }
         return {};
@@ -767,10 +868,14 @@ namespace
     {
         QVector<int> order(labels.size());
         for (int index = 0; index < labels.size(); ++index)
+        {
             order[index] = index;
+        }
         std::sort(order.begin(), order.end(), [&labels](int left, int right) {
             if (labels[left].box.centerY() == labels[right].box.centerY())
+            {
                 return labels[left].box.centerX() < labels[right].box.centerX();
+            }
             return labels[left].box.centerY() < labels[right].box.centerY();
         });
 
@@ -786,7 +891,7 @@ namespace
 
             LabelRow &row = rows.back();
             row.labels.push_back(labelIndex);
-            const int count = row.labels.size();
+            const int count = static_cast<int>(row.labels.size());
             row.centerY     = (row.centerY * (count - 1) + box.centerY()) / count;
             row.maxHeight   = std::max(row.maxHeight, box.cy);
         }
@@ -810,27 +915,37 @@ namespace
         {
             const QString styleId = styleIdFromText(text.text);
             if (!styleId.isEmpty())
+            {
                 labels.push_back({styleId, text.box, {}});
+            }
         }
         if (labels.isEmpty())
         {
-            unassignedPictures = contents.pictures.size();
+            unassignedPictures = static_cast<int>(contents.pictures.size());
             return {};
         }
 
         if (slideWidth <= 0.0)
         {
             for (const auto &label : labels)
+            {
                 slideWidth = std::max(slideWidth, label.box.right());
+            }
             for (const auto &picture : contents.pictures)
+            {
                 slideWidth = std::max(slideWidth, picture.box.right());
+            }
         }
         if (slideHeight <= 0.0)
         {
             for (const auto &label : labels)
+            {
                 slideHeight = std::max(slideHeight, label.box.bottom());
+            }
             for (const auto &picture : contents.pictures)
+            {
                 slideHeight = std::max(slideHeight, picture.box.bottom());
+            }
         }
 
         const QVector<LabelRow> rows = groupLabelRows(labels);
@@ -846,7 +961,9 @@ namespace
                 const double    top    = row.centerY;
                 const double    bottom = rowIndex + 1 < rows.size() ? rows[rowIndex + 1].centerY : slideHeight;
                 if (picture.box.centerY() < top || picture.box.centerY() >= bottom)
+                {
                     continue;
+                }
 
                 for (int column = 0; column < row.labels.size(); ++column)
                 {
@@ -875,7 +992,9 @@ namespace
                     left  = std::max(0.0, left);
                     right = std::min(slideWidth, right);
                     if (picture.box.centerX() < left || picture.box.centerX() >= right)
+                    {
                         continue;
+                    }
 
                     const double horizontalFraction = overlapLength(picture.box.x, picture.box.right(), left, right) / picture.box.cx;
                     const double verticalFraction   = overlapLength(picture.box.y, picture.box.bottom(), top, bottom) / picture.box.cy;
@@ -895,7 +1014,9 @@ namespace
             }
             QVector<QString> &ids = labels[bestLabel].pictureIds;
             if (!ids.contains(picture.relationshipId))
+            {
                 ids.push_back(picture.relationshipId);
+            }
         }
 
         QVector<QPair<QString, QVector<QString>>> result;
@@ -905,7 +1026,9 @@ namespace
             {
                 const Label &label = labels[labelIndex];
                 if (!label.pictureIds.isEmpty())
+                {
                     result.push_back({label.styleId, label.pictureIds});
+                }
             }
         }
         return result;
@@ -916,7 +1039,9 @@ namespace
         static const QRegularExpression invalid(QStringLiteral("[\\\\/:*?\"<>|]"));
         value.replace(invalid, QStringLiteral("_"));
         while (value.endsWith(QLatin1Char('.')) || value.endsWith(QLatin1Char(' ')))
+        {
             value.chop(1);
+        }
         return value.isEmpty() ? QStringLiteral("unknown-style") : value;
     }
 
@@ -927,7 +1052,9 @@ namespace
                               QStringList                 &warnings)
     {
         if (!recreateDirectory(outputDir, warnings))
+        {
             return false;
+        }
 
         for (const PendingStyle &pending : pendingStyles)
         {
@@ -954,7 +1081,9 @@ namespace
 
                 QString extension = QFileInfo(mediaPart).suffix().toLower();
                 if (extension.isEmpty())
+                {
                     extension = QStringLiteral("bin");
+                }
                 const QString    fileName   = QStringLiteral("%1.%2").arg(imageIndex, 3, 10, QLatin1Char('0')).arg(extension);
                 const QString    outputPath = QDir(styleDir).absoluteFilePath(fileName);
                 const QByteArray imageData  = source.readAll();
@@ -969,7 +1098,9 @@ namespace
             }
 
             if (!extracted.imagePaths.isEmpty())
+            {
                 styles.push_back(std::move(extracted));
+            }
         }
         return true;
     }
@@ -987,14 +1118,20 @@ PptStyleExtractor::Result PptStyleExtractor::extract(const Options &options)
 
     const QString openXmlDir =
         options.openXmlDir.isEmpty() ? QFileInfo(options.outputDir).dir().absoluteFilePath(QStringLiteral("openxml")) : options.openXmlDir;
-    const int totalPages = options.pages.size();
+    const int totalPages = static_cast<int>(options.pages.size());
     if (options.progress)
+    {
         options.progress(0, totalPages, QStringLiteral("正在解压 PPTX..."));
+    }
     if (!unpackPptx(options.pptxPath, openXmlDir, result.warnings))
+    {
         return result;
+    }
 
     if (options.progress)
+    {
         options.progress(0, totalPages, QStringLiteral("PPTX 解压完成，正在读取页面结构..."));
+    }
     const PresentationInfo presentation = readPresentation(openXmlDir, result.warnings);
     QVector<PendingStyle>  pendingStyles;
     QHash<QString, int>    styleIndexes;
@@ -1010,12 +1147,16 @@ PptStyleExtractor::Result PptStyleExtractor::extract(const Options &options)
             options.progress(pagePosition - 1, totalPages, QStringLiteral("正在解析 PPT 第 %1 页...").arg(page));
         }
         if (page <= 0 || visitedPages.contains(page))
+        {
             continue;
+        }
         visitedPages.insert(page);
 
         QString slidePart;
         if (page <= presentation.slideParts.size())
+        {
             slidePart = presentation.slideParts.at(page - 1);
+        }
         if (slidePart.isEmpty())
         {
             slidePart = QStringLiteral("ppt/slides/slide%1.xml").arg(page);
@@ -1024,7 +1165,9 @@ PptStyleExtractor::Result PptStyleExtractor::extract(const Options &options)
 
         const QByteArray slideXml = readPart(openXmlDir, slidePart, result.warnings);
         if (slideXml.isEmpty())
+        {
             continue;
+        }
         parsedAnySlide = true;
 
         const SlideContents          contents           = readSlide(slideXml, result.warnings, page);
@@ -1038,7 +1181,7 @@ PptStyleExtractor::Result PptStyleExtractor::extract(const Options &options)
             int styleIndex = styleIndexes.value(cell.first, -1);
             if (styleIndex < 0)
             {
-                styleIndex = pendingStyles.size();
+                styleIndex = static_cast<int>(pendingStyles.size());
                 styleIndexes.insert(cell.first, styleIndex);
                 pendingStyles.push_back({cell.first, page, {}});
             }
@@ -1074,11 +1217,18 @@ PptStyleExtractor::Result PptStyleExtractor::extract(const Options &options)
     }
 
     if (!parsedAnySlide)
+    {
         return result;
+    }
     if (options.progress)
+    {
         options.progress(totalPages, totalPages, QStringLiteral("正在按款号保存手绘图..."));
+    }
     writeExtractedStyles(openXmlDir, options.outputDir, pendingStyles, result.styles, result.warnings);
     if (options.progress)
+    {
         options.progress(totalPages, totalPages, QStringLiteral("手绘图保存完成，正在更新款号小图库..."));
+    }
     return result;
 }
+// NOLINTEND(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-avoid-magic-numbers,cppcoreguidelines-pro-bounds-array-to-pointer-decay,cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,modernize-avoid-c-arrays,readability-function-cognitive-complexity,readability-identifier-length,readability-magic-numbers)

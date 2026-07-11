@@ -16,23 +16,23 @@ class ImageMetadata : public QObject
 public:
     explicit ImageMetadata(QObject *parent = nullptr);
 
-    QString imagePath() const
+    [[nodiscard]] QString imagePath() const
     {
         return m_imagePath;
     }
-    QVariantList fileInfo() const
+    [[nodiscard]] QVariantList fileInfo() const
     {
         return m_fileInfo;
     }
-    QVariantList imageInfo() const
+    [[nodiscard]] QVariantList imageInfo() const
     {
         return m_imageInfo;
     }
-    QVariantList iptc() const
+    [[nodiscard]] QVariantList iptc() const
     {
         return m_iptc;
     }
-    QVariantList exif() const
+    [[nodiscard]] QVariantList exif() const
     {
         return m_exif;
     }

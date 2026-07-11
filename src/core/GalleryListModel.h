@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <QAbstractListModel>
 #include <QString>
 #include <QVector>
@@ -18,7 +20,7 @@ class GalleryListModel : public QAbstractListModel
     Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectedIndexChanged)
 
 public:
-    enum Roles
+    enum Roles : std::uint16_t
     {
         StyleIdRole = Qt::UserRole + 1,
         ImagePathRole,
@@ -29,16 +31,19 @@ public:
 
     explicit GalleryListModel(QObject *parent = nullptr);
 
-    int                    rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    QVariant               data(const QModelIndex &index, int role) const override;
-    QHash<int, QByteArray> roleNames() const override;
+    [[nodiscard]] int                    rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    [[nodiscard]] QVariant               data(const QModelIndex &index, int role) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
-    void               setItems(QVector<GalleryItem> items);
-    void               loadFromStyleCacheDir(const QString &directoryPath);
-    void               setFilterText(const QString &text);
-    QString            filterText() const { return m_filterText; }
-    const GalleryItem *at(int row) const;
-    int                selectedIndex() const
+    void                  setItems(QVector<GalleryItem> items);
+    void                  loadFromStyleCacheDir(const QString &directoryPath);
+    void                  setFilterText(const QString &text);
+    [[nodiscard]] QString filterText() const
+    {
+        return m_filterText;
+    }
+    [[nodiscard]] const GalleryItem *at(int row) const;
+    [[nodiscard]] int                selectedIndex() const
     {
         return m_selectedIndex;
     }

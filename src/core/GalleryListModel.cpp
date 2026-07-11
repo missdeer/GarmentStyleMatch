@@ -1,7 +1,7 @@
+#include <utility>
+
 #include <QDir>
 #include <QFileInfo>
-
-#include <utility>
 
 #include "GalleryListModel.h"
 
@@ -10,24 +10,28 @@ GalleryListModel::GalleryListModel(QObject *parent) : QAbstractListModel(parent)
 int GalleryListModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
+    {
         return 0;
-    return m_items.size();
+    }
+    return static_cast<int>(m_items.size());
 }
 
 QVariant GalleryListModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_items.size())
+    {
         return {};
+    }
 
-    const GalleryItem &it = m_items.at(index.row());
+    const GalleryItem &item = m_items.at(index.row());
     switch (role)
     {
     case StyleIdRole:
-        return it.styleId;
+        return item.styleId;
     case ImagePathRole:
-        return it.imagePath;
+        return item.imagePath;
     case TagRole:
-        return it.tag;
+        return item.tag;
     case IndexLabelRole:
         return index.row() + 1;
     case SelectedRole:
@@ -52,20 +56,24 @@ void GalleryListModel::setItems(QVector<GalleryItem> items)
 {
     const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
-    m_allItems      = std::move(items);
+    m_allItems.swap(items);
     rebuildFilteredItems();
     m_selectedIndex = -1;
     endResetModel();
     emit countChanged();
     if (hadSelection)
+    {
         emit selectedIndexChanged();
+    }
 }
 
 void GalleryListModel::setFilterText(const QString &text)
 {
     const QString normalizedText = text.trimmed();
     if (normalizedText == m_filterText)
+    {
         return;
+    }
 
     const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
@@ -75,7 +83,9 @@ void GalleryListModel::setFilterText(const QString &text)
     endResetModel();
     emit countChanged();
     if (hadSelection)
+    {
         emit selectedIndexChanged();
+    }
 }
 
 void GalleryListModel::rebuildFilteredItems()
@@ -90,7 +100,9 @@ void GalleryListModel::rebuildFilteredItems()
     for (const GalleryItem &item : std::as_const(m_allItems))
     {
         if (item.styleId.contains(m_filterText, Qt::CaseInsensitive))
+        {
             m_items.push_back(item);
+        }
     }
 }
 
@@ -125,14 +137,18 @@ void GalleryListModel::loadFromStyleCacheDir(const QString &directoryPath)
 const GalleryItem *GalleryListModel::at(int row) const
 {
     if (row < 0 || row >= m_items.size())
+    {
         return nullptr;
+    }
     return &m_items.at(row);
 }
 
 void GalleryListModel::toggleSelected(int row)
 {
     if (row < 0 || row >= m_items.size())
+    {
         return;
+    }
 
     const int previousIndex = m_selectedIndex;
     m_selectedIndex         = previousIndex == row ? -1 : row;
@@ -153,7 +169,9 @@ void GalleryListModel::toggleSelected(int row)
 void GalleryListModel::clearSelection()
 {
     if (m_selectedIndex < 0)
+    {
         return;
+    }
 
     const QModelIndex previous = index(m_selectedIndex);
     m_selectedIndex            = -1;
@@ -164,7 +182,9 @@ void GalleryListModel::clearSelection()
 void GalleryListModel::clear()
 {
     if (m_allItems.isEmpty())
+    {
         return;
+    }
     const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
     m_allItems.clear();
@@ -173,5 +193,7 @@ void GalleryListModel::clear()
     endResetModel();
     emit countChanged();
     if (hadSelection)
+    {
         emit selectedIndexChanged();
+    }
 }

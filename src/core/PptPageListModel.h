@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <QAbstractListModel>
 #include <QSet>
 #include <QString>
@@ -7,20 +9,21 @@
 
 struct PptPageItem
 {
-    int     pageIndex = 0;   // 1-based
-    QString imagePath;       // rendered thumbnail path (empty for stub)
-    bool    selected  = false;
+    int     pageIndex = 0; // 1-based
+    QString imagePath;     // rendered thumbnail path (empty for stub)
+    bool    selected = false;
 };
 
 class PptPageListModel : public QAbstractListModel
 {
     Q_OBJECT
-    Q_PROPERTY(int     count             READ rowCount            NOTIFY countChanged)
-    Q_PROPERTY(int     selectedCount     READ selectedCount       NOTIFY selectedCountChanged)
-    Q_PROPERTY(QString selectedPagesText READ selectedPagesText   WRITE setSelectedPagesText NOTIFY selectedPagesTextChanged)
+    Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+    Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectedCountChanged)
+    Q_PROPERTY(QString selectedPagesText READ selectedPagesText WRITE setSelectedPagesText NOTIFY selectedPagesTextChanged)
 
 public:
-    enum Roles {
+    enum Roles : std::uint16_t
+    {
         PageIndexRole = Qt::UserRole + 1,
         ImagePathRole,
         SelectedRole,
@@ -28,20 +31,20 @@ public:
 
     explicit PptPageListModel(QObject *parent = nullptr);
 
-    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    QVariant data(const QModelIndex &index, int role) const override;
-    QHash<int, QByteArray> roleNames() const override;
+    [[nodiscard]] int                    rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    [[nodiscard]] QVariant               data(const QModelIndex &index, int role) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
-    void setItems(QVector<PptPageItem> items);
-    void appendItem(const PptPageItem &item);
-    const PptPageItem *at(int row) const;
-    QVector<int> selectedRows() const;
-    int selectedCount() const;
-    QString selectedPagesText() const;
-    void    setSelectedPagesText(const QString &text);
+    void                             setItems(QVector<PptPageItem> items);
+    void                             appendItem(const PptPageItem &item);
+    [[nodiscard]] const PptPageItem *at(int row) const;
+    [[nodiscard]] QVector<int>       selectedRows() const;
+    [[nodiscard]] int                selectedCount() const;
+    [[nodiscard]] QString            selectedPagesText() const;
+    void                             setSelectedPagesText(const QString &text);
 
     Q_INVOKABLE void toggleSelected(int row);
-    Q_INVOKABLE void setSelected(int row, bool on);
+    Q_INVOKABLE void setSelected(int row, bool selected);
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void clear();
 
