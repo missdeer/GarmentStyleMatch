@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
     if (!check(controller.availableInferenceEngines().contains(QStringLiteral("CPU")),
                QStringLiteral("推理引擎列表必须始终包含 CPU")))
         return 1;
+    const QString activeInferenceEngine = controller.currentInferenceEngine();
     if (!check(controller.setCurrentInferenceEngine(QStringLiteral("CPU"))
                    || controller.currentInferenceEngine() == QStringLiteral("CPU"),
                QStringLiteral("应允许选择 CPU 推理引擎")))
@@ -72,6 +73,9 @@ int main(int argc, char *argv[])
     if (!check(QSettings().value(QStringLiteral("matching/provider")).toString()
                    == QStringLiteral("cpu"),
                QStringLiteral("推理引擎选择应持久化到 matching/provider")))
+        return 1;
+    if (!check(controller.currentInferenceEngine() == activeInferenceEngine,
+               QStringLiteral("推理引擎设置在重启前不得改变当前进程使用的引擎")))
         return 1;
     if (!check(!controller.setCurrentInferenceEngine(QStringLiteral("unsupported")),
                QStringLiteral("不应接受本机不支持的推理引擎")))

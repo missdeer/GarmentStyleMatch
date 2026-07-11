@@ -6,6 +6,7 @@ Rectangle {
     id: root
     property string titleText: ""
     property string pendingStyle: ""
+    property string pendingInferenceEngine: ""
 
     implicitHeight: 56
     color: "#1f2c3a"
@@ -33,8 +34,30 @@ Rectangle {
                 checkable: true
                 checked: modelData === controller.currentInferenceEngine
                 ButtonGroup.group: inferenceEngineButtonGroup
-                onTriggered: controller.setCurrentInferenceEngine(modelData)
+                onTriggered: {
+                    if (controller.setCurrentInferenceEngine(modelData)) {
+                        root.pendingInferenceEngine = modelData
+                        inferenceEngineRestartDialog.open()
+                    }
+                }
             }
+        }
+    }
+
+    Dialog {
+        id: inferenceEngineRestartDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(420, parent.width - 32)
+        modal: true
+        title: qsTr("推理引擎已保存")
+        standardButtons: Dialog.Ok
+        closePolicy: Popup.NoAutoClose
+
+        contentItem: Label {
+            text: qsTr("推理引擎已设置为 %1。为避免加载不同版本的 ONNX Runtime，必须重启应用后才能生效。")
+                  .arg(root.pendingInferenceEngine)
+            wrapMode: Text.Wrap
         }
     }
 

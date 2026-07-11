@@ -4,7 +4,6 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
-#include <QLibrary>
 #include <QSettings>
 #include <QTemporaryDir>
 
@@ -58,16 +57,15 @@ int main(int argc, char *argv[])
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, temporary.path());
     QSettings().clear();
     const QString requestedProvider = argc > 1 ? QString::fromLocal8Bit(argv[1]).trimmed().toLower() : QString();
-    const bool    switchProviders   = requestedProvider == QStringLiteral("switch");
+    const bool    verifyRestartRule = requestedProvider == QStringLiteral("restart-rule");
 #ifdef Q_OS_WIN
-    QLibrary      cudaDriver(QStringLiteral("nvcuda"));
-    const bool    hasCuda         = cudaDriver.load();
-    const QString initialProvider = switchProviders ? (hasCuda ? QStringLiteral("cuda") : QStringLiteral("directml")) : requestedProvider;
+    const QString initialProvider = verifyRestartRule ? QStringLiteral("directml") : requestedProvider;
 #else
     const QString initialProvider = requestedProvider;
 #endif
     if (!initialProvider.isEmpty())
         QSettings().setValue(QStringLiteral("matching/provider"), initialProvider);
+    const QString expectedProvider = GarmentMatcher::activeProvider();
 
     const QString photoPath   = QDir(temporary.path()).absoluteFilePath(QStringLiteral("photo.bmp"));
     const QString galleryPath = QDir(temporary.path()).absoluteFilePath(QStringLiteral("gallery.bmp"));
@@ -84,15 +82,6 @@ int main(int argc, char *argv[])
     std::cout << "provider=" << result.provider.toStdString() << ", success=" << (result.success ? "true" : "false")
               << ", error=" << result.error.toStdString() << '\n';
 
-#ifdef Q_OS_WIN
-    const QString expectedProvider =
-        initialProvider == QStringLiteral("cpu")
-            ? QStringLiteral("CPU")
-            : (initialProvider == QStringLiteral("directml") ? QStringLiteral("DirectML")
-                                                             : (hasCuda ? QStringLiteral("CUDA") : QStringLiteral("DirectML")));
-#else
-    const QString expectedProvider = QStringLiteral("CPU");
-#endif
     if (!check(result.provider == expectedProvider,
                QStringLiteral("应选择 %1，实际为 %2；错误：%3").arg(expectedProvider, result.provider, result.error)))
         return 1;
@@ -104,14 +93,13 @@ int main(int argc, char *argv[])
         return 1;
 
 #ifdef Q_OS_WIN
-    if (switchProviders)
+    if (verifyRestartRule)
     {
-        const QString nextSetting  = expectedProvider == QStringLiteral("CUDA") ? QStringLiteral("directml") : QStringLiteral("cpu");
-        const QString nextExpected = nextSetting == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU");
-        QSettings().setValue(QStringLiteral("matching/provider"), nextSetting);
+        QSettings().setValue(QStringLiteral("matching/provider"), QStringLiteral("cpu"));
         const GarmentMatcher::Result switchedResult = GarmentMatcher::match(photoPath, gallery, options);
-        if (!check(switchedResult.success && switchedResult.provider == nextExpected,
-                   QStringLiteral("同进程切换后应使用 %1，实际为 %2；错误：%3").arg(nextExpected, switchedResult.provider, switchedResult.error)))
+        if (!check(switchedResult.success && switchedResult.provider == expectedProvider,
+                   QStringLiteral("设置变更后同一进程必须继续使用 %1，实际为 %2；错误：%3")
+                       .arg(expectedProvider, switchedResult.provider, switchedResult.error)))
             return 1;
     }
 #endif

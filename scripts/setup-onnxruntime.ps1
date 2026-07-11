@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $tempRoot = Join-Path $root "tmp\onnxruntime-setup"
 $packageRoot = Join-Path $tempRoot "packages"
-$sdkRoot = Join-Path $root "3rdparty\onnxruntime-1.24.4"
+$sdkRoot = Join-Path $root "3rdparty\onnxruntime-1.24.4-1.27.1"
 $modelRoot = Join-Path $root "3rdparty\models"
 $pythonPackages = Join-Path $tempRoot "python-packages"
 
@@ -31,15 +31,15 @@ function Get-VerifiedFile {
     }
 }
 
-$cudaArchive = Join-Path $packageRoot "onnxruntime-cuda-1.24.4.zip"
+$cudaArchive = Join-Path $packageRoot "onnxruntime-cuda13-1.27.1.zip"
 $directmlPackage = Join-Path $packageRoot "onnxruntime-directml-1.24.4.nupkg"
 $segmentationModel = Join-Path $packageRoot "clothes_segformer_b2.onnx"
 $fashionClipModel = Join-Path $packageRoot "fashion_clip.onnx"
 
 Get-VerifiedFile `
-    -Uri "https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-gpu-1.24.4.zip" `
+    -Uri "https://github.com/microsoft/onnxruntime/releases/download/v1.27.1/onnxruntime-win-x64-gpu_cuda13-1.27.1.zip" `
     -Path $cudaArchive `
-    -Sha256 "EF3337A0B8184EB8BEEC310F7C83BD50376B3EEFC43AAB84AC8E452F6987DF0A"
+    -Sha256 "1A88828FB1CA78C9920637ACF0F8D8CE40A854BEF874128C55193E3D1A2B9EF8"
 Get-VerifiedFile `
     -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.24.4/microsoft.ml.onnxruntime.directml.1.24.4.nupkg" `
     -Path $directmlPackage `
@@ -61,7 +61,7 @@ $directmlZip = Join-Path $packageRoot "onnxruntime-directml-1.24.4.zip"
 Copy-Item -LiteralPath $directmlPackage -Destination $directmlZip -Force
 Expand-Archive -LiteralPath $directmlZip -DestinationPath $directmlExtract
 
-$cudaSource = Join-Path $cudaExtract "onnxruntime-win-x64-gpu-1.24.4"
+$cudaSource = Join-Path $cudaExtract "onnxruntime-win-x64-gpu_cuda13-1.27.1"
 New-Item -ItemType Directory -Force -Path `
     (Join-Path $sdkRoot "include"), `
     (Join-Path $sdkRoot "runtime\cuda"), `

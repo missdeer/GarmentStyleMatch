@@ -1,5 +1,12 @@
-set(GSM_ONNXRUNTIME_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime-1.24.4" CACHE PATH
-    "Path to the unpacked ONNX Runtime 1.24.4 SDK")
+set(_gsm_onnxruntime_default_root "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime-1.24.4-1.27.1")
+if(NOT DEFINED GSM_ONNXRUNTIME_ROOT
+   OR GSM_ONNXRUNTIME_ROOT STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime-1.24.4")
+    set(GSM_ONNXRUNTIME_ROOT "${_gsm_onnxruntime_default_root}" CACHE PATH
+        "Path to the unpacked ONNX Runtime SDK (1.24.4 headers/DirectML, 1.27.1 CUDA 13)" FORCE)
+else()
+    set(GSM_ONNXRUNTIME_ROOT "${GSM_ONNXRUNTIME_ROOT}" CACHE PATH
+        "Path to the unpacked ONNX Runtime SDK (1.24.4 headers/DirectML, 1.27.1 CUDA 13)")
+endif()
 
 set(_ort_temp_root "${CMAKE_SOURCE_DIR}/tmp/onnxruntime-setup")
 set(_ort_package_root "${_ort_temp_root}/packages")
@@ -25,16 +32,16 @@ if(WIN32)
     if(NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h"
        OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda/onnxruntime.dll"
        OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/directml/onnxruntime.dll")
-        set(_ort_cuda_archive "${_ort_package_root}/onnxruntime-cuda-1.24.4.zip")
+        set(_ort_cuda_archive "${_ort_package_root}/onnxruntime-cuda13-1.27.1.zip")
         set(_ort_directml_package "${_ort_package_root}/onnxruntime-directml-1.24.4.nupkg")
         set(_ort_cuda_extract "${_ort_temp_root}/cmake-cuda")
         set(_ort_directml_extract "${_ort_temp_root}/cmake-directml")
 
         gsm_download_file(
-            "https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-gpu-1.24.4.zip"
+            "https://github.com/microsoft/onnxruntime/releases/download/v1.27.1/onnxruntime-win-x64-gpu_cuda13-1.27.1.zip"
             "${_ort_cuda_archive}"
-            "EF3337A0B8184EB8BEEC310F7C83BD50376B3EEFC43AAB84AC8E452F6987DF0A"
-            "ONNX Runtime 1.24.4 CUDA package")
+            "1A88828FB1CA78C9920637ACF0F8D8CE40A854BEF874128C55193E3D1A2B9EF8"
+            "ONNX Runtime 1.27.1 CUDA 13 package")
         gsm_download_file(
             "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.24.4/microsoft.ml.onnxruntime.directml.1.24.4.nupkg"
             "${_ort_directml_package}"
@@ -53,9 +60,9 @@ if(WIN32)
         file(COPY "${_ort_directml_extract}/build/native/include/"
             DESTINATION "${GSM_ONNXRUNTIME_ROOT}/include")
         file(COPY
-            "${_ort_cuda_extract}/onnxruntime-win-x64-gpu-1.24.4/lib/onnxruntime.dll"
-            "${_ort_cuda_extract}/onnxruntime-win-x64-gpu-1.24.4/lib/onnxruntime_providers_cuda.dll"
-            "${_ort_cuda_extract}/onnxruntime-win-x64-gpu-1.24.4/lib/onnxruntime_providers_shared.dll"
+            "${_ort_cuda_extract}/onnxruntime-win-x64-gpu_cuda13-1.27.1/lib/onnxruntime.dll"
+            "${_ort_cuda_extract}/onnxruntime-win-x64-gpu_cuda13-1.27.1/lib/onnxruntime_providers_cuda.dll"
+            "${_ort_cuda_extract}/onnxruntime-win-x64-gpu_cuda13-1.27.1/lib/onnxruntime_providers_shared.dll"
             DESTINATION "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda")
         file(GLOB _ort_directml_dlls "${_ort_directml_extract}/runtimes/win-x64/native/*.dll")
         file(COPY ${_ort_directml_dlls}

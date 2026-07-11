@@ -58,6 +58,7 @@ namespace
     {
         QLibrary          library;
         QString           preferredProvider;
+        QString           version;
         AppendDmlFunction appendDml = nullptr;
     };
 
@@ -111,6 +112,21 @@ namespace
         qputenv("PATH", path);
     }
 
+    [[nodiscard]] bool hasCudaRuntime()
+    {
+        if (!hasCudaDriver())
+            return false;
+        prepareCudaDllSearchPath();
+        constexpr std::array<const char *, 4> dependencies {"cublas64_13", "cublasLt64_13", "cudnn64_9", "cufft64_12"};
+        for (const char *dependency : dependencies)
+        {
+            QLibrary library(QString::fromLatin1(dependency));
+            if (!library.load())
+                return false;
+        }
+        return true;
+    }
+
     [[nodiscard]] QString runtimeLibraryPath(const QString &provider)
     {
 #ifdef Q_OS_WIN
@@ -123,70 +139,70 @@ namespace
 #endif
     }
 
+    [[nodiscard]] QString startupProvider()
+    {
+        static const QString provider = [] {
+#ifdef Q_OS_WIN
+            const QString configured = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString().trimmed().toLower();
+            const bool    cudaAvailable     = hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda")));
+            const bool    directMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml")));
+            if (configured == QStringLiteral("cuda") && cudaAvailable)
+                return QStringLiteral("cuda");
+            if (configured == QStringLiteral("directml") && directMlAvailable)
+                return QStringLiteral("directml");
+            if (configured == QStringLiteral("cpu"))
+                return QStringLiteral("cpu");
+            if (cudaAvailable)
+                return QStringLiteral("cuda");
+            if (directMlAvailable)
+                return QStringLiteral("directml");
+#endif
+            return QStringLiteral("cpu");
+        }();
+        return provider;
+    }
+
+    [[nodiscard]] QString runtimeBackend(const QString &provider)
+    {
+#ifdef Q_OS_WIN
+        if (provider == QStringLiteral("cpu"))
+            return QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))) ? QStringLiteral("directml") : QStringLiteral("cuda");
+#endif
+        return provider;
+    }
+
     [[nodiscard]] std::unique_ptr<LoadedOrt> loadOrtLibrary()
     {
-        const QString configured = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString().trimmed().toLower();
-        QStringList   candidates;
-#ifdef Q_OS_WIN
-        if (configured == QStringLiteral("cuda"))
-            candidates = {QStringLiteral("cuda")};
-        else if (configured == QStringLiteral("directml"))
-            candidates = {QStringLiteral("directml")};
-        else if (configured == QStringLiteral("cpu"))
-            candidates = {hasCudaDriver() ? QStringLiteral("cuda") : QStringLiteral("directml")};
-        else
-            candidates = hasCudaDriver() ? QStringList {QStringLiteral("cuda"), QStringLiteral("directml")}
-                                         : QStringList {QStringLiteral("directml"), QStringLiteral("cuda")};
-#else
-        candidates = {QStringLiteral("cpu")};
-#endif
+        const QString provider = startupProvider();
+        const QString backend  = runtimeBackend(provider);
+        if (backend == QStringLiteral("cuda"))
+            prepareCudaDllSearchPath();
 
-        QStringList errors;
-        for (const QString &candidate : std::as_const(candidates))
+        auto loaded = std::make_unique<LoadedOrt>();
+        loaded->library.setFileName(runtimeLibraryPath(backend));
+        loaded->library.setLoadHints(QLibrary::PreventUnloadHint);
+        if (!loaded->library.load())
+            throw std::runtime_error(QStringLiteral("无法加载 %1 ONNX Runtime：%2").arg(backend, loaded->library.errorString()).toStdString());
+
+        const auto getApiBase = reinterpret_cast<OrtGetApiBaseFunction>(loaded->library.resolve("OrtGetApiBase"));
+        if (!getApiBase)
+            throw std::runtime_error(QStringLiteral("%1 ONNX Runtime 缺少 OrtGetApiBase").arg(backend).toStdString());
+        const OrtApi *api = getApiBase()->GetApi(ORT_API_VERSION);
+        if (!api)
+            throw std::runtime_error(QStringLiteral("%1 ONNX Runtime 不支持 ORT API %2").arg(backend).arg(ORT_API_VERSION).toStdString());
+        Ort::InitApi(api);
+        loaded->version = QString::fromLatin1(getApiBase()->GetVersionString());
+
+        if (provider == QStringLiteral("directml"))
         {
-            if (candidate == QStringLiteral("cuda"))
-                prepareCudaDllSearchPath();
-            const QString path   = runtimeLibraryPath(candidate);
-            auto          loaded = std::make_unique<LoadedOrt>();
-            loaded->library.setFileName(path);
-            loaded->library.setLoadHints(QLibrary::PreventUnloadHint);
-            if (!loaded->library.load())
-            {
-                errors.push_back(QStringLiteral("%1: %2").arg(candidate, loaded->library.errorString()));
-                continue;
-            }
-
-            const auto getApiBase = reinterpret_cast<OrtGetApiBaseFunction>(loaded->library.resolve("OrtGetApiBase"));
-            if (!getApiBase)
-            {
-                errors.push_back(QStringLiteral("%1: 缺少 OrtGetApiBase").arg(candidate));
-                continue;
-            }
-            const OrtApi *api = getApiBase()->GetApi(ORT_API_VERSION);
-            if (!api)
-            {
-                errors.push_back(QStringLiteral("%1: 不支持 ORT API %2").arg(candidate).arg(ORT_API_VERSION));
-                continue;
-            }
-            Ort::InitApi(api);
-            if (candidate == QStringLiteral("directml"))
-            {
-                loaded->appendDml = reinterpret_cast<AppendDmlFunction>(loaded->library.resolve("OrtSessionOptionsAppendExecutionProvider_DML"));
-                if (!loaded->appendDml)
-                {
-                    errors.push_back(QStringLiteral("directml: 缺少 DML provider API"));
-                    continue;
-                }
-                loaded->preferredProvider = QStringLiteral("DirectML");
-            }
-            else
-            {
-                loaded->preferredProvider =
-                    candidate == QStringLiteral("cpu") || configured == QStringLiteral("cpu") ? QStringLiteral("CPU") : QStringLiteral("CUDA");
-            }
-            return loaded;
+            loaded->appendDml = reinterpret_cast<AppendDmlFunction>(loaded->library.resolve("OrtSessionOptionsAppendExecutionProvider_DML"));
+            if (!loaded->appendDml)
+                throw std::runtime_error("DirectML ONNX Runtime 缺少 DML provider API");
         }
-        throw std::runtime_error(QStringLiteral("无法加载 ONNX Runtime（%1）").arg(errors.join(QStringLiteral("；"))).toStdString());
+        loaded->preferredProvider = provider == QStringLiteral("cuda")
+                                        ? QStringLiteral("CUDA")
+                                        : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU"));
+        return loaded;
     }
 
     struct GalleryEmbedding
@@ -569,13 +585,20 @@ QStringList GarmentMatcher::availableProviders()
 {
     QStringList providers;
 #ifdef Q_OS_WIN
-    if (hasCudaDriver() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
+    if (hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
         providers.push_back(QStringLiteral("CUDA"));
     if (QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))))
         providers.push_back(QStringLiteral("DirectML"));
 #endif
     providers.push_back(QStringLiteral("CPU"));
     return providers;
+}
+
+QString GarmentMatcher::activeProvider()
+{
+    const QString provider = startupProvider();
+    return provider == QStringLiteral("cuda") ? QStringLiteral("CUDA")
+                                              : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU"));
 }
 
 QString GarmentMatcher::Result::joinedStyleIds() const
@@ -612,9 +635,10 @@ GarmentMatcher::Result GarmentMatcher::match(const QString &photoPath, const QVe
         if (crops.upper.empty() && crops.lower.empty())
             throw std::runtime_error("没有分割出上衣、裤子、裙子或连衣裙");
 
-        Database                        database = openDatabase(options.featureDatabasePath);
-        const QVector<GalleryEmbedding> gallery =
-            galleryEmbeddings(*runtime.embedding, galleryItems, database.get(), modelKey(options.embeddingModelPath));
+        Database      database = openDatabase(options.featureDatabasePath);
+        const QString embeddingModelKey =
+            QStringLiteral("%1:%2:%3").arg(modelKey(options.embeddingModelPath), runtime.loaded->version, runtime.provider);
+        const QVector<GalleryEmbedding> gallery = galleryEmbeddings(*runtime.embedding, galleryItems, database.get(), embeddingModelKey);
         if (gallery.isEmpty())
             throw std::runtime_error("款号小图库中没有可读取的图片");
 

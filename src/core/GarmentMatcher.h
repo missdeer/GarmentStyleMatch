@@ -34,5 +34,6 @@ public:
     };
 
     [[nodiscard]] static QStringList availableProviders();
+    [[nodiscard]] static QString     activeProvider();
     [[nodiscard]] static Result      match(const QString &photoPath, const QVector<GalleryItem> &galleryItems, const Options &options);
 };

@@ -39,7 +39,7 @@ class MatchController : public QObject
     Q_PROPERTY(QStringList availableUiStyles READ availableUiStyles CONSTANT)
     Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
     Q_PROPERTY(QStringList availableInferenceEngines READ availableInferenceEngines CONSTANT)
-    Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine NOTIFY currentInferenceEngineChanged)
+    Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine CONSTANT)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -175,7 +175,6 @@ signals:
     void currentPhotoPathChanged();
     void currentStyleIdChanged();
     void autoMatchedStyleIdsChanged();
-    void currentInferenceEngineChanged();
     void categoryFilterChanged();
     void searchTextChanged();
     void inputFilterTextChanged();

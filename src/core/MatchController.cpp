@@ -40,22 +40,10 @@ MatchController::MatchController(QObject *parent)
     : QObject(parent),
       m_availableUiStyles(systemUiStyles()),
       m_currentUiStyle(QQuickStyle::name()),
-      m_availableInferenceEngines(GarmentMatcher::availableProviders())
+      m_availableInferenceEngines(GarmentMatcher::availableProviders()),
+      m_currentInferenceEngine(GarmentMatcher::activeProvider())
 {
-    const QString savedEngine = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString();
-    for (const QString &availableEngine : std::as_const(m_availableInferenceEngines))
-    {
-        if (availableEngine.compare(savedEngine, Qt::CaseInsensitive) == 0)
-        {
-            m_currentInferenceEngine = availableEngine;
-            break;
-        }
-    }
-    if (m_currentInferenceEngine.isEmpty() && !m_availableInferenceEngines.isEmpty())
-    {
-        m_currentInferenceEngine = m_availableInferenceEngines.front();
-        QSettings().setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
-    }
+    QSettings().setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
 }
 
 QStringList MatchController::systemUiStyles()
@@ -175,9 +163,7 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
     if (selectedEngine == m_currentInferenceEngine)
         return false;
 
-    m_currentInferenceEngine = selectedEngine;
-    emit currentInferenceEngineChanged();
-    emit logMessage(QStringLiteral("推理引擎已切换为 %1，将在下次自动匹配时生效").arg(selectedEngine));
+    emit logMessage(QStringLiteral("推理引擎 %1 已保存，重启应用后生效").arg(selectedEngine));
     return true;
 }
 
