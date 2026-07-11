@@ -24,9 +24,13 @@ ApplicationWindow {
     }
     font.pixelSize: 13
 
-    Component.onCompleted: {
-        controller.loadDemoData()
-        controller.restorePersistentState()
+    property bool firstFramePresented: false
+
+    onFrameSwapped: {
+        if (firstFramePresented)
+            return
+        firstFramePresented = true
+        workspaceLoader.active = true
     }
 
     property string statusText: qsTr("就绪")
@@ -45,81 +49,93 @@ ApplicationWindow {
             titleText: controller.title
         }
 
-        RowLayout {
+        Loader {
+            id: workspaceLoader
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 0
+            active: false
+            asynchronous: true
 
-            CandidatePanel {
-                id: candidatePanel
-                Layout.preferredWidth: 320
-                Layout.fillHeight: true
-                outputModel: candidateModel
-                inputModel:  photoModel
-                currentRow:      controller.currentIndex
-                currentPhotoRow: controller.currentPhotoIndex
-                photoDir:   controller.photoDir
-                outputDir:  controller.outputDir
-                onRowActivated:             (row) => controller.currentIndex = row
-                onPhotoRowActivated:        (row) => controller.currentPhotoIndex = row
-                onPhotoDirEdited:           (p)   => controller.photoDir = p
-                onPhotoDirSearchRequested:  ()    => controller.scanPhotoDir()
-                onOutputDirEdited:          (p)   => controller.outputDir = p
-                onOutputDirSearchRequested: ()    => controller.scanOutputDir()
-            }
+            onLoaded: Qt.callLater(function() {
+                controller.loadDemoData()
+                Qt.callLater(function() { controller.restorePersistentState() })
+            })
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+            sourceComponent: RowLayout {
+                anchors.fill: parent
                 spacing: 0
 
-                MainImageView {
+                CandidatePanel {
+                    id: candidatePanel
+                    Layout.preferredWidth: 320
+                    Layout.fillHeight: true
+                    outputModel: candidateModel
+                    inputModel:  photoModel
+                    currentRow:      controller.currentIndex
+                    currentPhotoRow: controller.currentPhotoIndex
+                    photoDir:   controller.photoDir
+                    outputDir:  controller.outputDir
+                    onRowActivated:             (row) => controller.currentIndex = row
+                    onPhotoRowActivated:        (row) => controller.currentPhotoIndex = row
+                    onPhotoDirEdited:           (p)   => controller.photoDir = p
+                    onPhotoDirSearchRequested:  ()    => controller.scanPhotoDir()
+                    onOutputDirEdited:           (p)   => controller.outputDir = p
+                    onOutputDirSearchRequested: ()    => controller.scanOutputDir()
+                }
+
+                ColumnLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    imagePath:       controller.currentImagePath
-                    styleId:         controller.currentStyleId
-                    pageIndex:       controller.currentImagePage
-                    pageCount:       controller.currentImageCount
-                    previousEnabled: candidatePanel.inputTabActive
-                                     ? controller.currentPhotoIndex > 0
-                                     : controller.currentImagePage > 0
-                    nextEnabled:     candidatePanel.inputTabActive
-                                     ? controller.currentPhotoIndex >= 0
-                                       && controller.currentPhotoIndex + 1 < candidatePanel.inputItemCount
-                                     : controller.currentImagePage + 1 < controller.currentImageCount
-                    onPrev:          controller.previousImage(candidatePanel.inputTabActive)
-                    onNext:          controller.nextImage(candidatePanel.inputTabActive)
-                    onOpenOriginal:  controller.openCurrentImageExternally()
+                    spacing: 0
+
+                    MainImageView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        imagePath:       controller.currentImagePath
+                        styleId:         controller.currentStyleId
+                        pageIndex:       controller.currentImagePage
+                        pageCount:       controller.currentImageCount
+                        previousEnabled: candidatePanel.inputTabActive
+                                         ? controller.currentPhotoIndex > 0
+                                         : controller.currentImagePage > 0
+                        nextEnabled:     candidatePanel.inputTabActive
+                                         ? controller.currentPhotoIndex >= 0
+                                           && controller.currentPhotoIndex + 1 < candidatePanel.inputItemCount
+                                         : controller.currentImagePage + 1 < controller.currentImageCount
+                        onPrev:          controller.previousImage(candidatePanel.inputTabActive)
+                        onNext:          controller.nextImage(candidatePanel.inputTabActive)
+                        onOpenOriginal:  controller.openCurrentImageExternally()
+                    }
+
+                    ImagePropertiesPanel {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 245
+                        Layout.minimumHeight: 170
+                        styleId: controller.currentStyleId
+                        onConfirmSelected: (idx) => controller.confirmSelectedThumb(idx)
+                        onConfirmStyleId:  (id)  => controller.confirmStyleId(id)
+                        onPreviousItem:    controller.previousCandidate()
+                        onGenerateModel:   controller.generateFineTuneModel()
+                    }
                 }
 
-                ImagePropertiesPanel {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 245
-                    Layout.minimumHeight: 170
-                    styleId: controller.currentStyleId
-                    onConfirmSelected: (idx) => controller.confirmSelectedThumb(idx)
-                    onConfirmStyleId:  (id)  => controller.confirmStyleId(id)
-                    onPreviousItem:    controller.previousCandidate()
-                    onGenerateModel:   controller.generateFineTuneModel()
+                GalleryPanel {
+                    Layout.preferredWidth: 440
+                    Layout.fillHeight: true
+                    styleGalleryModel: galleryModel
+                    pagesModel:       pptPageModel
+                    pptSelectedCount: pptPageModel.selectedCount
+                    busy:             controller.busy
+                    categoryText:     controller.categoryFilter
+                    searchText:       controller.searchText
+                    pptPath:          controller.pptPath
+                    onSearchTextEdited:   (t) => controller.searchText = t
+                    onCategoryEdited:     (t) => controller.categoryFilter = t
+                    onPptPathEdited:      (p) => controller.pptPath = p
+                    onPptSearchRequested: ()  => controller.reloadPpt()
+                    onPptPageToggled:     (r) => controller.togglePptPageSelected(r)
+                    onExtractRequested:   ()  => controller.extractFromSelectedPages()
                 }
-            }
-
-            GalleryPanel {
-                Layout.preferredWidth: 440
-                Layout.fillHeight: true
-                styleGalleryModel: galleryModel
-                pagesModel:       pptPageModel
-                pptSelectedCount: pptPageModel.selectedCount
-                busy:             controller.busy
-                categoryText:     controller.categoryFilter
-                searchText:       controller.searchText
-                pptPath:          controller.pptPath
-                onSearchTextEdited:   (t) => controller.searchText = t
-                onCategoryEdited:     (t) => controller.categoryFilter = t
-                onPptPathEdited:      (p) => controller.pptPath = p
-                onPptSearchRequested: ()  => controller.reloadPpt()
-                onPptPageToggled:     (r) => controller.togglePptPageSelected(r)
-                onExtractRequested:   ()  => controller.extractFromSelectedPages()
             }
         }
 

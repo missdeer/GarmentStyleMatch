@@ -37,20 +37,23 @@ MatchController::MatchController(QObject *parent)
 
 QStringList MatchController::systemUiStyles()
 {
-    const QDir controlsDir(QDir(QLibraryInfo::path(QLibraryInfo::QmlImportsPath))
-                               .absoluteFilePath(QStringLiteral("QtQuick/Controls")));
-    const QFileInfoList directories = controlsDir.entryInfoList(
-        QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
+    static const QStringList styles = [] {
+        const QDir controlsDir(QDir(QLibraryInfo::path(QLibraryInfo::QmlImportsPath))
+                                   .absoluteFilePath(QStringLiteral("QtQuick/Controls")));
+        const QFileInfoList directories = controlsDir.entryInfoList(
+            QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
 
-    QStringList styles;
-    for (const QFileInfo &directory : directories) {
-        const QString name = directory.fileName();
-        if (name.compare(QStringLiteral("designer"), Qt::CaseInsensitive) == 0
-            || name.compare(QStringLiteral("impl"), Qt::CaseInsensitive) == 0)
-            continue;
-        if (QFileInfo::exists(QDir(directory.absoluteFilePath()).absoluteFilePath(QStringLiteral("qmldir"))))
-            styles.push_back(name);
-    }
+        QStringList result;
+        for (const QFileInfo &directory : directories) {
+            const QString name = directory.fileName();
+            if (name.compare(QStringLiteral("designer"), Qt::CaseInsensitive) == 0
+                || name.compare(QStringLiteral("impl"), Qt::CaseInsensitive) == 0)
+                continue;
+            if (QFileInfo::exists(QDir(directory.absoluteFilePath()).absoluteFilePath(QStringLiteral("qmldir"))))
+                result.push_back(name);
+        }
+        return result;
+    }();
     return styles;
 }
 
