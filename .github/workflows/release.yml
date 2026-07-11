@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  package:
+    name: package-${{ matrix.asset_os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset_os: windows
+            qt_modules: qtactiveqt
+          - os: ubuntu-latest
+            asset_os: linux
+            qt_modules: ''
+          - os: macos-latest
+            asset_os: macos
+            qt_modules: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6.10
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.10.0
+          modules: ${{ matrix.qt_modules }}
+          cache: true
+
+      - name: Install libarchive (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libarchive-dev ninja-build zip
+
+      - name: Install libarchive (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libarchive ninja
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+            -G "Ninja Multi-Config" `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S . -B build -G "Ninja Multi-Config"
+
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S . -B build \
+            -G "Ninja Multi-Config" \
+            -DLibArchive_ROOT="$(brew --prefix libarchive)"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        working-directory: build
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --output-on-failure -C Release
+
+      - name: Install
+        run: cmake --install build --prefix install --config Release
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "GarmentStyleMatch-${{ github.ref_name }}-${{ matrix.asset_os }}.zip"
+          Compress-Archive -Path install/* -DestinationPath $name
+          echo "ASSET_NAME=$name" >> $env:GITHUB_ENV
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          name="GarmentStyleMatch-${{ github.ref_name }}-${{ matrix.asset_os }}.zip"
+          (cd install && zip -r "../$name" .)
+          echo "ASSET_NAME=$name" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: ${{ env.ASSET_NAME }}
+          if-no-files-found: error
+
+  release:
+    name: publish-release
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: dist/*.zip
+          fail_on_unmatched_files: true
