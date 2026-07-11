@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <QSettings>
 #include <QTemporaryDir>
 
@@ -20,7 +21,7 @@ namespace
         return false;
     }
 
-    bool saveSyntheticImage(const QString &path, bool galleryImage)
+    bool saveSyntheticImage(const QString &path, bool galleryImage, const char *format = "BMP")
     {
         QImage image(512, 512, QImage::Format_RGB888);
         image.fill(Qt::white);
@@ -35,7 +36,7 @@ namespace
             for (int x = 175; x < 337; ++x)
                 image.setPixelColor(x, y, QColor(35, 40, 55));
         }
-        return image.save(path, "BMP");
+        return image.save(path, format);
     }
 
 } // namespace
@@ -67,9 +68,11 @@ int main(int argc, char *argv[])
         QSettings().setValue(QStringLiteral("matching/provider"), initialProvider);
     const QString expectedProvider = GarmentMatcher::activeProvider();
 
-    const QString photoPath   = QDir(temporary.path()).absoluteFilePath(QStringLiteral("photo.bmp"));
+    const QString photoPath   = QDir(temporary.path()).absoluteFilePath(QStringLiteral("photo.jpg"));
     const QString galleryPath = QDir(temporary.path()).absoluteFilePath(QStringLiteral("gallery.bmp"));
-    if (!check(saveSyntheticImage(photoPath, false) && saveSyntheticImage(galleryPath, true), QStringLiteral("无法创建合成测试图")))
+    if (!check(saveSyntheticImage(photoPath, false, "XPM") && saveSyntheticImage(galleryPath, true), QStringLiteral("无法创建合成测试图")))
+        return 1;
+    if (!check(QImageReader::imageFormat(photoPath) == QByteArrayLiteral("xpm"), QStringLiteral("实拍图必须验证 Qt 内容检测而非扩展名")))
         return 1;
 
     GarmentMatcher::Options options;
@@ -88,6 +91,8 @@ int main(int argc, char *argv[])
     if (!check(result.success, QStringLiteral("ONNX 推理未完成：%1").arg(result.error)))
         return 1;
     if (!check(result.joinedStyleIds() == QStringLiteral("STYLE001"), QStringLiteral("应匹配 STYLE001，实际为 %1").arg(result.joinedStyleIds())))
+        return 1;
+    if (!check(result.upper.imagePath == galleryPath || result.lower.imagePath == galleryPath, QStringLiteral("匹配结果应保留获胜款号图片路径")))
         return 1;
     if (!check(QFileInfo(options.featureDatabasePath).size() > 0, QStringLiteral("未生成 SQLite 特征缓存")))
         return 1;

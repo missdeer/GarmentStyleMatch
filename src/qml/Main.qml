@@ -97,6 +97,9 @@ ApplicationWindow {
                         Layout.fillHeight: true
                         imagePath:       controller.currentImagePath
                         styleId:         controller.currentStyleId
+                        matchedImagePaths: candidatePanel.inputTabActive ? controller.autoMatchedImagePaths : []
+                        matchedStyleIds: candidatePanel.inputTabActive && controller.autoMatchedStyleIds !== ""
+                                         ? controller.autoMatchedStyleIds.split(",") : []
                         pageIndex:       controller.currentImagePage
                         pageCount:       controller.currentImageCount
                         previousEnabled: candidatePanel.inputTabActive

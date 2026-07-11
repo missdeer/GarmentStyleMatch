@@ -28,6 +28,7 @@ class MatchController : public QObject
     Q_PROPERTY(QString currentPhotoPath READ currentPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString currentStyleId READ currentStyleId NOTIFY currentStyleIdChanged)
     Q_PROPERTY(QString autoMatchedStyleIds READ autoMatchedStyleIds NOTIFY autoMatchedStyleIdsChanged)
+    Q_PROPERTY(QStringList autoMatchedImagePaths READ autoMatchedImagePaths NOTIFY autoMatchedImagePathsChanged)
     Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
     Q_PROPERTY(QString inputFilterText READ inputFilterText WRITE setInputFilterText NOTIFY inputFilterTextChanged)
@@ -73,6 +74,10 @@ public:
     [[nodiscard]] QString     autoMatchedStyleIds() const
     {
         return m_autoMatchedStyleIds;
+    }
+    [[nodiscard]] QStringList autoMatchedImagePaths() const
+    {
+        return m_autoMatchedImagePaths;
     }
     [[nodiscard]] QString categoryFilter() const
     {
@@ -175,6 +180,7 @@ signals:
     void currentPhotoPathChanged();
     void currentStyleIdChanged();
     void autoMatchedStyleIdsChanged();
+    void autoMatchedImagePathsChanged();
     void categoryFilterChanged();
     void searchTextChanged();
     void inputFilterTextChanged();
@@ -189,6 +195,7 @@ signals:
 
 private:
     void emitCurrentChanged();
+    void clearAutoMatchResult();
 
     enum PreviewSource : std::uint8_t
     {
@@ -218,6 +225,7 @@ private:
     QStringList m_availableInferenceEngines;
     QString     m_currentInferenceEngine;
     QString     m_autoMatchedStyleIds;
+    QStringList m_autoMatchedImagePaths;
     bool        m_busy              = false;
     bool        m_restoringPptState = false;
 

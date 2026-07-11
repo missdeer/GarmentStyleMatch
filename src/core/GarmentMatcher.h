@@ -19,6 +19,7 @@ public:
     struct Match
     {
         QString styleId;
+        QString imagePath;
         float   score = 0.0F;
     };
 

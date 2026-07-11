@@ -2,7 +2,6 @@
 #include <array>
 #include <cmath>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -12,7 +11,6 @@
 #include <vector>
 #define ORT_API_MANUAL_INIT
 #include <onnxruntime_cxx_api.h>
-#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <sqlite3.h>
 
@@ -20,6 +18,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
+#include <QImageReader>
 #include <QLibrary>
 #include <QSettings>
 
@@ -208,20 +208,22 @@ namespace
     struct GalleryEmbedding
     {
         QString            styleId;
+        QString            imagePath;
         std::vector<float> values;
     };
 
     [[nodiscard]] cv::Mat loadImage(const QString &path)
     {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly))
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        const QImage image = reader.read().convertToFormat(QImage::Format_RGB888);
+        if (image.isNull())
             return {};
-        const QByteArray bytes = file.readAll();
-        if (bytes.size() > std::numeric_limits<int>::max())
-            return {};
-        cv::Mat encoded(1, static_cast<int>(bytes.size()), CV_8U);
-        std::memcpy(encoded.data, bytes.constData(), static_cast<std::size_t>(bytes.size()));
-        return cv::imdecode(encoded, cv::IMREAD_COLOR);
+
+        const cv::Mat rgb(image.height(), image.width(), CV_8UC3, const_cast<uchar *>(image.constBits()), image.bytesPerLine());
+        cv::Mat       bgr;
+        cv::cvtColor(rgb, bgr, cv::COLOR_RGB2BGR);
+        return bgr;
     }
 
     [[nodiscard]] std::vector<float> imageTensor(
@@ -558,7 +560,7 @@ namespace
                 embedding = encodeImage(session, image);
                 storeEmbedding(database, item, embeddingModelKey, *embedding);
             }
-            result.push_back({item.styleId, std::move(*embedding)});
+            result.push_back({item.styleId, item.imagePath, std::move(*embedding)});
         }
         return result;
     }
@@ -572,8 +574,9 @@ namespace
             const float score = std::inner_product(query.begin(), query.end(), candidate.values.begin(), 0.0F);
             if (score > result.score)
             {
-                result.styleId = candidate.styleId;
-                result.score   = score;
+                result.styleId   = candidate.styleId;
+                result.imagePath = candidate.imagePath;
+                result.score     = score;
             }
         }
         return result;

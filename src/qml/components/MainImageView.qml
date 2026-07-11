@@ -7,6 +7,8 @@ Rectangle {
     id: root
     property string imagePath: ""
     property string styleId:   ""
+    property var matchedImagePaths: []
+    property var matchedStyleIds: []
     property int    pageIndex: 0
     property int    pageCount: 0
     property bool   previousEnabled: pageIndex > 0
@@ -24,24 +26,86 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        Image {
-            id: preview
+        RowLayout {
+            id: imageArea
             Layout.fillWidth: true
             Layout.fillHeight: true
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            sourceSize.width: root.previewDecodeSize
-            sourceSize.height: root.previewDecodeSize
-            source: root.imagePath !== "" ? "file:///" + root.imagePath : ""
+            spacing: 0
+
+            Image {
+                id: preview
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                sourceSize.width: root.previewDecodeSize
+                sourceSize.height: root.previewDecodeSize
+                source: root.imagePath !== "" ? "file:///" + root.imagePath : ""
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "#f5f7fa"
+                    visible: preview.status !== Image.Ready
+                    Label {
+                        anchors.centerIn: parent
+                        text: qsTr("暂无实拍图 / No image")
+                        color: "#8fa1b0"
+                    }
+                }
+            }
 
             Rectangle {
-                anchors.fill: parent
+                Layout.fillHeight: true
+                Layout.preferredWidth: visible ? Math.min(220, Math.max(140, imageArea.width * 0.24)) : 0
+                visible: root.matchedImagePaths.length > 0
                 color: "#f5f7fa"
-                visible: preview.status !== Image.Ready
-                Label {
-                    anchors.centerIn: parent
-                    text: qsTr("暂无实拍图 / No image")
-                    color: "#8fa1b0"
+                border.color: "#cfd8df"
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 6
+
+                    Repeater {
+                        model: root.matchedImagePaths
+
+                        delegate: Rectangle {
+                            id: matchCell
+                            required property int index
+                            required property string modelData
+
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.preferredHeight: 1
+                            color: "#ffffff"
+                            border.color: "#dee3e8"
+
+                            Image {
+                                anchors.fill: parent
+                                anchors.bottomMargin: matchLabel.height + 4
+                                anchors.margins: 4
+                                source: matchCell.modelData !== "" ? "file:///" + matchCell.modelData : ""
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true
+                            }
+
+                            Label {
+                                id: matchLabel
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 6
+                                text: matchCell.index < root.matchedStyleIds.length
+                                      ? qsTr("款号：%1").arg(root.matchedStyleIds[matchCell.index])
+                                      : ""
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Label.ElideRight
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: "#3a4a5a"
+                            }
+                        }
+                    }
                 }
             }
         }

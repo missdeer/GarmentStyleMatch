@@ -278,11 +278,7 @@ void MatchController::setCurrentPhotoIndex(int idx)
     }
     m_currentPhotoIndex = idx;
     m_previewSource     = PreviewPhoto;
-    if (!m_autoMatchedStyleIds.isEmpty())
-    {
-        m_autoMatchedStyleIds.clear();
-        emit autoMatchedStyleIdsChanged();
-    }
+    clearAutoMatchResult();
     QSettings settings;
     settings.setValue(QStringLiteral("selection/photoIndex"), m_currentPhotoIndex);
     settings.setValue(QStringLiteral("preview/inputTabActive"), true);
@@ -526,6 +522,7 @@ void MatchController::scanPhotoDir()
         return;
     }
 
+    clearAutoMatchResult();
     QVector<PhotoItem> items;
     if (!m_photoDir.isEmpty())
     {
@@ -1092,6 +1089,22 @@ void MatchController::autoMatchStyleIds()
             m_autoMatchedStyleIds = styleIds;
             emit autoMatchedStyleIdsChanged();
         }
+        QStringList imagePaths;
+        QStringList matchedStyleIds;
+        const auto  appendMatch = [&imagePaths, &matchedStyleIds](const GarmentMatcher::Match &match) {
+            if (!match.styleId.isEmpty() && !match.imagePath.isEmpty() && !matchedStyleIds.contains(match.styleId))
+            {
+                matchedStyleIds.push_back(match.styleId);
+                imagePaths.push_back(match.imagePath);
+            }
+        };
+        appendMatch(result.upper);
+        appendMatch(result.lower);
+        if (imagePaths != m_autoMatchedImagePaths)
+        {
+            m_autoMatchedImagePaths = imagePaths;
+            emit autoMatchedImagePathsChanged();
+        }
         emit logMessage(QStringLiteral("自动匹配完成（%1）：上衣 %2 (%3)，下装 %4 (%5)")
                             .arg(result.provider,
                                  result.upper.styleId.isEmpty() ? QStringLiteral("未检出") : result.upper.styleId,
@@ -1101,8 +1114,23 @@ void MatchController::autoMatchStyleIds()
     });
 
     setBusy(true);
+    clearAutoMatchResult();
     emit logMessage(QStringLiteral("正在分割服装并匹配 %1 张款号图片...").arg(galleryItems.size()));
     watcher->setFuture(QtConcurrent::run([photoPath, galleryItems, options] { return GarmentMatcher::match(photoPath, galleryItems, options); }));
+}
+
+void MatchController::clearAutoMatchResult()
+{
+    if (!m_autoMatchedStyleIds.isEmpty())
+    {
+        m_autoMatchedStyleIds.clear();
+        emit autoMatchedStyleIdsChanged();
+    }
+    if (!m_autoMatchedImagePaths.isEmpty())
+    {
+        m_autoMatchedImagePaths.clear();
+        emit autoMatchedImagePathsChanged();
+    }
 }
 
 void MatchController::generateFineTuneModel()
