@@ -21,8 +21,8 @@ int main(int argc, char *argv[])
 
     const QStringList availableUiStyles = MatchController::systemUiStyles();
     const QString savedUiStyle = QSettings().value(
-        QStringLiteral("ui/style"), QStringLiteral("Fusion")).toString();
-    QString selectedUiStyle = QStringLiteral("Fusion");
+        QStringLiteral("ui/style"), QStringLiteral("FluentWinUI3")).toString();
+    QString selectedUiStyle = QStringLiteral("FluentWinUI3");
     for (const QString &availableUiStyle : availableUiStyles) {
         if (availableUiStyle.compare(savedUiStyle, Qt::CaseInsensitive) == 0) {
             selectedUiStyle = availableUiStyle;
