@@ -6,6 +6,8 @@ Rectangle {
     id: root
 
     property bool busy: false
+    property bool previousPhotoAvailable: false
+    property bool nextPhotoAvailable: false
 
     signal autoMatchRequested()
     signal copyStyleIdsRequested(int offset, string part)
@@ -35,6 +37,8 @@ Rectangle {
 
             ConfirmBar {
                 busy: root.busy
+                previousAvailable: root.previousPhotoAvailable
+                nextAvailable: root.nextPhotoAvailable
                 onAutoMatchRequested: root.autoMatchRequested()
                 onCopyStyleIdsRequested: (offset, part) => root.copyStyleIdsRequested(offset, part)
                 onCopyStyleIdsToAdjacentRequested: (offset, part) => root.copyStyleIdsToAdjacentRequested(offset, part)

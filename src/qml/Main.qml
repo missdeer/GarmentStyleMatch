@@ -171,6 +171,11 @@ ApplicationWindow {
                         Layout.preferredHeight: 265
                         Layout.minimumHeight: 170
                         busy: controller.busy
+                        previousPhotoAvailable: candidatePanel.inputTabActive
+                                                && controller.currentPhotoIndex > 0
+                        nextPhotoAvailable: candidatePanel.inputTabActive
+                                            && controller.currentPhotoIndex >= 0
+                                            && controller.currentPhotoIndex + 1 < candidatePanel.inputItemCount
                         onAutoMatchRequested: controller.autoMatchStyleIds()
                         onCopyStyleIdsRequested: (offset, part) => root.requestStyleIdCopy(offset, part, false)
                         onCopyStyleIdsToAdjacentRequested: (offset, part) => root.requestStyleIdCopy(offset, part, true)
