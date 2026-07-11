@@ -89,6 +89,8 @@ Rectangle {
                 anchors.fill: parent
                 anchors.margins: 4
                 source: thumbnailCell.modelData !== "" ? "file:///" + thumbnailCell.modelData : ""
+                sourceSize.width: 192
+                sourceSize.height: 192
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
             }

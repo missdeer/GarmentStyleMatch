@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 
 Rectangle {
     id: root
@@ -10,6 +11,7 @@ Rectangle {
     property int    pageCount: 0
     property bool   previousEnabled: pageIndex > 0
     property bool   nextEnabled: pageIndex + 1 < pageCount
+    readonly property int previewDecodeSize: Screen.devicePixelRatio > 1.5 ? 2560 : 1920
 
     signal prev()
     signal next()
@@ -28,6 +30,8 @@ Rectangle {
             Layout.fillHeight: true
             fillMode: Image.PreserveAspectFit
             asynchronous: true
+            sourceSize.width: root.previewDecodeSize
+            sourceSize.height: root.previewDecodeSize
             source: root.imagePath !== "" ? "file:///" + root.imagePath : ""
 
             Rectangle {
