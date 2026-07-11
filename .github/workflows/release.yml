@@ -153,14 +153,14 @@ jobs:
         shell: pwsh
         run: |
           $name = "GarmentStyleMatch-${{ github.ref_name }}-${{ matrix.asset_os }}.zip"
-          Compress-Archive -Path install/* -DestinationPath $name
+          Compress-Archive -Path install/bin -DestinationPath $name
           echo "ASSET_NAME=$name" >> $env:GITHUB_ENV
 
       - name: Package (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
           name="GarmentStyleMatch-${{ github.ref_name }}-${{ matrix.asset_os }}.zip"
-          (cd install && zip -r "../$name" .)
+          (cd install && zip -r "../$name" bin)
           echo "ASSET_NAME=$name" >> "$GITHUB_ENV"
 
       - name: Upload artifact

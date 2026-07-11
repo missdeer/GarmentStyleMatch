@@ -50,8 +50,3 @@ include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
-
-install(TARGETS GarmentStyleMatch
-    RUNTIME DESTINATION bin
-    BUNDLE  DESTINATION .
-)

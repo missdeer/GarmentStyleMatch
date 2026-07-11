@@ -94,6 +94,11 @@ set_target_properties(GarmentStyleMatch PROPERTIES
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
 )
 
+install(TARGETS GarmentStyleMatch
+    RUNTIME DESTINATION bin
+    BUNDLE  DESTINATION bin
+)
+
 # ---- 开发期:写一个 qt.conf,让运行时直接去 Qt 安装目录找 qml/plugins ----
 # 这样不用每次 windeployqt 拷一大堆文件,也避开了 windeployqt 6.11 对
 # qt_add_qml_module 项目漏拷 QtQuick.Controls 顶层 qmldir 的 bug。
@@ -120,4 +125,26 @@ qt_generate_deploy_qml_app_script(
     OUTPUT_SCRIPT GSM_DEPLOY_SCRIPT
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
-install(SCRIPT ${GSM_DEPLOY_SCRIPT})
+
+# Keep the complete portable installation under bin/. Qt's deployment support
+# otherwise places these directories next to bin/ at the install prefix.
+if(APPLE)
+    install(CODE "
+        set(_gsm_install_prefix \"\${CMAKE_INSTALL_PREFIX}\")
+        set(CMAKE_INSTALL_PREFIX \"\${CMAKE_INSTALL_PREFIX}/bin\")
+        set(QT_DEPLOY_PREFIX \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\")
+        include(\"${GSM_DEPLOY_SCRIPT}\")
+        set(CMAKE_INSTALL_PREFIX \"\${_gsm_install_prefix}\")
+        unset(QT_DEPLOY_PREFIX)
+        unset(_gsm_install_prefix)
+    ")
+else()
+    install(CODE "
+        set(QT_DEPLOY_LIBEXEC_DIR \"bin/libexec\")
+        set(QT_DEPLOY_LIB_DIR \"bin/lib\")
+        set(QT_DEPLOY_PLUGINS_DIR \"bin/plugins\")
+        set(QT_DEPLOY_QML_DIR \"bin/qml\")
+        set(QT_DEPLOY_TRANSLATIONS_DIR \"bin/translations\")
+        include(\"${GSM_DEPLOY_SCRIPT}\")
+    ")
+endif()
