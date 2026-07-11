@@ -37,6 +37,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     void setItems(QVector<CandidateItem> items);
+    void setFilterText(const QString &text);
+    QString filterText() const { return m_filterText; }
     const CandidateItem *at(int row) const;
 
     Q_INVOKABLE void clear();
@@ -46,5 +48,9 @@ signals:
     void countChanged();
 
 private:
+    void rebuildVisibleRows();
+
     QVector<CandidateItem> m_items;
+    QVector<int> m_visibleRows;
+    QString m_filterText;
 };

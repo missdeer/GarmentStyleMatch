@@ -16,6 +16,7 @@ Item {
     property string pickIconName: "folder-open"
     property string searchIconName: "edit-find"
     property string uiStyle: ""
+    property bool showSearchButton: true
 
     signal pathPicked(string path)
     signal searchRequested()
@@ -47,6 +48,7 @@ Item {
         }
         IconButton {
             id: searchButton
+            visible: root.showSearchButton
             Layout.preferredWidth: field.implicitHeight
             Layout.preferredHeight: field.implicitHeight
             iconName: root.searchIconName

@@ -11,15 +11,15 @@ int CandidateListModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
         return 0;
-    return m_items.size();
+    return m_visibleRows.size();
 }
 
 QVariant CandidateListModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_items.size())
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_visibleRows.size())
         return {};
 
-    const CandidateItem &it = m_items.at(index.row());
+    const CandidateItem &it = m_items.at(m_visibleRows.at(index.row()));
     switch (role) {
     case StyleIdRole:        return it.styleId;
     case ImagePathRole:      return it.imagePath;
@@ -50,15 +50,38 @@ void CandidateListModel::setItems(QVector<CandidateItem> items)
 {
     beginResetModel();
     m_items = std::move(items);
+    rebuildVisibleRows();
     endResetModel();
     emit countChanged();
 }
 
+void CandidateListModel::setFilterText(const QString &text)
+{
+    const QString normalizedText = text.trimmed();
+    if (normalizedText == m_filterText)
+        return;
+    beginResetModel();
+    m_filterText = normalizedText;
+    rebuildVisibleRows();
+    endResetModel();
+    emit countChanged();
+}
+
+void CandidateListModel::rebuildVisibleRows()
+{
+    m_visibleRows.clear();
+    for (int row = 0; row < m_items.size(); ++row) {
+        if (m_filterText.isEmpty()
+            || m_items.at(row).styleId.contains(m_filterText, Qt::CaseInsensitive))
+            m_visibleRows.push_back(row);
+    }
+}
+
 const CandidateItem *CandidateListModel::at(int row) const
 {
-    if (row < 0 || row >= m_items.size())
+    if (row < 0 || row >= m_visibleRows.size())
         return nullptr;
-    return &m_items.at(row);
+    return &m_items.at(m_visibleRows.at(row));
 }
 
 void CandidateListModel::clear()
@@ -67,15 +90,16 @@ void CandidateListModel::clear()
         return;
     beginResetModel();
     m_items.clear();
+    m_visibleRows.clear();
     endResetModel();
     emit countChanged();
 }
 
 void CandidateListModel::markConfirmed(int row, bool confirmed)
 {
-    if (row < 0 || row >= m_items.size())
+    if (row < 0 || row >= m_visibleRows.size())
         return;
-    m_items[row].confirmed = confirmed;
+    m_items[m_visibleRows.at(row)].confirmed = confirmed;
     const QModelIndex idx = index(row);
     emit dataChanged(idx, idx, {ConfirmedRole, DisplayLineRole});
 }

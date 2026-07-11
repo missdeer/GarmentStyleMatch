@@ -13,13 +13,15 @@ Rectangle {
     readonly property int inputItemCount: photoView.count
     property string photoDir: ""
     property string outputDir: ""
+    property string inputFilterText: ""
+    property string outputFilterText: ""
 
     signal rowActivated(int row)
     signal photoRowActivated(int row)
     signal photoDirEdited(string path)
-    signal photoDirSearchRequested()
     signal outputDirEdited(string path)
-    signal outputDirSearchRequested()
+    signal inputFilterTextEdited(string text)
+    signal outputFilterTextEdited(string text)
     signal inputTabActiveEdited(bool active)
 
     color: "#f5f7fa"
@@ -57,24 +59,35 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: inputPickerBox.implicitHeight + 16
+                    implicitHeight: inputPickerColumn.implicitHeight + 16
                     color: "#e9edf1"
                     border.color: "#dee3e8"
 
-                    PathPickerRow {
-                        id: inputPickerBox
+                    ColumnLayout {
+                        id: inputPickerColumn
                         anchors.left:  parent.left
                         anchors.right: parent.right
                         anchors.top:   parent.top
                         anchors.leftMargin:  8
                         anchors.rightMargin: 8
                         anchors.topMargin:   8
-                        placeholderText: qsTr("实拍图片目录")
-                        uiStyle: controller.currentUiStyle
-                        path:  root.photoDir
-                        dialogTitle: qsTr("选择实拍图片目录")
-                        onPathPicked:      (p) => root.photoDirEdited(p)
-                        onSearchRequested: root.photoDirSearchRequested()
+                        spacing: 6
+
+                        PathPickerRow {
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("实拍图片目录")
+                            uiStyle: controller.currentUiStyle
+                            path: root.photoDir
+                            dialogTitle: qsTr("选择实拍图片目录")
+                            showSearchButton: false
+                            onPathPicked: (p) => root.photoDirEdited(p)
+                        }
+                        ClearableTextField {
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("输入文件名或关键词")
+                            text: root.inputFilterText
+                            onTextChanged: root.inputFilterTextEdited(text)
+                        }
                     }
                 }
 
@@ -150,24 +163,35 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: outputPickerBox.implicitHeight + 16
+                    implicitHeight: outputPickerColumn.implicitHeight + 16
                     color: "#e9edf1"
                     border.color: "#dee3e8"
 
-                    PathPickerRow {
-                        id: outputPickerBox
+                    ColumnLayout {
+                        id: outputPickerColumn
                         anchors.left:  parent.left
                         anchors.right: parent.right
                         anchors.top:   parent.top
                         anchors.leftMargin:  8
                         anchors.rightMargin: 8
                         anchors.topMargin:   8
-                        placeholderText: qsTr("输出目录")
-                        uiStyle: controller.currentUiStyle
-                        path:  root.outputDir
-                        dialogTitle: qsTr("选择输出目录")
-                        onPathPicked:      (p) => root.outputDirEdited(p)
-                        onSearchRequested: root.outputDirSearchRequested()
+                        spacing: 6
+
+                        PathPickerRow {
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("输出目录")
+                            uiStyle: controller.currentUiStyle
+                            path: root.outputDir
+                            dialogTitle: qsTr("选择输出目录")
+                            showSearchButton: false
+                            onPathPicked: (p) => root.outputDirEdited(p)
+                        }
+                        ClearableTextField {
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("输入款号或关键词")
+                            text: root.outputFilterText
+                            onTextChanged: root.outputFilterTextEdited(text)
+                        }
                     }
                 }
 

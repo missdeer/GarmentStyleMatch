@@ -24,6 +24,8 @@ class MatchController : public QObject
     Q_PROPERTY(QString currentStyleId  READ currentStyleId  NOTIFY currentStyleIdChanged)
     Q_PROPERTY(QString categoryFilter  READ categoryFilter  WRITE setCategoryFilter NOTIFY categoryFilterChanged)
     Q_PROPERTY(QString searchText      READ searchText      WRITE setSearchText     NOTIFY searchTextChanged)
+    Q_PROPERTY(QString inputFilterText READ inputFilterText WRITE setInputFilterText NOTIFY inputFilterTextChanged)
+    Q_PROPERTY(QString outputFilterText READ outputFilterText WRITE setOutputFilterText NOTIFY outputFilterTextChanged)
     Q_PROPERTY(QString photoDir        READ photoDir        WRITE setPhotoDir       NOTIFY photoDirChanged)
     Q_PROPERTY(QString outputDir       READ outputDir       WRITE setOutputDir      NOTIFY outputDirChanged)
     Q_PROPERTY(QString pptPath         READ pptPath         WRITE setPptPath        NOTIFY pptPathChanged)
@@ -53,6 +55,8 @@ public:
     QString currentStyleId() const;
     QString categoryFilter() const { return m_categoryFilter; }
     QString searchText() const     { return m_searchText; }
+    QString inputFilterText() const { return m_inputFilterText; }
+    QString outputFilterText() const { return m_outputFilterText; }
     QString photoDir() const       { return m_photoDir; }
     QString outputDir() const      { return m_outputDir; }
     QString pptPath() const        { return m_pptPath; }
@@ -66,6 +70,8 @@ public:
     void setCurrentImagePage(int page);
     void setCategoryFilter(const QString &v);
     void setSearchText(const QString &v);
+    void setInputFilterText(const QString &v);
+    void setOutputFilterText(const QString &v);
     void setPhotoDir(const QString &v);
     void setOutputDir(const QString &v);
     void setPptPath(const QString &v);
@@ -106,6 +112,8 @@ signals:
     void currentStyleIdChanged();
     void categoryFilterChanged();
     void searchTextChanged();
+    void inputFilterTextChanged();
+    void outputFilterTextChanged();
     void photoDirChanged();
     void outputDirChanged();
     void pptPathChanged();
@@ -131,6 +139,8 @@ private:
 
     QString m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
     QString m_searchText;
+    QString m_inputFilterText;
+    QString m_outputFilterText;
     QString m_photoDir;
     QString m_outputDir;
     QString m_pptPath;

@@ -76,12 +76,14 @@ ApplicationWindow {
                     inputTabActive: controller.inputTabActive
                     photoDir:   controller.photoDir
                     outputDir:  controller.outputDir
+                    inputFilterText: controller.inputFilterText
+                    outputFilterText: controller.outputFilterText
                     onRowActivated:             (row) => controller.currentIndex = row
                     onPhotoRowActivated:        (row) => controller.currentPhotoIndex = row
                     onPhotoDirEdited:           (p)   => controller.photoDir = p
-                    onPhotoDirSearchRequested:  ()    => controller.scanPhotoDir()
                     onOutputDirEdited:           (p)   => controller.outputDir = p
-                    onOutputDirSearchRequested: ()    => controller.scanOutputDir()
+                    onInputFilterTextEdited:     (t)   => controller.inputFilterText = t
+                    onOutputFilterTextEdited:    (t)   => controller.outputFilterText = t
                     onInputTabActiveEdited:      (active) => controller.activatePreview(active)
                 }
 

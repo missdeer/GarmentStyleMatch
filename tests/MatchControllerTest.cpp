@@ -87,6 +87,16 @@ int main(int argc, char *argv[])
     if (!check(controller.currentOutputImagePaths().size() == 2,
                QStringLiteral("控制器应暴露选中目录中的全部图片")))
         return 1;
+    controller.setOutputFilterText(QStringLiteral("beta"));
+    if (!check(model.rowCount() == 1
+                   && model.at(0)->styleId == QStringLiteral("Beta")
+                   && controller.currentIndex() == 0,
+               QStringLiteral("输出列表应即时按款号进行不区分大小写的关键字过滤")))
+        return 1;
+    controller.setOutputFilterText(QString());
+    if (!check(model.rowCount() == 2,
+               QStringLiteral("清空输出过滤关键字后应恢复全部归类项")))
+        return 1;
     controller.nextImage();
     if (!check(controller.currentImagePage() == 1
                    && controller.currentImagePath()
@@ -109,6 +119,17 @@ int main(int argc, char *argv[])
     photoModel.setItems(std::move(photos));
     controller.setPhotoModel(&photoModel);
     controller.setCurrentPhotoIndex(0);
+
+    controller.setInputFilterText(QStringLiteral("PHOTO-2"));
+    if (!check(photoModel.rowCount() == 1
+                   && photoModel.at(0)->fileName == QStringLiteral("photo-2.jpg")
+                   && controller.currentPhotoIndex() == 0,
+               QStringLiteral("输入列表应即时按文件名进行不区分大小写的关键字过滤")))
+        return 1;
+    controller.setInputFilterText(QString());
+    if (!check(photoModel.rowCount() == 2,
+               QStringLiteral("清空输入过滤关键字后应恢复全部实拍图片")))
+        return 1;
 
     controller.activatePreview(false);
     if (!check(controller.currentImagePath()

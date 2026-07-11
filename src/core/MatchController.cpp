@@ -60,6 +60,8 @@ QStringList MatchController::systemUiStyles()
 void MatchController::setCandidateModel(CandidateListModel *m)
 {
     m_candidateModel = m;
+    if (m_candidateModel)
+        m_candidateModel->setFilterText(m_outputFilterText);
 }
 
 void MatchController::setGalleryModel(GalleryListModel *m)
@@ -72,6 +74,8 @@ void MatchController::setGalleryModel(GalleryListModel *m)
 void MatchController::setPhotoModel(PhotoListModel *m)
 {
     m_photoModel = m;
+    if (m_photoModel)
+        m_photoModel->setFilterText(m_inputFilterText);
 }
 
 void MatchController::setPptPageModel(PptPageListModel *m)
@@ -231,6 +235,30 @@ void MatchController::setSearchText(const QString &v)
     if (m_galleryModel)
         m_galleryModel->setFilterText(v);
     emit searchTextChanged();
+}
+
+void MatchController::setInputFilterText(const QString &v)
+{
+    if (v == m_inputFilterText)
+        return;
+    m_inputFilterText = v;
+    if (m_photoModel) {
+        m_photoModel->setFilterText(v);
+        setCurrentPhotoIndex(m_photoModel->rowCount() > 0 ? 0 : -1);
+    }
+    emit inputFilterTextChanged();
+}
+
+void MatchController::setOutputFilterText(const QString &v)
+{
+    if (v == m_outputFilterText)
+        return;
+    m_outputFilterText = v;
+    if (m_candidateModel) {
+        m_candidateModel->setFilterText(v);
+        setCurrentIndex(m_candidateModel->rowCount() > 0 ? 0 : -1);
+    }
+    emit outputFilterTextChanged();
 }
 
 void MatchController::setPhotoDir(const QString &v)
