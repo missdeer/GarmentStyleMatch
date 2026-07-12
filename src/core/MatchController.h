@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
+#include <memory>
 
 #include <QDate>
 #include <QObject>
@@ -49,6 +51,7 @@ class MatchController : public QObject
     Q_PROPERTY(QString modelDirectory READ modelDirectory CONSTANT)
     Q_PROPERTY(bool modelsAvailable READ modelsAvailable NOTIFY modelsAvailableChanged)
     Q_PROPERTY(bool modelDownloadInProgress READ modelDownloadInProgress NOTIFY modelDownloadInProgressChanged)
+    Q_PROPERTY(bool batchAutoMatchInProgress READ batchAutoMatchInProgress NOTIFY batchAutoMatchInProgressChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -140,6 +143,10 @@ public:
     {
         return m_modelDownloadInProgress;
     }
+    [[nodiscard]] bool batchAutoMatchInProgress() const
+    {
+        return m_batchAutoMatchInProgress;
+    }
     [[nodiscard]] bool busy() const
     {
         return m_busy;
@@ -176,6 +183,8 @@ public slots:
 
     void confirmSelectedThumb(int galleryRow);
     void autoMatchStyleIds();
+    void autoMatchAllStyleIds();
+    void cancelAutoMatchAllStyleIds();
     [[nodiscard]] bool copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const;
     bool               copyAdjacentStyleIds(int offset, const QString &part, bool overwriteConfirmed);
     bool               copyStyleIdsToAdjacent(int offset, const QString &part, bool overwriteConfirmed);
@@ -210,6 +219,7 @@ signals:
     void inputTabActiveChanged();
     void modelsAvailableChanged();
     void modelDownloadInProgressChanged();
+    void batchAutoMatchInProgressChanged();
     void modelDownloadRequired();
     void busyChanged();
 
@@ -257,6 +267,7 @@ private:
     bool              m_busy              = false;
     bool              m_restoringPptState = false;
     bool              m_modelDownloadInProgress = false;
+    bool              m_batchAutoMatchInProgress = false;
     bool              m_modelDownloadCancellationRequested = false;
     int               m_modelDownloadIndex = 0;
     qint64            m_modelDownloadBytesCompleted = 0;
@@ -266,8 +277,10 @@ private:
     QString           m_modelDownloadError;
     QString           m_pythonExecutable;
     QString           m_pythonPackagesDir;
+    std::shared_ptr<std::atomic_bool> m_batchAutoMatchCancellation;
 
     void                         setBusy(bool on);
+    void                         setBatchAutoMatchInProgress(bool inProgress);
     void                         startNextModelDownload();
     void                         startPythonDependencyInstall();
     void                         startPythonModelExtraction();

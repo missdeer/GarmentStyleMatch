@@ -19,6 +19,31 @@ namespace
 
 int main()
 {
+    StoredMatchResult confirmedUpper;
+    confirmedUpper.upper = {QStringLiteral("CONFIRMED-UPPER"), QStringLiteral("confirmed-upper.png"), true};
+    confirmedUpper.lower = {QStringLiteral("OLD-LOWER"), QStringLiteral("old-lower.png"), false};
+    StoredMatchResult replacement;
+    replacement.upper = {QStringLiteral("NEW-UPPER"), QStringLiteral("new-upper.png"), false};
+    replacement.lower = {QStringLiteral("NEW-LOWER"), QStringLiteral("new-lower.png"), false};
+    confirmedUpper.replaceUnconfirmedMatches(replacement);
+    if (!check(confirmedUpper.upper.styleId == QStringLiteral("CONFIRMED-UPPER") && confirmedUpper.upper.confirmed
+                   && confirmedUpper.lower.styleId == QStringLiteral("NEW-LOWER") && !confirmedUpper.lower.confirmed,
+               QStringLiteral("自动匹配只能覆盖未确认部位，已确认上衣必须保持不变")))
+        return 1;
+
+    StoredMatchResult confirmedBoth;
+    confirmedBoth.upper = {QStringLiteral("CONFIRMED-UPPER"), QStringLiteral("confirmed-upper.png"), true};
+    confirmedBoth.lower = {QStringLiteral("CONFIRMED-LOWER"), QStringLiteral("confirmed-lower.png"), true};
+    if (!check(confirmedBoth.allMatchesConfirmed(), QStringLiteral("上衣和裤裙均确认时必须跳过自动匹配")))
+        return 1;
+
+    StoredMatchResult confirmedNeither;
+    confirmedNeither.replaceUnconfirmedMatches(replacement);
+    if (!check(confirmedNeither.upper.styleId == QStringLiteral("NEW-UPPER")
+                   && confirmedNeither.lower.styleId == QStringLiteral("NEW-LOWER"),
+               QStringLiteral("上衣和裤裙均未确认时必须同时覆盖两项匹配结果")))
+        return 1;
+
     QTemporaryDir temporary;
     if (!check(temporary.isValid(), QStringLiteral("无法创建临时目录")))
         return 1;

@@ -582,6 +582,57 @@ namespace
         return result;
     }
 
+    void validateMatcherInputs(const QVector<GalleryItem> &galleryItems, const GarmentMatcher::Options &options)
+    {
+        if (galleryItems.isEmpty())
+            throw std::runtime_error("款号小图库为空");
+        if (!QFileInfo::exists(options.segmentationModelPath))
+            throw std::runtime_error("服装分割模型不存在");
+        if (!QFileInfo::exists(options.embeddingModelPath))
+            throw std::runtime_error("FashionCLIP 图像模型不存在");
+    }
+
+    [[nodiscard]] QVector<GalleryEmbedding> prepareGallery(
+        Runtime &runtime, const QVector<GalleryItem> &galleryItems, const GarmentMatcher::Options &options)
+    {
+        Database      database = openDatabase(options.featureDatabasePath);
+        const QString embeddingModelKey =
+            QStringLiteral("%1:%2:%3").arg(modelKey(options.embeddingModelPath), runtime.loaded->version, runtime.provider);
+        QVector<GalleryEmbedding> gallery = galleryEmbeddings(*runtime.embedding, galleryItems, database.get(), embeddingModelKey);
+        if (gallery.isEmpty())
+            throw std::runtime_error("款号小图库中没有可读取的图片");
+        return gallery;
+    }
+
+    [[nodiscard]] GarmentMatcher::Result matchPhoto(
+        const QString &photoPath, Runtime &runtime, const QVector<GalleryEmbedding> &gallery)
+    {
+        GarmentMatcher::Result result;
+        result.provider = runtime.provider;
+        try
+        {
+            if (!QFileInfo::exists(photoPath))
+                throw std::runtime_error("当前实拍图不存在");
+            cv::Mat photo = loadImage(photoPath);
+            if (photo.empty())
+                throw std::runtime_error("无法读取当前实拍图");
+
+            GarmentCrops crops = segmentGarments(*runtime.segmentation, photo);
+            if (crops.upper.empty() && crops.lower.empty())
+                throw std::runtime_error("没有分割出上衣、裤子、裙子或连衣裙");
+            if (!crops.upper.empty())
+                result.upper = bestMatch(encodeImage(*runtime.embedding, crops.upper), gallery);
+            if (!crops.lower.empty())
+                result.lower = bestMatch(encodeImage(*runtime.embedding, crops.lower), gallery);
+            result.success = true;
+        }
+        catch (const std::exception &error)
+        {
+            result.error = QString::fromUtf8(error.what());
+        }
+        return result;
+    }
+
 } // namespace
 
 QStringList GarmentMatcher::availableProviders()
@@ -621,39 +672,49 @@ GarmentMatcher::Result GarmentMatcher::match(const QString &photoPath, const QVe
     {
         if (!QFileInfo::exists(photoPath))
             throw std::runtime_error("当前实拍图不存在");
-        if (galleryItems.isEmpty())
-            throw std::runtime_error("款号小图库为空");
-        if (!QFileInfo::exists(options.segmentationModelPath))
-            throw std::runtime_error("服装分割模型不存在");
-        if (!QFileInfo::exists(options.embeddingModelPath))
-            throw std::runtime_error("FashionCLIP 图像模型不存在");
-
-        cv::Mat photo = loadImage(photoPath);
-        if (photo.empty())
-            throw std::runtime_error("无法读取当前实拍图");
-
-        Runtime runtime    = createRuntime(options);
-        result.provider    = runtime.provider;
-        GarmentCrops crops = segmentGarments(*runtime.segmentation, photo);
-        if (crops.upper.empty() && crops.lower.empty())
-            throw std::runtime_error("没有分割出上衣、裤子、裙子或连衣裙");
-
-        Database      database = openDatabase(options.featureDatabasePath);
-        const QString embeddingModelKey =
-            QStringLiteral("%1:%2:%3").arg(modelKey(options.embeddingModelPath), runtime.loaded->version, runtime.provider);
-        const QVector<GalleryEmbedding> gallery = galleryEmbeddings(*runtime.embedding, galleryItems, database.get(), embeddingModelKey);
-        if (gallery.isEmpty())
-            throw std::runtime_error("款号小图库中没有可读取的图片");
-
-        if (!crops.upper.empty())
-            result.upper = bestMatch(encodeImage(*runtime.embedding, crops.upper), gallery);
-        if (!crops.lower.empty())
-            result.lower = bestMatch(encodeImage(*runtime.embedding, crops.lower), gallery);
-        result.success = true;
+        validateMatcherInputs(galleryItems, options);
+        Runtime runtime = createRuntime(options);
+        const QVector<GalleryEmbedding> gallery = prepareGallery(runtime, galleryItems, options);
+        result = matchPhoto(photoPath, runtime, gallery);
     }
     catch (const std::exception &error)
     {
         result.error = QString::fromUtf8(error.what());
     }
     return result;
+}
+
+QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(
+    const QStringList &photoPaths,
+    const QVector<GalleryItem> &galleryItems,
+    const Options &options,
+    const std::atomic_bool *cancellationRequested)
+{
+    QVector<Result> results;
+    results.reserve(photoPaths.size());
+    if (cancellationRequested && cancellationRequested->load())
+        return results;
+    try
+    {
+        validateMatcherInputs(galleryItems, options);
+        Runtime runtime = createRuntime(options);
+        const QVector<GalleryEmbedding> gallery = prepareGallery(runtime, galleryItems, options);
+        for (const QString &photoPath : photoPaths)
+        {
+            if (cancellationRequested && cancellationRequested->load())
+                break;
+            results.push_back(matchPhoto(photoPath, runtime, gallery));
+        }
+    }
+    catch (const std::exception &error)
+    {
+        const QString message = QString::fromUtf8(error.what());
+        while (results.size() < photoPaths.size())
+        {
+            Result result;
+            result.error = message;
+            results.push_back(std::move(result));
+        }
+    }
+    return results;
 }

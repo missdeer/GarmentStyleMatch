@@ -1,0 +1,4 @@
+- Rename ConfirmBar.qml to MatchPanel.qml
+- Add TensorRT backend.
+- Add Windows ML support. Ref. https://learn.microsoft.com/en-us/windows/ai/new-windows-ml/overview
+- Run & Fix clang-tidy warnings

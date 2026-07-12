@@ -28,6 +28,19 @@ struct StoredMatchResult
     {
         return upper.isEmpty() && lower.isEmpty();
     }
+
+    [[nodiscard]] bool allMatchesConfirmed() const
+    {
+        return !upper.isEmpty() && upper.confirmed && !lower.isEmpty() && lower.confirmed;
+    }
+
+    void replaceUnconfirmedMatches(const StoredMatchResult &replacement)
+    {
+        if (!upper.confirmed)
+            upper = replacement.upper;
+        if (!lower.confirmed)
+            lower = replacement.lower;
+    }
 };
 
 class MatchResultStore final

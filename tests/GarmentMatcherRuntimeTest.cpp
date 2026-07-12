@@ -97,6 +97,22 @@ int main(int argc, char *argv[])
     if (!check(QFileInfo(options.featureDatabasePath).size() > 0, QStringLiteral("未生成 SQLite 特征缓存")))
         return 1;
 
+    if (requestedProvider.isEmpty())
+    {
+        std::atomic_bool cancellationRequested = true;
+        if (!check(GarmentMatcher::matchAll({photoPath, photoPath}, gallery, options, &cancellationRequested).isEmpty(),
+                   QStringLiteral("批量匹配收到停止请求后不得开始下一张实拍图")))
+            return 1;
+
+        const QVector<GarmentMatcher::Result> batchResults =
+            GarmentMatcher::matchAll({photoPath, photoPath}, gallery, options);
+        if (!check(batchResults.size() == 2 && batchResults.at(0).success && batchResults.at(1).success
+                       && batchResults.at(0).joinedStyleIds() == QStringLiteral("STYLE001")
+                       && batchResults.at(1).joinedStyleIds() == QStringLiteral("STYLE001"),
+                   QStringLiteral("批量匹配必须使用同一图库完成每一张输入实拍图")))
+            return 1;
+    }
+
 #ifdef Q_OS_WIN
     if (verifyRestartRule)
     {

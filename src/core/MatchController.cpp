@@ -92,6 +92,35 @@ namespace
                : part == QLatin1String("lower") ? confirmed(result.lower)
                                                 : false;
     }
+
+    GarmentMatcher::Options matcherOptions(const QString &modelsDir)
+    {
+        GarmentMatcher::Options options;
+        options.segmentationModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"));
+        options.embeddingModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
+        options.featureDatabasePath =
+            QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_embeddings.sqlite"));
+        return options;
+    }
+
+    StoredMatchResult storedMatchResult(const GarmentMatcher::Result &result)
+    {
+        StoredMatchResult stored;
+        stored.upper = {result.upper.styleId, QFileInfo(result.upper.imagePath).fileName(), false};
+        stored.lower = {result.lower.styleId, QFileInfo(result.lower.imagePath).fileName(), false};
+        return stored;
+    }
+
+    struct BatchAutoMatchSummary
+    {
+        int     succeeded             = 0;
+        int     skipped               = 0;
+        int     failed                = 0;
+        int     unprocessed           = 0;
+        bool    cancelled             = false;
+        bool    modelDownloadRequired = false;
+        QString firstError;
+    };
 } // namespace
 
 MatchController::MatchController(QObject *parent)
@@ -1006,6 +1035,14 @@ void MatchController::setBusy(bool on)
     emit busyChanged();
 }
 
+void MatchController::setBatchAutoMatchInProgress(bool inProgress)
+{
+    if (m_batchAutoMatchInProgress == inProgress)
+        return;
+    m_batchAutoMatchInProgress = inProgress;
+    emit batchAutoMatchInProgressChanged();
+}
+
 void MatchController::reloadPpt()
 {
     emit logMessage(QStringLiteral("reloadPpt=%1").arg(m_pptPath));
@@ -1432,16 +1469,34 @@ void MatchController::autoMatchStyleIds()
         emit logMessage(QStringLiteral("已有后台任务正在运行，请等待完成"));
         return;
     }
-    if (!m_galleryModel)
-    {
-        emit logMessage(QStringLiteral("自动匹配失败：款号小图库模型不可用"));
-        return;
-    }
-
     const QString imagePath = currentImagePath();
     if (imagePath.isEmpty())
     {
         emit logMessage(QStringLiteral("自动匹配失败：当前没有可匹配的图片"));
+        return;
+    }
+    if (m_photoDir.isEmpty())
+    {
+        emit logMessage(QStringLiteral("自动匹配失败：请先选择实拍图输入目录"));
+        return;
+    }
+
+    QString    loadError;
+    const auto storedResult = MatchResultStore::load(matchDatabasePath(), imagePath, &loadError);
+    if (!loadError.isEmpty())
+    {
+        emit logMessage(QStringLiteral("自动匹配失败：读取当前图片款号记录时出错：%1").arg(loadError));
+        return;
+    }
+    const StoredMatchResult existingResult = storedResult.value_or(StoredMatchResult {});
+    if (existingResult.allMatchesConfirmed())
+    {
+        emit logMessage(QStringLiteral("当前实拍图的上衣和裤裙款号均已确认，已跳过自动匹配"));
+        return;
+    }
+    if (!m_galleryModel)
+    {
+        emit logMessage(QStringLiteral("自动匹配失败：款号小图库模型不可用"));
         return;
     }
     const QVector<GalleryItem> galleryItems = m_galleryModel->allItems();
@@ -1459,11 +1514,7 @@ void MatchController::autoMatchStyleIds()
         return;
     }
 
-    GarmentMatcher::Options options;
-    options.segmentationModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"));
-    options.embeddingModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
-    options.featureDatabasePath =
-        QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_embeddings.sqlite"));
+    const GarmentMatcher::Options options = matcherOptions(modelsDir);
 
     QElapsedTimer matchTimer;
     matchTimer.start();
@@ -1483,18 +1534,28 @@ void MatchController::autoMatchStyleIds()
             return;
         }
 
-        m_autoMatchResult       = {};
-        m_autoMatchResult.upper = {result.upper.styleId, QFileInfo(result.upper.imagePath).fileName(), false};
-        m_autoMatchResult.lower = {result.lower.styleId, QFileInfo(result.lower.imagePath).fileName(), false};
+        QString    loadError;
+        const auto latestStoredResult = MatchResultStore::load(matchDatabasePath(), imagePath, &loadError);
+        if (!loadError.isEmpty())
+        {
+            emit logMessage(QStringLiteral("自动匹配失败：保存前读取当前图片款号记录时出错：%1").arg(loadError));
+            return;
+        }
+        m_autoMatchResult = latestStoredResult.value_or(StoredMatchResult {});
+        m_autoMatchResult.replaceUnconfirmedMatches(storedMatchResult(result));
         m_autoMatchImagePath    = imagePath;
         rebuildAutoMatchedItems();
 
-        QString message = QStringLiteral("自动匹配完成（%1）：上衣 %2 (%3)，下装 %4 (%5)，耗时 %6 毫秒")
+        const auto matchSummary = [](const StoredGarmentMatch &stored, const GarmentMatcher::Match &matched) {
+            if (stored.confirmed)
+                return QStringLiteral("%1（已确认，跳过）").arg(stored.styleId);
+            return QStringLiteral("%1 (%2)")
+                .arg(matched.styleId.isEmpty() ? QStringLiteral("未检出") : matched.styleId, QString::number(matched.score, 'f', 3));
+        };
+        QString message = QStringLiteral("自动匹配完成（%1）：上衣 %2，下装 %3，耗时 %4 毫秒")
                               .arg(result.provider,
-                                   result.upper.styleId.isEmpty() ? QStringLiteral("未检出") : result.upper.styleId,
-                                   QString::number(result.upper.score, 'f', 3),
-                                   result.lower.styleId.isEmpty() ? QStringLiteral("未检出") : result.lower.styleId,
-                                   QString::number(result.lower.score, 'f', 3))
+                                   matchSummary(m_autoMatchResult.upper, result.upper),
+                                   matchSummary(m_autoMatchResult.lower, result.lower))
                               .arg(matchTimer.elapsed());
         QString persistenceError;
         if (!persistAutoMatchResult(&persistenceError))
@@ -1503,9 +1564,189 @@ void MatchController::autoMatchStyleIds()
     });
 
     setBusy(true);
-    clearAutoMatchResult();
     emit logMessage(QStringLiteral("正在分割服装并匹配 %1 张款号图片...").arg(galleryItems.size()));
     watcher->setFuture(QtConcurrent::run([imagePath, galleryItems, options] { return GarmentMatcher::match(imagePath, galleryItems, options); }));
+}
+
+void MatchController::autoMatchAllStyleIds()
+{
+    if (m_busy)
+    {
+        emit logMessage(QStringLiteral("已有后台任务正在运行，请等待完成"));
+        return;
+    }
+    if (!m_photoModel || m_photoModel->allItems().isEmpty())
+    {
+        emit logMessage(QStringLiteral("批量自动匹配失败：输入实拍图列表为空"));
+        return;
+    }
+    if (m_photoDir.isEmpty())
+    {
+        emit logMessage(QStringLiteral("批量自动匹配失败：请先选择实拍图输入目录"));
+        return;
+    }
+
+    QStringList photoPaths;
+    photoPaths.reserve(m_photoModel->allItems().size());
+    for (const PhotoItem &photo : m_photoModel->allItems())
+        photoPaths.push_back(photo.imagePath);
+
+    const QVector<GalleryItem>   galleryItems = m_galleryModel ? m_galleryModel->allItems() : QVector<GalleryItem> {};
+    const QString                modelsDir = availableModelDirectory();
+    const GarmentMatcher::Options options = matcherOptions(modelsDir);
+    const QString                databasePath = matchDatabasePath();
+    QElapsedTimer                matchTimer;
+    matchTimer.start();
+    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    m_batchAutoMatchCancellation = cancellation;
+    const int totalPhotos = photoPaths.size();
+    auto *watcher = new QFutureWatcher<BatchAutoMatchSummary>(this);
+    connect(watcher, &QFutureWatcher<BatchAutoMatchSummary>::finished, this, [this, watcher, matchTimer, cancellation, totalPhotos] {
+        BatchAutoMatchSummary summary = watcher->result();
+        if (cancellation->load() && !summary.cancelled)
+        {
+            summary.cancelled = true;
+            summary.unprocessed = totalPhotos - summary.succeeded - summary.skipped - summary.failed;
+        }
+        watcher->deleteLater();
+        m_batchAutoMatchCancellation.reset();
+        setBatchAutoMatchInProgress(false);
+        setBusy(false);
+        if (m_previewSource == PreviewPhoto)
+            restoreAutoMatchResult();
+        if (summary.modelDownloadRequired)
+            emit modelDownloadRequired();
+
+        QString message;
+        if (summary.cancelled)
+        {
+            message = QStringLiteral("批量自动匹配已停止：成功 %1 张，跳过 %2 张，失败 %3 张，未处理 %4 张，耗时 %5 毫秒")
+                          .arg(summary.succeeded)
+                          .arg(summary.skipped)
+                          .arg(summary.failed)
+                          .arg(summary.unprocessed)
+                          .arg(matchTimer.elapsed());
+        }
+        else
+        {
+            message = QStringLiteral("批量自动匹配完成：成功 %1 张，跳过 %2 张，失败 %3 张，耗时 %4 毫秒")
+                          .arg(summary.succeeded)
+                          .arg(summary.skipped)
+                          .arg(summary.failed)
+                          .arg(matchTimer.elapsed());
+        }
+        if (!summary.firstError.isEmpty())
+            message += QStringLiteral("；首个错误：%1").arg(summary.firstError);
+        emit logMessage(message);
+    });
+
+    setBatchAutoMatchInProgress(true);
+    setBusy(true);
+    emit logMessage(QStringLiteral("正在检查并批量匹配 %1 张实拍图...").arg(photoPaths.size()));
+    watcher->setFuture(QtConcurrent::run([photoPaths, galleryItems, modelsDir, options, databasePath, cancellation] {
+        BatchAutoMatchSummary summary;
+        const auto cancelledSummary = [&] {
+            summary.cancelled = true;
+            summary.unprocessed = photoPaths.size() - summary.succeeded - summary.skipped - summary.failed;
+            return summary;
+        };
+        QStringList           pendingPhotoPaths;
+        pendingPhotoPaths.reserve(photoPaths.size());
+        for (const QString &photoPath : photoPaths)
+        {
+            if (cancellation->load())
+                return cancelledSummary();
+            QString    error;
+            const auto existingResult = MatchResultStore::load(databasePath, photoPath, &error);
+            if (!error.isEmpty())
+            {
+                ++summary.failed;
+                if (summary.firstError.isEmpty())
+                    summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                continue;
+            }
+            if (existingResult && existingResult->allMatchesConfirmed())
+            {
+                ++summary.skipped;
+                continue;
+            }
+            pendingPhotoPaths.push_back(photoPath);
+        }
+
+        if (cancellation->load())
+            return cancelledSummary();
+        if (pendingPhotoPaths.isEmpty())
+            return summary;
+        if (galleryItems.isEmpty())
+        {
+            summary.failed += pendingPhotoPaths.size();
+            if (summary.firstError.isEmpty())
+                summary.firstError = QStringLiteral("请先从 PPT 提取款号小图库");
+            return summary;
+        }
+        if (modelsDir.isEmpty())
+        {
+            summary.failed += pendingPhotoPaths.size();
+            summary.modelDownloadRequired = true;
+            if (summary.firstError.isEmpty())
+                summary.firstError = QStringLiteral("未找到可用模型，请从顶部“下载模型”菜单下载");
+            return summary;
+        }
+
+        const QVector<GarmentMatcher::Result> results =
+            GarmentMatcher::matchAll(pendingPhotoPaths, galleryItems, options, cancellation.get());
+        const bool matchingCancelled = results.size() < pendingPhotoPaths.size();
+        for (int index = 0; index < results.size(); ++index)
+        {
+            if (!matchingCancelled && cancellation->load())
+                return cancelledSummary();
+            const QString                 &photoPath = pendingPhotoPaths.at(index);
+            const GarmentMatcher::Result &result    = results.at(index);
+            if (!result.success)
+            {
+                ++summary.failed;
+                if (summary.firstError.isEmpty())
+                    summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), result.error);
+                continue;
+            }
+
+            QString    error;
+            const auto latestStoredResult = MatchResultStore::load(databasePath, photoPath, &error);
+            if (!error.isEmpty())
+            {
+                ++summary.failed;
+                if (summary.firstError.isEmpty())
+                    summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                continue;
+            }
+            StoredMatchResult mergedResult = latestStoredResult.value_or(StoredMatchResult {});
+            if (mergedResult.allMatchesConfirmed())
+            {
+                ++summary.skipped;
+                continue;
+            }
+            mergedResult.replaceUnconfirmedMatches(storedMatchResult(result));
+            if (MatchResultStore::save(databasePath, photoPath, mergedResult, &error))
+            {
+                ++summary.succeeded;
+                continue;
+            }
+            ++summary.failed;
+            if (summary.firstError.isEmpty())
+                summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+        }
+        if (matchingCancelled)
+            return cancelledSummary();
+        return summary;
+    }));
+}
+
+void MatchController::cancelAutoMatchAllStyleIds()
+{
+    if (!m_batchAutoMatchInProgress || !m_batchAutoMatchCancellation)
+        return;
+    if (!m_batchAutoMatchCancellation->exchange(true))
+        emit logMessage(QStringLiteral("正在停止自动匹配，当前图片处理完成后停止..."));
 }
 
 bool MatchController::copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const

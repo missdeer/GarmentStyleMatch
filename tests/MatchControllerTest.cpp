@@ -213,8 +213,15 @@ int main(int argc, char *argv[])
     controller.setInputFilterText(QStringLiteral("PHOTO-2"));
     if (!check(photoModel.rowCount() == 1
                    && photoModel.at(0)->fileName == QStringLiteral("photo-2.jpg")
+                   && photoModel.allItems().size() == 2
                    && controller.currentPhotoIndex() == 0,
-               QStringLiteral("输入列表应即时按文件名进行不区分大小写的关键字过滤")))
+               QStringLiteral("输入列表过滤只能影响显示，批量自动匹配仍必须保留全部实拍图")))
+        return 1;
+    if (!check(controller.metaObject()->indexOfMethod("autoMatchAllStyleIds()") >= 0,
+               QStringLiteral("控制器必须向 QML 暴露批量自动匹配入口")))
+        return 1;
+    if (!check(controller.metaObject()->indexOfMethod("cancelAutoMatchAllStyleIds()") >= 0,
+               QStringLiteral("控制器必须向 QML 暴露停止批量自动匹配入口")))
         return 1;
     controller.setInputFilterText(QString());
     if (!check(photoModel.rowCount() == 2,
@@ -275,6 +282,47 @@ int main(int argc, char *argv[])
                    && MatchResultStore::save(databasePath, photoModel.at(1)->imagePath, currentResult, &matchStoreError)
                    && MatchResultStore::save(databasePath, photoModel.at(2)->imagePath, nextResult, &matchStoreError),
                QStringLiteral("无法准备相邻款号复制测试数据: %1").arg(matchStoreError)))
+        return 1;
+
+    QString autoMatchPolicyMessage;
+    QObject::connect(&controller, &MatchController::logMessage, &controller,
+                     [&autoMatchPolicyMessage](const QString &message) { autoMatchPolicyMessage = message; });
+    controller.setCurrentPhotoIndex(0);
+    controller.autoMatchStyleIds();
+    if (!check(!controller.busy() && autoMatchPolicyMessage.contains(QStringLiteral("均已确认，已跳过自动匹配")),
+               QStringLiteral("当前实拍图的上衣和裤裙均确认时不得启动推理")))
+        return 1;
+
+    QEventLoop batchMatchLoop;
+    QObject::connect(&controller, &MatchController::busyChanged, &batchMatchLoop, [&] {
+        if (!controller.busy())
+            batchMatchLoop.quit();
+    });
+    controller.autoMatchAllStyleIds();
+    if (!check(controller.busy(), QStringLiteral("批量匹配应在后台检查每张实拍图的确认状态")))
+        return 1;
+    QTimer::singleShot(5000, &batchMatchLoop, &QEventLoop::quit);
+    batchMatchLoop.exec();
+    if (!check(!controller.busy()
+                   && autoMatchPolicyMessage.contains(QStringLiteral("成功 0 张，跳过 2 张，失败 1 张")),
+               QStringLiteral("批量匹配必须跳过两项均确认的实拍图，仅处理仍有未确认部位的图片")))
+        return 1;
+
+    controller.autoMatchAllStyleIds();
+    if (!check(controller.busy() && controller.batchAutoMatchInProgress(),
+               QStringLiteral("批量匹配期间必须暴露可停止状态")))
+        return 1;
+    controller.cancelAutoMatchAllStyleIds();
+    QEventLoop cancelledBatchLoop;
+    QObject::connect(&controller, &MatchController::batchAutoMatchInProgressChanged, &cancelledBatchLoop, [&] {
+        if (!controller.batchAutoMatchInProgress())
+            cancelledBatchLoop.quit();
+    });
+    QTimer::singleShot(5000, &cancelledBatchLoop, &QEventLoop::quit);
+    cancelledBatchLoop.exec();
+    if (!check(!controller.busy() && !controller.batchAutoMatchInProgress()
+                   && autoMatchPolicyMessage.contains(QStringLiteral("批量自动匹配已停止")),
+               QStringLiteral("停止请求必须结束批量匹配并恢复按钮状态")))
         return 1;
 
     controller.setCurrentPhotoIndex(0);

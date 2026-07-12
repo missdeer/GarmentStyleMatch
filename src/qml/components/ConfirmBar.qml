@@ -5,10 +5,13 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     property bool busy: false
+    property bool batchAutoMatchInProgress: false
     property bool previousAvailable: false
     property bool nextAvailable: false
 
     signal autoMatchRequested()
+    signal autoMatchAllRequested()
+    signal cancelAutoMatchAllRequested()
     signal copyStyleIdsRequested(int offset, string part)
     signal copyStyleIdsToAdjacentRequested(int offset, string part)
 
@@ -24,12 +27,31 @@ Rectangle {
         anchors.margins: 10
         spacing: 8
 
-        Button {
+        RowLayout {
             Layout.fillWidth: true
-            text: qsTr("自动匹配当前实拍图款号")
-            highlighted: true
-            enabled: !root.busy
-            onClicked: root.autoMatchRequested()
+            spacing: 6
+
+            Button {
+                Layout.fillWidth: true
+                text: qsTr("自动匹配当前实拍图款号")
+                highlighted: true
+                enabled: !root.busy
+                onClicked: root.autoMatchRequested()
+            }
+
+            Button {
+                Layout.fillWidth: true
+                text: root.batchAutoMatchInProgress
+                      ? qsTr("停止自动匹配")
+                      : qsTr("自动匹配所有输入实拍图款号")
+                enabled: !root.busy || root.batchAutoMatchInProgress
+                onClicked: {
+                    if (root.batchAutoMatchInProgress)
+                        root.cancelAutoMatchAllRequested()
+                    else
+                        root.autoMatchAllRequested()
+                }
+            }
         }
 
         ButtonGroup { id: copyPartGroup }

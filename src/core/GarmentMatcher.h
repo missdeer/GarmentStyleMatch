@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -37,4 +39,9 @@ public:
     [[nodiscard]] static QStringList availableProviders();
     [[nodiscard]] static QString     activeProvider();
     [[nodiscard]] static Result      match(const QString &photoPath, const QVector<GalleryItem> &galleryItems, const Options &options);
+    [[nodiscard]] static QVector<Result> matchAll(
+        const QStringList &photoPaths,
+        const QVector<GalleryItem> &galleryItems,
+        const Options &options,
+        const std::atomic_bool *cancellationRequested = nullptr);
 };
