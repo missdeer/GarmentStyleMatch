@@ -148,8 +148,8 @@ public:
     [[nodiscard]] static QString applicationModelDirectory();
     [[nodiscard]] static QString findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir);
     [[nodiscard]] static QString availableModelDirectory();
-    [[nodiscard]] bool           modelsAvailable() const;
-    [[nodiscard]] bool modelDownloadInProgress() const
+    [[nodiscard]] static bool    modelsAvailable();
+    [[nodiscard]] bool           modelDownloadInProgress() const
     {
         return m_modelDownloadInProgress;
     }
@@ -175,11 +175,11 @@ public:
     void setParallelMatchThreadCount(int count);
 
 public slots:
-    bool setCurrentUiStyle(const QString &style);
-    bool setCurrentInferenceEngine(const QString &engine);
-    void downloadModels();
-    void cancelModelDownload();
-    void openModelDirectory() const;
+    bool        setCurrentUiStyle(const QString &style);
+    bool        setCurrentInferenceEngine(const QString &engine);
+    void        downloadModels();
+    void        cancelModelDownload();
+    static void openModelDirectory();
 
     void loadDemoData();
     void restorePersistentState();
@@ -196,16 +196,16 @@ public slots:
     void previousCandidate();
     void nextCandidate();
 
-    void confirmSelectedThumb(int galleryRow);
-    void autoMatchStyleIds();
-    void autoMatchAllStyleIds();
-    void cancelAutoMatchAllStyleIds();
+    void               confirmSelectedThumb(int galleryRow);
+    void               autoMatchStyleIds();
+    void               autoMatchAllStyleIds();
+    void               cancelAutoMatchAllStyleIds();
     [[nodiscard]] bool copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const;
     bool               copyAdjacentStyleIds(int offset, const QString &part, bool overwriteConfirmed);
     bool               copyStyleIdsToAdjacent(int offset, const QString &part, bool overwriteConfirmed);
-    void confirmAutoMatch(const QString &part);
-    void rejectAutoMatch(const QString &part);
-    void generateFineTuneModel();
+    void               confirmAutoMatch(const QString &part);
+    void               rejectAutoMatch(const QString &part);
+    void               generateFineTuneModel();
 
     void scanPhotoDir();
     void scanOutputDir();
@@ -275,34 +275,34 @@ private:
     int           m_currentImagePage  = 0; // 0-based
     PreviewSource m_previewSource     = PreviewPhoto;
 
-    QString           m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
-    QString           m_searchText;
-    QString           m_inputFilterText;
-    QString           m_outputFilterText;
-    QString           m_photoDir;
-    QString           m_outputDir;
-    QString           m_pptPath;
-    QStringList       m_availableUiStyles;
-    QString           m_currentUiStyle;
-    QStringList       m_availableInferenceEngines;
-    QString           m_currentInferenceEngine;
-    int               m_parallelMatchThreadCount = 1;
-    QVariantList      m_autoMatchedItems;
-    StoredMatchResult m_autoMatchResult;
-    QString           m_autoMatchImagePath;
-    bool              m_busy              = false;
-    bool              m_restoringPptState = false;
-    bool              m_modelDownloadInProgress = false;
-    bool              m_batchAutoMatchInProgress = false;
-    bool              m_modelDownloadCancellationRequested = false;
-    int               m_modelDownloadIndex = 0;
-    qint64            m_modelDownloadBytesCompleted = 0;
-    QNetworkAccessManager *m_modelDownloadNetworkManager = nullptr;
-    QNetworkReply    *m_modelDownloadReply = nullptr;
-    QProcess         *m_modelDownloadProcess = nullptr;
-    QString           m_modelDownloadError;
-    QString           m_pythonExecutable;
-    QString           m_pythonPackagesDir;
+    QString                           m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
+    QString                           m_searchText;
+    QString                           m_inputFilterText;
+    QString                           m_outputFilterText;
+    QString                           m_photoDir;
+    QString                           m_outputDir;
+    QString                           m_pptPath;
+    QStringList                       m_availableUiStyles;
+    QString                           m_currentUiStyle;
+    QStringList                       m_availableInferenceEngines;
+    QString                           m_currentInferenceEngine;
+    int                               m_parallelMatchThreadCount = 1;
+    QVariantList                      m_autoMatchedItems;
+    StoredMatchResult                 m_autoMatchResult;
+    QString                           m_autoMatchImagePath;
+    bool                              m_busy                               = false;
+    bool                              m_restoringPptState                  = false;
+    bool                              m_modelDownloadInProgress            = false;
+    bool                              m_batchAutoMatchInProgress           = false;
+    bool                              m_modelDownloadCancellationRequested = false;
+    int                               m_modelDownloadIndex                 = 0;
+    qint64                            m_modelDownloadBytesCompleted        = 0;
+    QNetworkAccessManager            *m_modelDownloadNetworkManager        = nullptr;
+    QNetworkReply                    *m_modelDownloadReply                 = nullptr;
+    QProcess                         *m_modelDownloadProcess               = nullptr;
+    QString                           m_modelDownloadError;
+    QString                           m_pythonExecutable;
+    QString                           m_pythonPackagesDir;
     std::shared_ptr<std::atomic_bool> m_batchAutoMatchCancellation;
 
     void                         setBusy(bool on);

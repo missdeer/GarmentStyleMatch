@@ -37,9 +37,13 @@ struct StoredMatchResult
     void replaceUnconfirmedMatches(const StoredMatchResult &replacement)
     {
         if (!upper.confirmed)
+        {
             upper = replacement.upper;
+        }
         if (!lower.confirmed)
+        {
             lower = replacement.lower;
+        }
     }
 };
 

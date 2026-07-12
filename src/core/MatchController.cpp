@@ -42,8 +42,9 @@
 // NOLINTBEGIN(readability-identifier-length)
 namespace
 {
-    constexpr qint64 kBytesPerKibibyte = 1024;
-    constexpr qint64 kModelDownloadSize = 512778784;
+    constexpr qint64 kBytesPerKibibyte        = 1024;
+    constexpr qint64 kModelDownloadSize       = 512778784;
+    constexpr int    kMaxParallelMatchThreads = 8;
 
     struct ModelDownload
     {
@@ -56,14 +57,14 @@ namespace
     const std::array<ModelDownload, 2> &modelDownloads()
     {
         static const std::array<ModelDownload, 2> downloads = {
-            ModelDownload{QStringLiteral("clothes_segformer_b2.onnx"),
-                          QUrl(QStringLiteral("https://huggingface.co/mattmdjaga/segformer_b2_clothes/resolve/main/onnx/model.onnx")),
-                          QByteArrayLiteral("a93a8dac171b5c1fcc53632a8bfc180bfd9759ea69a3e207451bb07f76add54f"),
-                          110039290},
-            ModelDownload{QStringLiteral("fashion_clip.onnx"),
-                          QUrl(QStringLiteral("https://huggingface.co/patrickjohncyh/fashion-clip/resolve/main/onnx/model.onnx")),
-                          QByteArrayLiteral("dc4c724479e49d1da9598969125353113a341bd4fd5a1dbc7d528d3f1545bba9"),
-                          402739494},
+            ModelDownload {QStringLiteral("clothes_segformer_b2.onnx"),
+                           QUrl(QStringLiteral("https://huggingface.co/mattmdjaga/segformer_b2_clothes/resolve/main/onnx/model.onnx")),
+                           QByteArrayLiteral("a93a8dac171b5c1fcc53632a8bfc180bfd9759ea69a3e207451bb07f76add54f"),
+                           110039290},
+            ModelDownload {QStringLiteral("fashion_clip.onnx"),
+                           QUrl(QStringLiteral("https://huggingface.co/patrickjohncyh/fashion-clip/resolve/main/onnx/model.onnx")),
+                           QByteArrayLiteral("dc4c724479e49d1da9598969125353113a341bd4fd5a1dbc7d528d3f1545bba9"),
+                           402739494},
         };
         return downloads;
     }
@@ -78,10 +79,14 @@ namespace
     {
         QFile file(path);
         if (!file.open(QIODevice::ReadOnly))
+        {
             return false;
+        }
         QCryptographicHash hash(QCryptographicHash::Sha256);
         if (!hash.addData(&file))
+        {
             return false;
+        }
         return hash.result().toHex() == expected;
     }
 
@@ -98,7 +103,7 @@ namespace
     {
         GarmentMatcher::Options options;
         options.segmentationModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"));
-        options.embeddingModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
+        options.embeddingModelPath    = QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
         options.featureDatabasePath =
             QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_embeddings.sqlite"));
         return options;
@@ -114,9 +119,7 @@ namespace
 
     PhotoMatchStatus photoMatchStatus(const StoredGarmentMatch &match)
     {
-        return match.isEmpty() ? PhotoMatchStatus::Unmatched
-               : match.confirmed ? PhotoMatchStatus::Confirmed
-                                 : PhotoMatchStatus::Matched;
+        return match.isEmpty() ? PhotoMatchStatus::Unmatched : match.confirmed ? PhotoMatchStatus::Confirmed : PhotoMatchStatus::Matched;
     }
 
     struct BatchAutoMatchSummary
@@ -132,9 +135,7 @@ namespace
 
     [[nodiscard]] int recommendedParallelMatchThreadCount(const QString &inferenceEngine)
     {
-        return inferenceEngine == QLatin1String("CUDA")       ? 4
-               : inferenceEngine == QLatin1String("DirectML") ? 2
-                                                               : 1;
+        return inferenceEngine == QLatin1String("CUDA") ? 4 : inferenceEngine == QLatin1String("DirectML") ? 2 : 1;
     }
 } // namespace
 
@@ -147,10 +148,9 @@ MatchController::MatchController(QObject *parent)
 {
     QSettings settings;
     settings.setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
-    m_parallelMatchThreadCount = settings.value(QStringLiteral("matching/parallelThreads"),
-                                                recommendedParallelMatchThreadCount(m_currentInferenceEngine))
-                                     .toInt();
-    m_parallelMatchThreadCount = std::clamp(m_parallelMatchThreadCount, 1, 8);
+    m_parallelMatchThreadCount =
+        settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount(m_currentInferenceEngine)).toInt();
+    m_parallelMatchThreadCount = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
 }
 
 QStringList MatchController::systemUiStyles()
@@ -261,7 +261,9 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
         }
     }
     if (selectedEngine.isEmpty())
+    {
         return false;
+    }
 
     QSettings settings;
     settings.setValue(QStringLiteral("matching/provider"), selectedEngine.toLower());
@@ -273,7 +275,9 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
     }
 
     if (selectedEngine == m_currentInferenceEngine)
+    {
         return false;
+    }
 
     emit logMessage(QStringLiteral("推理引擎 %1 已保存，重启应用后生效").arg(selectedEngine));
     return true;
@@ -281,8 +285,10 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
 
 void MatchController::setParallelMatchThreadCount(int count)
 {
-    if (m_busy || count < 1 || count > 8 || count == m_parallelMatchThreadCount)
+    if (m_busy || count < 1 || count > kMaxParallelMatchThreads || count == m_parallelMatchThreadCount)
+    {
         return;
+    }
     m_parallelMatchThreadCount = count;
     QSettings().setValue(QStringLiteral("matching/parallelThreads"), count);
     emit parallelMatchThreadCountChanged();
@@ -308,11 +314,13 @@ QString MatchController::findAvailableModelDirectory(const QString &applicationM
 {
     const auto hasRequiredModels = [](const QString &directory) {
         const QDir models(directory);
-        return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile()
-               && QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
+        return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile() &&
+               QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
     };
     if (hasRequiredModels(applicationModelsDir))
+    {
         return applicationModelsDir;
+    }
     return hasRequiredModels(localModelsDir) ? localModelsDir : QString();
 }
 
@@ -321,30 +329,32 @@ QString MatchController::availableModelDirectory()
     return findAvailableModelDirectory(applicationModelDirectory(), modelDirectory());
 }
 
-bool MatchController::modelsAvailable() const
+bool MatchController::modelsAvailable()
 {
     const QDir models(modelDirectory());
-    return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile()
-           && QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
+    return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile() &&
+           QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
 }
 
 void MatchController::downloadModels()
 {
     if (m_modelDownloadInProgress)
+    {
         return;
+    }
 
     const QString packagesDir = QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages"));
-    m_pythonPackagesDir = QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("python-packages"));
+    m_pythonPackagesDir       = QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("python-packages"));
     if (!QDir().mkpath(packagesDir) || !QDir().mkpath(m_pythonPackagesDir))
     {
         emit logMessage(QStringLiteral("下载模型失败：无法创建模型目录"));
         return;
     }
 
-    m_modelDownloadInProgress = true;
+    m_modelDownloadInProgress            = true;
     m_modelDownloadCancellationRequested = false;
-    m_modelDownloadIndex = 0;
-    m_modelDownloadBytesCompleted = 0;
+    m_modelDownloadIndex                 = 0;
+    m_modelDownloadBytesCompleted        = 0;
     m_modelDownloadError.clear();
     emit modelDownloadInProgressChanged();
     emit logMessage(QStringLiteral("正在下载并校验模型，首次下载可能需要较长时间..."));
@@ -354,19 +364,27 @@ void MatchController::downloadModels()
 void MatchController::cancelModelDownload()
 {
     if (!m_modelDownloadInProgress || m_modelDownloadCancellationRequested)
+    {
         return;
+    }
 
     m_modelDownloadCancellationRequested = true;
     emit logMessage(QStringLiteral("正在停止模型下载..."));
     if (m_modelDownloadReply)
+    {
         m_modelDownloadReply->abort();
+    }
     else if (m_modelDownloadProcess)
+    {
         m_modelDownloadProcess->kill();
+    }
     else
+    {
         finishModelDownload(QStringLiteral("模型下载已停止"));
+    }
 }
 
-void MatchController::startNextModelDownload()
+void MatchController::startNextModelDownload() // NOLINT(readability-function-cognitive-complexity)
 {
     const auto &downloads = modelDownloads();
     const QDir  packagesDir(QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages")));
@@ -374,7 +392,9 @@ void MatchController::startNextModelDownload()
     {
         const ModelDownload &download = downloads.at(m_modelDownloadIndex);
         if (!fileMatchesSha256(packagesDir.absoluteFilePath(download.fileName), download.sha256))
+        {
             break;
+        }
         m_modelDownloadBytesCompleted += download.size;
         ++m_modelDownloadIndex;
     }
@@ -399,7 +419,7 @@ void MatchController::startNextModelDownload()
     }
 
     const ModelDownload &download = downloads.at(m_modelDownloadIndex);
-    const QString path = packagesDir.absoluteFilePath(download.fileName);
+    const QString        path     = packagesDir.absoluteFilePath(download.fileName);
     QFile::remove(path);
     auto *file = new QFile(path);
     if (!file->open(QIODevice::WriteOnly))
@@ -411,11 +431,13 @@ void MatchController::startNextModelDownload()
     }
 
     if (!m_modelDownloadNetworkManager)
+    {
         m_modelDownloadNetworkManager = new QNetworkAccessManager(this);
+    }
     QNetworkRequest request(download.url);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("GarmentStyleMatch/%1").arg(QCoreApplication::applicationVersion()));
-    auto *reply = m_modelDownloadNetworkManager->get(request);
+    auto *reply          = m_modelDownloadNetworkManager->get(request);
     m_modelDownloadReply = reply;
 
     connect(reply, &QNetworkReply::readyRead, this, [this, reply, file] {
@@ -428,19 +450,20 @@ void MatchController::startNextModelDownload()
     });
     connect(reply, &QNetworkReply::downloadProgress, this, [this, download](qint64 received, qint64) {
         const qint64 totalReceived = m_modelDownloadBytesCompleted + received;
-        const int percent = static_cast<int>(
-            qBound<qint64>(qint64{0}, totalReceived * 100 / kModelDownloadSize, qint64{100}));
-        emit logMessage(QStringLiteral("正在下载模型：%1 %2%").arg(download.fileName).arg(percent));
+        const int    percent       = static_cast<int>(qBound<qint64>(qint64 {0}, totalReceived * 100 / kModelDownloadSize, qint64 {100}));
+        emit         logMessage(QStringLiteral("正在下载模型：%1 %2%").arg(download.fileName).arg(percent));
     });
     connect(reply, &QNetworkReply::finished, this, [this, reply, file, path, download] {
         const QByteArray remaining = reply->readAll();
         if (!remaining.isEmpty() && file->write(remaining) != remaining.size() && m_modelDownloadError.isEmpty())
+        {
             m_modelDownloadError = QStringLiteral("写入模型临时文件失败：%1").arg(file->errorString());
+        }
         file->close();
         m_modelDownloadReply = nullptr;
         file->deleteLater();
-        const QNetworkReply::NetworkError networkError = reply->error();
-        const QString networkErrorText = reply->errorString();
+        const QNetworkReply::NetworkError networkError     = reply->error();
+        const QString                     networkErrorText = reply->errorString();
         reply->deleteLater();
 
         if (m_modelDownloadCancellationRequested)
@@ -452,9 +475,8 @@ void MatchController::startNextModelDownload()
         if (!m_modelDownloadError.isEmpty() || networkError != QNetworkReply::NoError)
         {
             QFile::remove(path);
-            finishModelDownload(m_modelDownloadError.isEmpty()
-                                    ? QStringLiteral("下载模型失败：%1").arg(networkErrorText)
-                                    : QStringLiteral("下载模型失败：%1").arg(m_modelDownloadError));
+            finishModelDownload(m_modelDownloadError.isEmpty() ? QStringLiteral("下载模型失败：%1").arg(networkErrorText)
+                                                               : QStringLiteral("下载模型失败：%1").arg(m_modelDownloadError));
             return;
         }
         if (!fileMatchesSha256(path, download.sha256))
@@ -482,7 +504,9 @@ void MatchController::startPythonDependencyInstall()
     {
         m_pythonExecutable = QStandardPaths::findExecutable(candidate);
         if (!m_pythonExecutable.isEmpty())
+        {
             break;
+        }
     }
     if (m_pythonExecutable.isEmpty())
     {
@@ -496,54 +520,64 @@ void MatchController::startPythonDependencyInstall()
         return;
     }
 
-    emit logMessage(QStringLiteral("正在准备模型提取所需的 Python onnx 包..."));
-    auto *process = new QProcess(this);
+    emit  logMessage(QStringLiteral("正在准备模型提取所需的 Python onnx 包..."));
+    auto *process          = new QProcess(this);
     m_modelDownloadProcess = process;
     connectModelProcessOutput(process);
-    connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
-            [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
-                m_modelDownloadProcess = nullptr;
-                process->deleteLater();
-                if (m_modelDownloadCancellationRequested)
-                    finishModelDownload(QStringLiteral("模型下载已停止"));
-                else if (exitStatus != QProcess::NormalExit || exitCode != 0)
-                    finishModelDownload(QStringLiteral("模型提取失败：无法准备 Python onnx 包"));
-                else
-                    startPythonModelExtraction();
-            });
+    connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
+        m_modelDownloadProcess = nullptr;
+        process->deleteLater();
+        if (m_modelDownloadCancellationRequested)
+        {
+            finishModelDownload(QStringLiteral("模型下载已停止"));
+        }
+        else if (exitStatus != QProcess::NormalExit || exitCode != 0)
+        {
+            finishModelDownload(QStringLiteral("模型提取失败：无法准备 Python onnx 包"));
+        }
+        else
+        {
+            startPythonModelExtraction();
+        }
+    });
     connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart)
         {
             m_modelDownloadProcess = nullptr;
-            const QString message = process->errorString();
+            const QString message  = process->errorString();
             process->deleteLater();
             finishModelDownload(QStringLiteral("模型提取失败：%1").arg(message));
         }
     });
     process->start(m_pythonExecutable,
-                   {QStringLiteral("-m"), QStringLiteral("pip"), QStringLiteral("install"),
-                    QStringLiteral("--disable-pip-version-check"), QStringLiteral("--target"),
-                    m_pythonPackagesDir, QStringLiteral("onnx==1.19.1")});
+                   {QStringLiteral("-m"),
+                    QStringLiteral("pip"),
+                    QStringLiteral("install"),
+                    QStringLiteral("--disable-pip-version-check"),
+                    QStringLiteral("--target"),
+                    m_pythonPackagesDir,
+                    QStringLiteral("onnx==1.19.1")});
 }
 
 void MatchController::startPythonModelExtraction()
 {
-    emit logMessage(QStringLiteral("正在提取 FashionCLIP 图像模型..."));
-    const QDir packagesDir(QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages")));
-    const QString source = packagesDir.absoluteFilePath(QStringLiteral("fashion_clip.onnx"));
+    emit          logMessage(QStringLiteral("正在提取 FashionCLIP 图像模型..."));
+    const QDir    packagesDir(QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages")));
+    const QString source    = packagesDir.absoluteFilePath(QStringLiteral("fashion_clip.onnx"));
     const QString extracted = packagesDir.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
     QFile::remove(extracted);
 
-    auto *process = new QProcess(this);
+    auto *process          = new QProcess(this);
     m_modelDownloadProcess = process;
     connectModelProcessOutput(process);
-    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
-    const QString existingPythonPath = environment.value(QStringLiteral("PYTHONPATH"));
+    QProcessEnvironment environment        = QProcessEnvironment::systemEnvironment();
+    const QString       existingPythonPath = environment.value(QStringLiteral("PYTHONPATH"));
     environment.insert(QStringLiteral("PYTHONPATH"),
-                       existingPythonPath.isEmpty() ? m_pythonPackagesDir
-                                                    : m_pythonPackagesDir + QDir::listSeparator() + existingPythonPath);
+                       existingPythonPath.isEmpty() ? m_pythonPackagesDir : m_pythonPackagesDir + QDir::listSeparator() + existingPythonPath);
     process->setProcessEnvironment(environment);
-    connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
+    connect(process,
+            qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this,
             [this, process, extracted](int exitCode, QProcess::ExitStatus exitStatus) {
                 m_modelDownloadProcess = nullptr;
                 process->deleteLater();
@@ -553,8 +587,8 @@ void MatchController::startPythonModelExtraction()
                     finishModelDownload(QStringLiteral("模型下载已停止"));
                     return;
                 }
-                if (exitStatus != QProcess::NormalExit || exitCode != 0
-                    || !fileMatchesSha256(extracted, QByteArrayLiteral("3a62f866d7139b45f061e7cd9eca5bb7242a1d18ada822b7e67fc0cba638ea53")))
+                if (exitStatus != QProcess::NormalExit || exitCode != 0 ||
+                    !fileMatchesSha256(extracted, QByteArrayLiteral("3a62f866d7139b45f061e7cd9eca5bb7242a1d18ada822b7e67fc0cba638ea53")))
                 {
                     QFile::remove(extracted);
                     finishModelDownload(QStringLiteral("模型提取失败：FashionCLIP 图像模型无效"));
@@ -573,7 +607,7 @@ void MatchController::startPythonModelExtraction()
         if (error == QProcess::FailedToStart)
         {
             m_modelDownloadProcess = nullptr;
-            const QString message = process->errorString();
+            const QString message  = process->errorString();
             process->deleteLater();
             finishModelDownload(QStringLiteral("模型提取失败：%1").arg(message));
         }
@@ -582,7 +616,8 @@ void MatchController::startPythonModelExtraction()
                    {QStringLiteral("-c"),
                     QStringLiteral("import sys; from onnx.utils import extract_model; "
                                    "extract_model(sys.argv[1], sys.argv[2], ['pixel_values'], ['image_embeds'], check_model=True)"),
-                    source, extracted});
+                    source,
+                    extracted});
 }
 
 void MatchController::connectModelProcessOutput(QProcess *process)
@@ -590,27 +625,33 @@ void MatchController::connectModelProcessOutput(QProcess *process)
     connect(process, &QProcess::readyReadStandardOutput, this, [this, process] {
         const QString message = QString::fromLocal8Bit(process->readAllStandardOutput()).trimmed();
         if (!message.isEmpty())
+        {
             emit logMessage(message);
+        }
     });
     connect(process, &QProcess::readyReadStandardError, this, [this, process] {
         const QString message = QString::fromLocal8Bit(process->readAllStandardError()).trimmed();
         if (!message.isEmpty())
+        {
             emit logMessage(message);
+        }
     });
 }
 
 void MatchController::finishModelDownload(const QString &message)
 {
     if (!m_modelDownloadInProgress)
+    {
         return;
-    m_modelDownloadInProgress = false;
+    }
+    m_modelDownloadInProgress            = false;
     m_modelDownloadCancellationRequested = false;
     emit modelDownloadInProgressChanged();
     emit modelsAvailableChanged();
     emit logMessage(message);
 }
 
-void MatchController::openModelDirectory() const
+void MatchController::openModelDirectory()
 {
     QDir().mkpath(modelDirectory());
     QDesktopServices::openUrl(QUrl::fromLocalFile(modelDirectory()));
@@ -1022,7 +1063,9 @@ void MatchController::scanPhotoDir()
     setCurrentPhotoIndex(nextPhotoIndex);
     emit currentPhotoPathChanged();
     if (!selectionChanges)
+    {
         restoreAutoMatchResult();
+    }
     emit logMessage(QStringLiteral("scanPhotoDir=%1 (%2 files)").arg(m_photoDir).arg(m_photoModel->rowCount()));
 }
 
@@ -1089,7 +1132,9 @@ void MatchController::setBusy(bool on)
 void MatchController::setBatchAutoMatchInProgress(bool inProgress)
 {
     if (m_batchAutoMatchInProgress == inProgress)
+    {
         return;
+    }
     m_batchAutoMatchInProgress = inProgress;
     emit batchAutoMatchInProgressChanged();
 }
@@ -1502,19 +1547,21 @@ void MatchController::nextUnconfirmedPhoto()
 void MatchController::navigatePhoto(int direction, PhotoNavigationFilter filter)
 {
     if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0)
+    {
         return;
+    }
 
     for (int row = m_currentPhotoIndex + direction; row >= 0 && row < m_photoModel->rowCount(); row += direction)
     {
         const PhotoItem *photo = m_photoModel->at(row);
         if (!photo)
+        {
             continue;
+        }
 
-        const bool hasUnmatched = photo->upperMatchStatus == PhotoMatchStatus::Unmatched
-                                  || photo->lowerMatchStatus == PhotoMatchStatus::Unmatched;
-        const bool hasUnconfirmed = photo->upperMatchStatus != PhotoMatchStatus::Confirmed
-                                    || photo->lowerMatchStatus != PhotoMatchStatus::Confirmed;
-        const bool matches = filter == PhotoNavigationFilter::Unmatched ? hasUnmatched : hasUnconfirmed;
+        const bool hasUnmatched   = photo->upperMatchStatus == PhotoMatchStatus::Unmatched || photo->lowerMatchStatus == PhotoMatchStatus::Unmatched;
+        const bool hasUnconfirmed = photo->upperMatchStatus != PhotoMatchStatus::Confirmed || photo->lowerMatchStatus != PhotoMatchStatus::Confirmed;
+        const bool matches        = filter == PhotoNavigationFilter::Unmatched ? hasUnmatched : hasUnconfirmed;
         if (matches)
         {
             setCurrentPhotoIndex(row);
@@ -1557,6 +1604,8 @@ void MatchController::confirmSelectedThumb(int galleryRow)
     emit logMessage(QStringLiteral("confirmSelectedThumb row=%1").arg(galleryRow));
 }
 
+// QFutureWatcher is parent-owned immediately and also scheduled for deletion when its future finishes.
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
 void MatchController::autoMatchStyleIds()
 {
     if (m_busy)
@@ -1638,25 +1687,30 @@ void MatchController::autoMatchStyleIds()
         }
         m_autoMatchResult = latestStoredResult.value_or(StoredMatchResult {});
         m_autoMatchResult.replaceUnconfirmedMatches(storedMatchResult(result));
-        m_autoMatchImagePath    = imagePath;
+        m_autoMatchImagePath = imagePath;
         rebuildAutoMatchedItems();
 
         const auto matchSummary = [](const StoredGarmentMatch &stored, const GarmentMatcher::Match &matched) {
             if (stored.confirmed)
+            {
                 return QStringLiteral("%1（已确认，跳过）").arg(stored.styleId);
-            return QStringLiteral("%1 (%2)")
-                .arg(matched.styleId.isEmpty() ? QStringLiteral("未检出") : matched.styleId, QString::number(matched.score, 'f', 3));
+            }
+            return QStringLiteral("%1 (%2)").arg(matched.styleId.isEmpty() ? QStringLiteral("未检出") : matched.styleId,
+                                                 QString::number(matched.score, 'f', 3));
         };
-        QString message = QStringLiteral("自动匹配完成（%1）：上衣 %2，下装 %3，耗时 %4 毫秒")
-                              .arg(result.provider,
-                                   matchSummary(m_autoMatchResult.upper, result.upper),
-                                   matchSummary(m_autoMatchResult.lower, result.lower))
-                              .arg(matchTimer.elapsed());
+        QString message =
+            QStringLiteral("自动匹配完成（%1）：上衣 %2，下装 %3，耗时 %4 毫秒")
+                .arg(result.provider, matchSummary(m_autoMatchResult.upper, result.upper), matchSummary(m_autoMatchResult.lower, result.lower))
+                .arg(matchTimer.elapsed());
         QString persistenceError;
         if (!persistAutoMatchResult(&persistenceError))
+        {
             message += QStringLiteral("；未写入 gsm.db：%1").arg(persistenceError);
+        }
         else
+        {
             updatePhotoMatchStatuses(imagePath, m_autoMatchResult);
+        }
         emit logMessage(message);
     });
 
@@ -1664,8 +1718,9 @@ void MatchController::autoMatchStyleIds()
     emit logMessage(QStringLiteral("正在分割服装并匹配 %1 张款号图片...").arg(galleryItems.size()));
     watcher->setFuture(QtConcurrent::run([imagePath, galleryItems, options] { return GarmentMatcher::match(imagePath, galleryItems, options); }));
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void MatchController::autoMatchAllStyleIds()
+void MatchController::autoMatchAllStyleIds() // NOLINT(readability-function-cognitive-complexity)
 {
     if (m_busy)
     {
@@ -1686,23 +1741,25 @@ void MatchController::autoMatchAllStyleIds()
     QStringList photoPaths;
     photoPaths.reserve(m_photoModel->allItems().size());
     for (const PhotoItem &photo : m_photoModel->allItems())
+    {
         photoPaths.push_back(photo.imagePath);
+    }
 
-    const QVector<GalleryItem>   galleryItems = m_galleryModel ? m_galleryModel->allItems() : QVector<GalleryItem> {};
-    const QString                modelsDir = availableModelDirectory();
-    const GarmentMatcher::Options options = matcherOptions(modelsDir);
-    const QString                databasePath = matchDatabasePath();
-    QElapsedTimer                matchTimer;
+    const QVector<GalleryItem>    galleryItems = m_galleryModel ? m_galleryModel->allItems() : QVector<GalleryItem> {};
+    const QString                 modelsDir    = availableModelDirectory();
+    const GarmentMatcher::Options options      = matcherOptions(modelsDir);
+    const QString                 databasePath = matchDatabasePath();
+    QElapsedTimer                 matchTimer;
     matchTimer.start();
-    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation      = std::make_shared<std::atomic_bool>(false);
     m_batchAutoMatchCancellation = cancellation;
-    const int totalPhotos = photoPaths.size();
-    auto *watcher = new QFutureWatcher<BatchAutoMatchSummary>(this);
+    const int totalPhotos        = static_cast<int>(photoPaths.size());
+    auto     *watcher            = new QFutureWatcher<BatchAutoMatchSummary>(this);
     connect(watcher, &QFutureWatcher<BatchAutoMatchSummary>::finished, this, [this, watcher, matchTimer, cancellation, totalPhotos] {
         BatchAutoMatchSummary summary = watcher->result();
         if (cancellation->load() && !summary.cancelled)
         {
-            summary.cancelled = true;
+            summary.cancelled   = true;
             summary.unprocessed = totalPhotos - summary.succeeded - summary.skipped - summary.failed;
         }
         watcher->deleteLater();
@@ -1711,9 +1768,13 @@ void MatchController::autoMatchAllStyleIds()
         setBusy(false);
         refreshPhotoMatchStatuses();
         if (m_previewSource == PreviewPhoto)
+        {
             restoreAutoMatchResult();
+        }
         if (summary.modelDownloadRequired)
+        {
             emit modelDownloadRequired();
+        }
 
         QString message;
         if (summary.cancelled)
@@ -1734,36 +1795,42 @@ void MatchController::autoMatchAllStyleIds()
                           .arg(matchTimer.elapsed());
         }
         if (!summary.firstError.isEmpty())
+        {
             message += QStringLiteral("；首个错误：%1").arg(summary.firstError);
+        }
         emit logMessage(message);
     });
 
     setBatchAutoMatchInProgress(true);
     setBusy(true);
-    emit logMessage(QStringLiteral("正在检查并使用 %1 个线程批量匹配 %2 张实拍图...")
-                        .arg(m_parallelMatchThreadCount)
-                        .arg(photoPaths.size()));
+    emit      logMessage(QStringLiteral("正在检查并使用 %1 个线程批量匹配 %2 张实拍图...").arg(m_parallelMatchThreadCount).arg(photoPaths.size()));
     const int parallelThreadCount = m_parallelMatchThreadCount;
+    // The worker intentionally keeps cancellation, preflight, matching, merging, and summary accounting in one sequential transaction.
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     watcher->setFuture(QtConcurrent::run([photoPaths, galleryItems, modelsDir, options, databasePath, cancellation, parallelThreadCount] {
         BatchAutoMatchSummary summary;
-        const auto cancelledSummary = [&] {
-            summary.cancelled = true;
-            summary.unprocessed = photoPaths.size() - summary.succeeded - summary.skipped - summary.failed;
+        const auto            cancelledSummary = [&] {
+            summary.cancelled   = true;
+            summary.unprocessed = static_cast<int>(photoPaths.size()) - summary.succeeded - summary.skipped - summary.failed;
             return summary;
         };
-        QStringList           pendingPhotoPaths;
+        QStringList pendingPhotoPaths;
         pendingPhotoPaths.reserve(photoPaths.size());
         for (const QString &photoPath : photoPaths)
         {
             if (cancellation->load())
+            {
                 return cancelledSummary();
+            }
             QString    error;
             const auto existingResult = MatchResultStore::load(databasePath, photoPath, &error);
             if (!error.isEmpty())
             {
                 ++summary.failed;
                 if (summary.firstError.isEmpty())
+                {
                     summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                }
                 continue;
             }
             if (existingResult && existingResult->allMatchesConfirmed())
@@ -1775,39 +1842,51 @@ void MatchController::autoMatchAllStyleIds()
         }
 
         if (cancellation->load())
+        {
             return cancelledSummary();
+        }
         if (pendingPhotoPaths.isEmpty())
+        {
             return summary;
+        }
         if (galleryItems.isEmpty())
         {
-            summary.failed += pendingPhotoPaths.size();
+            summary.failed += static_cast<int>(pendingPhotoPaths.size());
             if (summary.firstError.isEmpty())
+            {
                 summary.firstError = QStringLiteral("请先从 PPT 提取款号小图库");
+            }
             return summary;
         }
         if (modelsDir.isEmpty())
         {
-            summary.failed += pendingPhotoPaths.size();
+            summary.failed += static_cast<int>(pendingPhotoPaths.size());
             summary.modelDownloadRequired = true;
             if (summary.firstError.isEmpty())
+            {
                 summary.firstError = QStringLiteral("未找到可用模型，请从顶部“下载模型”菜单下载");
+            }
             return summary;
         }
 
         const QVector<GarmentMatcher::Result> results =
             GarmentMatcher::matchAll(pendingPhotoPaths, galleryItems, options, cancellation.get(), parallelThreadCount);
         const bool matchingCancelled = results.size() < pendingPhotoPaths.size();
-        for (int index = 0; index < results.size(); ++index)
+        for (qsizetype index = 0; index < results.size(); ++index)
         {
             if (!matchingCancelled && cancellation->load())
+            {
                 return cancelledSummary();
-            const QString                 &photoPath = pendingPhotoPaths.at(index);
+            }
+            const QString                &photoPath = pendingPhotoPaths.at(index);
             const GarmentMatcher::Result &result    = results.at(index);
             if (!result.success)
             {
                 ++summary.failed;
                 if (summary.firstError.isEmpty())
+                {
                     summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), result.error);
+                }
                 continue;
             }
 
@@ -1817,7 +1896,9 @@ void MatchController::autoMatchAllStyleIds()
             {
                 ++summary.failed;
                 if (summary.firstError.isEmpty())
+                {
                     summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                }
                 continue;
             }
             StoredMatchResult mergedResult = latestStoredResult.value_or(StoredMatchResult {});
@@ -1834,10 +1915,14 @@ void MatchController::autoMatchAllStyleIds()
             }
             ++summary.failed;
             if (summary.firstError.isEmpty())
+            {
                 summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+            }
         }
         if (matchingCancelled)
+        {
             return cancelledSummary();
+        }
         return summary;
     }));
 }
@@ -1845,25 +1930,36 @@ void MatchController::autoMatchAllStyleIds()
 void MatchController::cancelAutoMatchAllStyleIds()
 {
     if (!m_batchAutoMatchInProgress || !m_batchAutoMatchCancellation)
+    {
         return;
+    }
     if (!m_batchAutoMatchCancellation->exchange(true))
+    {
         emit logMessage(QStringLiteral("正在停止自动匹配，当前图片处理完成后停止..."));
+    }
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 bool MatchController::copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const
 {
     if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0 || (offset != -1 && offset != 1))
+    {
         return false;
+    }
 
     if (!targetAdjacent)
     {
         const PhotoItem *sourcePhoto = m_photoModel->at(m_currentPhotoIndex + offset);
         if (!sourcePhoto)
+        {
             return false;
+        }
         QString    error;
         const auto sourceResult = MatchResultStore::load(matchDatabasePath(), sourcePhoto->imagePath, &error);
         if (!sourceResult || !error.isEmpty())
+        {
             return false;
+        }
         const bool hasSource = part == QLatin1String("all")     ? !sourceResult->isEmpty()
                                : part == QLatin1String("upper") ? !sourceResult->upper.isEmpty()
                                : part == QLatin1String("lower") ? !sourceResult->lower.isEmpty()
@@ -1873,18 +1969,23 @@ bool MatchController::copyWouldOverwriteConfirmedStyleIds(int offset, const QStr
 
     const PhotoItem *targetPhoto = m_photoModel->at(m_currentPhotoIndex + offset);
     if (!targetPhoto || m_autoMatchImagePath != currentPhotoPath())
+    {
         return false;
+    }
     const bool hasSource = part == QLatin1String("all")     ? !m_autoMatchResult.isEmpty()
                            : part == QLatin1String("upper") ? !m_autoMatchResult.upper.isEmpty()
                            : part == QLatin1String("lower") ? !m_autoMatchResult.lower.isEmpty()
                                                             : false;
     if (!hasSource)
+    {
         return false;
+    }
     QString    error;
     const auto targetResult = MatchResultStore::load(matchDatabasePath(), targetPhoto->imagePath, &error);
     return targetResult && error.isEmpty() && hasConfirmedMatch(*targetResult, part);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 bool MatchController::copyAdjacentStyleIds(int offset, const QString &part, bool overwriteConfirmed)
 {
     if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0)
@@ -1966,6 +2067,7 @@ bool MatchController::copyAdjacentStyleIds(int offset, const QString &part, bool
     return true;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 bool MatchController::copyStyleIdsToAdjacent(int offset, const QString &part, bool overwriteConfirmed)
 {
     if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0 || m_autoMatchImagePath != currentPhotoPath())
@@ -1992,8 +2094,8 @@ bool MatchController::copyStyleIdsToAdjacent(int offset, const QString &part, bo
     {
         const QString garment = part == QLatin1String("upper")   ? QStringLiteral("上衣")
                                 : part == QLatin1String("lower") ? QStringLiteral("裤裙")
-                                                                  : QString();
-        emit logMessage(QStringLiteral("复制款号失败：当前实拍图没有%1款号").arg(garment));
+                                                                 : QString();
+        emit          logMessage(QStringLiteral("复制款号失败：当前实拍图没有%1款号").arg(garment));
         return false;
     }
 
@@ -2006,7 +2108,9 @@ bool MatchController::copyStyleIdsToAdjacent(int offset, const QString &part, bo
         return false;
     }
     if (existingResult)
+    {
         targetResult = *existingResult;
+    }
 
     if (!overwriteConfirmed && hasConfirmedMatch(targetResult, part))
     {
@@ -2020,7 +2124,7 @@ bool MatchController::copyStyleIdsToAdjacent(int offset, const QString &part, bo
     };
     if (part == QLatin1String("all"))
     {
-        targetResult = {};
+        targetResult       = {};
         targetResult.upper = unconfirmed(m_autoMatchResult.upper);
         targetResult.lower = unconfirmed(m_autoMatchResult.lower);
     }
@@ -2051,7 +2155,9 @@ void MatchController::clearAutoMatchResult()
     m_autoMatchImagePath.clear();
     m_autoMatchedItems.clear();
     if (hadItems)
+    {
         emit autoMatchedItemsChanged();
+    }
 }
 
 void MatchController::restoreAutoMatchResult()
@@ -2059,7 +2165,9 @@ void MatchController::restoreAutoMatchResult()
     clearAutoMatchResult();
     const QString imagePath = currentImagePath();
     if (imagePath.isEmpty() || m_photoDir.isEmpty())
+    {
         return;
+    }
 
     QString    error;
     const auto result = MatchResultStore::load(matchDatabasePath(), imagePath, &error);
@@ -2085,7 +2193,9 @@ void MatchController::rebuildAutoMatchedItems()
     QVariantList items;
     const auto   append = [this, &items](const StoredGarmentMatch &match, const QString &part, const QString &garment) {
         if (match.isEmpty())
+        {
             return;
+        }
         QVariantMap item;
         item.insert(QStringLiteral("part"), part);
         item.insert(QStringLiteral("garment"), garment);
@@ -2097,7 +2207,9 @@ void MatchController::rebuildAutoMatchedItems()
     append(m_autoMatchResult.upper, QStringLiteral("upper"), QStringLiteral("上衣"));
     append(m_autoMatchResult.lower, QStringLiteral("lower"), QStringLiteral("裤裙"));
     if (items == m_autoMatchedItems)
+    {
         return;
+    }
     m_autoMatchedItems = items;
     emit autoMatchedItemsChanged();
 }
@@ -2105,7 +2217,9 @@ void MatchController::rebuildAutoMatchedItems()
 void MatchController::refreshPhotoMatchStatuses()
 {
     if (!m_photoModel || m_photoDir.isEmpty())
+    {
         return;
+    }
 
     const QVector<PhotoItem> photos = m_photoModel->allItems();
     for (const PhotoItem &photo : photos)
@@ -2124,7 +2238,9 @@ void MatchController::refreshPhotoMatchStatuses()
 void MatchController::updatePhotoMatchStatuses(const QString &imagePath, const StoredMatchResult &result)
 {
     if (!m_photoModel)
+    {
         return;
+    }
     m_photoModel->setMatchStatuses(imagePath, photoMatchStatus(result.upper), photoMatchStatus(result.lower));
 }
 
@@ -2133,7 +2249,9 @@ bool MatchController::persistAutoMatchResult(QString *error) const
     if (m_photoDir.isEmpty())
     {
         if (error)
+        {
             *error = QStringLiteral("请先选择实拍图输入目录");
+        }
         return false;
     }
     return MatchResultStore::save(matchDatabasePath(), m_autoMatchImagePath, m_autoMatchResult, error);
@@ -2147,11 +2265,15 @@ QString MatchController::matchDatabasePath() const
 QString MatchController::galleryImagePath(const StoredGarmentMatch &match) const
 {
     if (!m_galleryModel)
+    {
         return {};
+    }
     for (const GalleryItem &item : m_galleryModel->allItems())
     {
         if (item.styleId == match.styleId && QFileInfo(item.imagePath).fileName().compare(match.imageName, Qt::CaseInsensitive) == 0)
+        {
             return item.imagePath;
+        }
     }
     return {};
 }
@@ -2159,12 +2281,16 @@ QString MatchController::galleryImagePath(const StoredGarmentMatch &match) const
 void MatchController::confirmAutoMatch(const QString &part)
 {
     if (m_autoMatchImagePath != currentImagePath())
+    {
         return;
+    }
     StoredGarmentMatch *match = part == QLatin1String("upper")   ? &m_autoMatchResult.upper
                                 : part == QLatin1String("lower") ? &m_autoMatchResult.lower
                                                                  : nullptr;
     if (!match || match->isEmpty())
+    {
         return;
+    }
 
     match->confirmed = true;
     rebuildAutoMatchedItems();
@@ -2182,12 +2308,16 @@ void MatchController::confirmAutoMatch(const QString &part)
 void MatchController::rejectAutoMatch(const QString &part)
 {
     if (m_autoMatchImagePath != currentImagePath())
+    {
         return;
+    }
     StoredGarmentMatch *match = part == QLatin1String("upper")   ? &m_autoMatchResult.upper
                                 : part == QLatin1String("lower") ? &m_autoMatchResult.lower
                                                                  : nullptr;
     if (!match || match->isEmpty())
+    {
         return;
+    }
 
     const QString garment = part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙");
     *match                = {};

@@ -12,10 +12,14 @@ namespace
     bool check(bool condition, const QString &message)
     {
         if (!condition)
+        {
             qCritical().noquote() << message;
+        }
         return condition;
     }
 
+    // These literals are byte offsets, marker values, and field widths from the JPEG/EXIF/IPTC fixture format.
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     void appendBe16(QByteArray &data, quint16 value)
     {
         data.append(static_cast<char>(value >> 8));
@@ -137,6 +141,7 @@ namespace
         jpeg.append("\xff\xd9", 2);
         return jpeg;
     }
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
     QString valueFor(const QVariantList &entries, const QString &name)
     {
@@ -144,7 +149,9 @@ namespace
         {
             const QVariantMap fields = entry.toMap();
             if (fields.value(QStringLiteral("name")).toString() == name)
+            {
                 return fields.value(QStringLiteral("value")).toString();
+            }
         }
         return {};
     }
@@ -156,38 +163,54 @@ int main(int argc, char *argv[])
     QCoreApplication application(argc, argv);
     QTemporaryDir    temporary;
     if (!check(temporary.isValid(), QStringLiteral("无法创建图片元数据测试目录")))
+    {
         return 1;
+    }
 
     const QString path = temporary.filePath(QStringLiteral("sample.jpg"));
     QFile         file(path);
     if (!check(file.open(QIODevice::WriteOnly) && file.write(makeJpeg()) > 0, QStringLiteral("无法写入 JPEG 元数据测试文件")))
+    {
         return 1;
+    }
     file.close();
 
     ImageMetadata metadata;
     metadata.setImagePath(path);
     if (!check(valueFor(metadata.fileInfo(), QStringLiteral("文件名")) == QStringLiteral("sample.jpg"),
                QStringLiteral("文件信息必须显示当前图片文件名")))
+    {
         return 1;
+    }
     if (!check(valueFor(metadata.imageInfo(), QStringLiteral("宽度")) == QStringLiteral("320 像素") &&
                    valueFor(metadata.imageInfo(), QStringLiteral("高度")) == QStringLiteral("240 像素"),
                QStringLiteral("图像信息必须读取 JPEG SOF 尺寸")))
+    {
         return 1;
+    }
     if (!check(valueFor(metadata.imageInfo(), QStringLiteral("像素密度")) == QStringLiteral("300 × 300 DPI"),
                QStringLiteral("图像信息必须读取 JFIF 像素密度")))
+    {
         return 1;
+    }
     if (!check(valueFor(metadata.iptc(), QStringLiteral("创建日期")) == QStringLiteral("20260613"),
                QStringLiteral("IPTC 页必须读取 Photoshop IPTC 创建日期")))
+    {
         return 1;
+    }
     if (!check(valueFor(metadata.exif(), QStringLiteral("修改时间")) == QStringLiteral("2026:06:13 15:20:19") &&
                    valueFor(metadata.exif(), QStringLiteral("曝光时间 [秒]")) == QStringLiteral("1/125") &&
                    valueFor(metadata.exif(), QStringLiteral("拍摄时间")) == QStringLiteral("2026:06:10 16:31:10"),
                QStringLiteral("EXIF 页必须读取主 IFD 与 EXIF 子 IFD")))
+    {
         return 1;
+    }
 
     metadata.setImagePath(temporary.filePath(QStringLiteral("missing.jpg")));
     if (!check(metadata.fileInfo().isEmpty() && metadata.imageInfo().isEmpty() && metadata.iptc().isEmpty() && metadata.exif().isEmpty(),
                QStringLiteral("图片不存在时必须清空上一张图片的属性")))
+    {
         return 1;
+    }
     return 0;
 }

@@ -52,7 +52,7 @@ public:
     {
         return m_filterText;
     }
-    [[nodiscard]] const PhotoItem *at(int row) const;
+    [[nodiscard]] const PhotoItem          *at(int row) const;
     [[nodiscard]] const QVector<PhotoItem> &allItems() const
     {
         return m_items;

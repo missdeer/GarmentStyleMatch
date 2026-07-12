@@ -1,8 +1,11 @@
+// clang-format's configured include categories conflict with llvm-include-order for LibArchive's C headers.
+// NOLINTBEGIN(llvm-include-order)
 #include <algorithm>
-#include <archive.h>
-#include <archive_entry.h>
 #include <cmath>
 #include <ranges>
+#include <archive.h>
+#include <archive_entry.h>
+// NOLINTEND(llvm-include-order)
 
 #include <QDir>
 #include <QFile>

@@ -11,17 +11,19 @@
 
 namespace
 {
+    constexpr int kArchiveFilePermissions = 0644;
 
     bool addZipEntry(struct archive *writer, const QByteArray &name, const QByteArray &data)
     {
         struct archive_entry *entry = archive_entry_new();
         archive_entry_set_pathname(entry, name.constData());
         archive_entry_set_filetype(entry, AE_IFREG);
-        archive_entry_set_perm(entry, 0644);
+        archive_entry_set_perm(entry, kArchiveFilePermissions);
         archive_entry_set_size(entry, data.size());
-        const bool ok = archive_write_header(writer, entry) == ARCHIVE_OK && archive_write_data(writer, data.constData(), data.size()) == data.size();
+        const bool entryWritten =
+            archive_write_header(writer, entry) == ARCHIVE_OK && archive_write_data(writer, data.constData(), data.size()) == data.size();
         archive_entry_free(entry);
-        return ok;
+        return entryWritten;
     }
 
     bool createFixture(const QString &path)
@@ -86,21 +88,23 @@ namespace
         const QByteArray otherSlide =
             R"xml(<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree/></p:cSld></p:sld>)xml";
 
-        const bool ok = addZipEntry(writer, "ppt/presentation.xml", presentation) &&
-                        addZipEntry(writer, "ppt/_rels/presentation.xml.rels", presentationRels) &&
-                        addZipEntry(writer, "ppt/slides/slide2.xml", slide) && addZipEntry(writer, "ppt/slides/_rels/slide2.xml.rels", slideRels) &&
-                        addZipEntry(writer, "ppt/slides/slide1.xml", otherSlide) && addZipEntry(writer, "ppt/media/a.png", "image-a") &&
-                        addZipEntry(writer, "ppt/media/b.png", "image-b") && addZipEntry(writer, "ppt/media/c.png", "image-c") &&
-                        addZipEntry(writer, "ppt/media/d.png", "image-d") && addZipEntry(writer, "ppt/media/background.png", "background");
+        const bool archiveWritten =
+            addZipEntry(writer, "ppt/presentation.xml", presentation) && addZipEntry(writer, "ppt/_rels/presentation.xml.rels", presentationRels) &&
+            addZipEntry(writer, "ppt/slides/slide2.xml", slide) && addZipEntry(writer, "ppt/slides/_rels/slide2.xml.rels", slideRels) &&
+            addZipEntry(writer, "ppt/slides/slide1.xml", otherSlide) && addZipEntry(writer, "ppt/media/a.png", "image-a") &&
+            addZipEntry(writer, "ppt/media/b.png", "image-b") && addZipEntry(writer, "ppt/media/c.png", "image-c") &&
+            addZipEntry(writer, "ppt/media/d.png", "image-d") && addZipEntry(writer, "ppt/media/background.png", "background");
         const bool closed = archive_write_close(writer) == ARCHIVE_OK;
         archive_write_free(writer);
-        return ok && closed;
+        return archiveWritten && closed;
     }
 
     bool check(bool condition, const QString &message)
     {
         if (!condition)
+        {
             qCritical().noquote() << message;
+        }
         return condition;
     }
 
@@ -111,17 +115,23 @@ int main(int argc, char *argv[])
     QCoreApplication application(argc, argv);
     QTemporaryDir    temporary;
     if (!check(temporary.isValid(), QStringLiteral("无法创建测试临时目录")))
+    {
         return 1;
+    }
 
     const QString pptxPath = temporary.filePath(QStringLiteral("fixture.pptx"));
     if (!check(createFixture(pptxPath), QStringLiteral("无法创建 PPTX 测试包")))
+    {
         return 1;
+    }
 
     const QString outputDir = temporary.filePath(QStringLiteral("styles"));
     QDir().mkpath(outputDir);
     QFile stale(QDir(outputDir).filePath(QStringLiteral("stale.txt")));
-    stale.open(QIODevice::WriteOnly);
-    stale.write("stale");
+    if (!check(stale.open(QIODevice::WriteOnly) && stale.write("stale") > 0, QStringLiteral("无法创建待清理的旧缓存文件")))
+    {
+        return 1;
+    }
     stale.close();
 
     PptStyleExtractor::Options options;
@@ -141,27 +151,43 @@ int main(int argc, char *argv[])
                QStringLiteral("应从放映顺序第 1 页提取 3 个款式，实际为 %1；日志：%2")
                    .arg(result.styles.size())
                    .arg(result.warnings.join(QStringLiteral(" | ")))))
+    {
         return 1;
-    if (!check(result.styles[0].styleId == QStringLiteral("STYLE100A") && result.styles[0].imagePaths.size() == 2,
+    }
+    if (!check(result.styles.at(0).styleId == QStringLiteral("STYLE100A") && result.styles.at(0).imagePaths.size() == 2,
                QStringLiteral("STYLE100A 应对应两张图片")))
+    {
         return 1;
-    if (!check(result.styles[1].styleId == QStringLiteral("STYLE200B") && result.styles[1].imagePaths.size() == 1,
+    }
+    if (!check(result.styles.at(1).styleId == QStringLiteral("STYLE200B") && result.styles.at(1).imagePaths.size() == 1,
                QStringLiteral("STYLE200B 应对应一张图片")))
+    {
         return 1;
-    if (!check(result.styles[2].styleId == QStringLiteral("STYLE300C") && result.styles[2].imagePaths.size() == 1,
+    }
+    if (!check(result.styles.at(2).styleId == QStringLiteral("STYLE300C") && result.styles.at(2).imagePaths.size() == 1,
                QStringLiteral("STYLE300C 应对应下一行的一张图片")))
+    {
         return 1;
+    }
     if (!check(!QFileInfo::exists(QDir(outputDir).filePath(QStringLiteral("stale.txt"))), QStringLiteral("重新提取前应清理旧款式缓存")))
+    {
         return 1;
+    }
     if (!check(QFileInfo::exists(QDir(options.openXmlDir).filePath(QStringLiteral("ppt/presentation.xml"))),
                QStringLiteral("PPTX 应先解压到 Open XML 缓存")))
+    {
         return 1;
+    }
     if (!check(!progressValues.isEmpty() && progressValues.front() == 0 && progressValues.back() == 1,
                QStringLiteral("提取进度必须从 0 开始并到达选中页总数")))
+    {
         return 1;
+    }
     if (!check(progressMessages.join(QLatin1Char('|')).contains(QStringLiteral("正在解析 PPT 第 1 页")),
                QStringLiteral("进度消息必须包含当前解析页码")))
+    {
         return 1;
+    }
 
     return 0;
 }

@@ -26,6 +26,9 @@
 
 #include "GarmentMatcher.h"
 
+// ONNX Runtime/OpenCV interop requires C function-pointer casts, raw image buffers, and model-defined tensor indices and dimensions.
+// The surrounding size and shape checks validate every indexed access.
+// NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,cppcoreguidelines-pro-bounds-constant-array-index,cppcoreguidelines-pro-bounds-pointer-arithmetic,cppcoreguidelines-pro-type-const-cast,cppcoreguidelines-pro-type-reinterpret-cast,readability-identifier-length,readability-magic-numbers)
 namespace
 {
 
@@ -36,7 +39,9 @@ namespace
         void operator()(sqlite3 *database) const
         {
             if (database)
+            {
                 sqlite3_close(database);
+            }
         }
     };
 
@@ -45,7 +50,9 @@ namespace
         void operator()(sqlite3_stmt *statement) const
         {
             if (statement)
+            {
                 sqlite3_finalize(statement);
+            }
         }
     };
 
@@ -88,7 +95,9 @@ namespace
         QStringList   directories;
         const QString cudaPath = QString::fromLocal8Bit(qgetenv("CUDA_PATH"));
         if (!cudaPath.isEmpty())
+        {
             directories.push_back(QDir(cudaPath).absoluteFilePath(QStringLiteral("bin")));
+        }
 
         const QString cudnnLibrary = QString::fromLocal8Bit(qgetenv("CUDNN_LIBRARY"));
         if (!cudnnLibrary.isEmpty())
@@ -105,10 +114,14 @@ namespace
         for (const QString &directory : std::as_const(directories))
         {
             if (!QDir(directory).exists())
+            {
                 continue;
+            }
             const QByteArray encoded = QDir::toNativeSeparators(directory).toLocal8Bit();
             if (!path.contains(encoded))
+            {
                 path.prepend(encoded + ';');
+            }
         }
         qputenv("PATH", path);
     }
@@ -116,14 +129,18 @@ namespace
     [[nodiscard]] bool hasCudaRuntime()
     {
         if (!hasCudaDriver())
+        {
             return false;
+        }
         prepareCudaDllSearchPath();
         constexpr std::array<const char *, 4> dependencies {"cublas64_13", "cublasLt64_13", "cudnn64_9", "cufft64_12"};
         for (const char *dependency : dependencies)
         {
             QLibrary library(QString::fromLatin1(dependency));
             if (!library.load())
+            {
                 return false;
+            }
         }
         return true;
     }
@@ -148,15 +165,25 @@ namespace
             const bool    cudaAvailable     = hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda")));
             const bool    directMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml")));
             if (configured == QStringLiteral("cuda") && cudaAvailable)
+            {
                 return QStringLiteral("cuda");
+            }
             if (configured == QStringLiteral("directml") && directMlAvailable)
+            {
                 return QStringLiteral("directml");
+            }
             if (configured == QStringLiteral("cpu"))
+            {
                 return QStringLiteral("cpu");
+            }
             if (cudaAvailable)
+            {
                 return QStringLiteral("cuda");
+            }
             if (directMlAvailable)
+            {
                 return QStringLiteral("directml");
+            }
 #endif
             return QStringLiteral("cpu");
         }();
@@ -167,7 +194,9 @@ namespace
     {
 #ifdef Q_OS_WIN
         if (provider == QStringLiteral("cpu"))
+        {
             return QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))) ? QStringLiteral("directml") : QStringLiteral("cuda");
+        }
 #endif
         return provider;
     }
@@ -177,20 +206,28 @@ namespace
         const QString provider = startupProvider();
         const QString backend  = runtimeBackend(provider);
         if (backend == QStringLiteral("cuda"))
+        {
             prepareCudaDllSearchPath();
+        }
 
         auto loaded = std::make_unique<LoadedOrt>();
         loaded->library.setFileName(runtimeLibraryPath(backend));
         loaded->library.setLoadHints(QLibrary::PreventUnloadHint);
         if (!loaded->library.load())
+        {
             throw std::runtime_error(QStringLiteral("无法加载 %1 ONNX Runtime：%2").arg(backend, loaded->library.errorString()).toStdString());
+        }
 
         const auto getApiBase = reinterpret_cast<OrtGetApiBaseFunction>(loaded->library.resolve("OrtGetApiBase"));
         if (!getApiBase)
+        {
             throw std::runtime_error(QStringLiteral("%1 ONNX Runtime 缺少 OrtGetApiBase").arg(backend).toStdString());
+        }
         const OrtApi *api = getApiBase()->GetApi(ORT_API_VERSION);
         if (!api)
+        {
             throw std::runtime_error(QStringLiteral("%1 ONNX Runtime 不支持 ORT API %2").arg(backend).arg(ORT_API_VERSION).toStdString());
+        }
         Ort::InitApi(api);
         loaded->version = QString::fromLatin1(getApiBase()->GetVersionString());
 
@@ -198,7 +235,9 @@ namespace
         {
             loaded->appendDml = reinterpret_cast<AppendDmlFunction>(loaded->library.resolve("OrtSessionOptionsAppendExecutionProvider_DML"));
             if (!loaded->appendDml)
+            {
                 throw std::runtime_error("DirectML ONNX Runtime 缺少 DML provider API");
+            }
         }
         loaded->preferredProvider = provider == QStringLiteral("cuda")
                                         ? QStringLiteral("CUDA")
@@ -219,7 +258,9 @@ namespace
         reader.setAutoTransform(true);
         const QImage image = reader.read().convertToFormat(QImage::Format_RGB888);
         if (image.isNull())
+        {
             return {};
+        }
 
         const cv::Mat rgb(image.height(), image.width(), CV_8UC3, const_cast<uchar *>(image.constBits()), image.bytesPerLine());
         cv::Mat       bgr;
@@ -308,7 +349,9 @@ namespace
         const QString preferredProvider = runtime.loaded->preferredProvider;
         QStringList   providers {preferredProvider};
         if (preferredProvider != QStringLiteral("CPU"))
+        {
             providers.push_back(QStringLiteral("CPU"));
+        }
 
         QStringList errors;
         for (const QString &provider : std::as_const(providers))
@@ -344,15 +387,21 @@ namespace
         const auto shapeInfo   = outputs.front().GetTensorTypeAndShapeInfo();
         const auto outputShape = shapeInfo.GetShape();
         if (outputShape.size() != 2 || outputShape[0] != 1 || outputShape[1] != kEmbeddingSize)
+        {
             throw std::runtime_error("FashionCLIP image_embeds 输出形状不是 [1,512]");
+        }
 
-        const float       *values = outputs.front().GetTensorData<float>();
+        const auto        *values = outputs.front().GetTensorData<float>();
         std::vector<float> result(values, values + kEmbeddingSize);
         const float        norm = std::sqrt(std::inner_product(result.begin(), result.end(), result.begin(), 0.0F));
         if (norm <= 0.0F)
+        {
             throw std::runtime_error("FashionCLIP 返回零向量");
+        }
         for (float &value : result)
+        {
             value /= norm;
+        }
         return result;
     }
 
@@ -363,16 +412,22 @@ namespace
         cv::Mat   centroids;
         const int count = cv::connectedComponentsWithStats(mask, labels, statistics, centroids, 8, CV_32S);
         if (count <= 1)
+        {
             return {};
+        }
 
         int largestLabel = 1;
         for (int label = 2; label < count; ++label)
         {
             if (statistics.at<int>(label, cv::CC_STAT_AREA) > statistics.at<int>(largestLabel, cv::CC_STAT_AREA))
+            {
                 largestLabel = label;
+            }
         }
         if (statistics.at<int>(largestLabel, cv::CC_STAT_AREA) < mask.total() / 200)
+        {
             return {};
+        }
         cv::Mat result;
         cv::compare(labels, largestLabel, result, cv::CMP_EQ);
         return result;
@@ -381,17 +436,23 @@ namespace
     [[nodiscard]] cv::Mat maskedCrop(const cv::Mat &image, const cv::Mat &smallMask)
     {
         if (smallMask.empty())
+        {
             return {};
+        }
         cv::Mat mask;
         cv::resize(smallMask, mask, image.size(), 0.0, 0.0, cv::INTER_NEAREST);
         mask = largestMaskComponent(mask);
         if (mask.empty())
+        {
             return {};
+        }
 
         std::vector<cv::Point> points;
         cv::findNonZero(mask, points);
         if (points.empty())
+        {
             return {};
+        }
         const cv::Rect bounds = cv::boundingRect(points);
         cv::Mat        crop(bounds.size(), image.type(), cv::Scalar(255, 255, 255));
         image(bounds).copyTo(crop, mask(bounds));
@@ -417,15 +478,17 @@ namespace
         auto outputs = session.Run(Ort::RunOptions {nullptr}, inputNames.data(), &tensor, inputNames.size(), outputNames.data(), outputNames.size());
         const auto outputShape = outputs.front().GetTensorTypeAndShapeInfo().GetShape();
         if (outputShape.size() != 4 || outputShape[0] != 1 || outputShape[1] != 18)
+        {
             throw std::runtime_error("服装分割 logits 输出形状不是 [1,18,H,W]");
+        }
 
-        const int    height    = static_cast<int>(outputShape[2]);
-        const int    width     = static_cast<int>(outputShape[3]);
-        const int    planeSize = height * width;
-        const float *logits    = outputs.front().GetTensorData<float>();
-        cv::Mat      upperMask(height, width, CV_8U, cv::Scalar(0));
-        cv::Mat      lowerMask(height, width, CV_8U, cv::Scalar(0));
-        cv::Mat      dressMask(height, width, CV_8U, cv::Scalar(0));
+        const int   height    = static_cast<int>(outputShape[2]);
+        const int   width     = static_cast<int>(outputShape[3]);
+        const int   planeSize = height * width;
+        const auto *logits    = outputs.front().GetTensorData<float>();
+        cv::Mat     upperMask(height, width, CV_8U, cv::Scalar(0));
+        cv::Mat     lowerMask(height, width, CV_8U, cv::Scalar(0));
+        cv::Mat     dressMask(height, width, CV_8U, cv::Scalar(0));
         for (int offset = 0; offset < planeSize; ++offset)
         {
             int   bestClass = 0;
@@ -442,16 +505,24 @@ namespace
             const int y = offset / width;
             const int x = offset % width;
             if (bestClass == 4)
+            {
                 upperMask.at<uchar>(y, x) = 255;
+            }
             else if (bestClass == 5 || bestClass == 6)
+            {
                 lowerMask.at<uchar>(y, x) = 255;
+            }
             else if (bestClass == 7)
+            {
                 dressMask.at<uchar>(y, x) = 255;
+            }
         }
 
         const int dressArea = cv::countNonZero(dressMask);
         if (dressArea > cv::countNonZero(upperMask) + cv::countNonZero(lowerMask))
+        {
             return {maskedCrop(image, dressMask), {}};
+        }
         return {maskedCrop(image, upperMask), maskedCrop(image, lowerMask)};
     }
 
@@ -481,7 +552,9 @@ namespace
         {
             const QString message = rawDatabase ? QString::fromUtf8(sqlite3_errmsg(rawDatabase)) : QStringLiteral("无法创建 SQLite 特征库");
             if (rawDatabase)
+            {
                 sqlite3_close(rawDatabase);
+            }
             throw std::runtime_error(message.toStdString());
         }
         Database database(rawDatabase);
@@ -496,7 +569,9 @@ namespace
     {
         sqlite3_stmt *rawStatement = nullptr;
         if (sqlite3_prepare_v2(database, sql, -1, &rawStatement, nullptr) != SQLITE_OK)
+        {
             throw std::runtime_error(sqlite3_errmsg(database));
+        }
         return Statement(rawStatement);
     }
 
@@ -515,10 +590,14 @@ namespace
         sqlite3_bind_int64(statement.get(), 4, info.lastModified().toMSecsSinceEpoch());
         sqlite3_bind_text(statement.get(), 5, key.constData(), -1, SQLITE_TRANSIENT);
         if (sqlite3_step(statement.get()) != SQLITE_ROW)
+        {
             return std::nullopt;
+        }
         const int bytes = sqlite3_column_bytes(statement.get(), 0);
         if (bytes != kEmbeddingSize * static_cast<int>(sizeof(float)))
+        {
             return std::nullopt;
+        }
         std::vector<float> result(kEmbeddingSize);
         std::memcpy(result.data(), sqlite3_column_blob(statement.get(), 0), static_cast<std::size_t>(bytes));
         return result;
@@ -540,7 +619,9 @@ namespace
         sqlite3_bind_text(statement.get(), 5, key.constData(), -1, SQLITE_TRANSIENT);
         sqlite3_bind_blob(statement.get(), 6, embedding.data(), static_cast<int>(embedding.size() * sizeof(float)), SQLITE_TRANSIENT);
         if (sqlite3_step(statement.get()) != SQLITE_DONE)
+        {
             throw std::runtime_error(sqlite3_errmsg(database));
+        }
     }
 
     [[nodiscard]] QVector<GalleryEmbedding> galleryEmbeddings(Ort::Session               &session,
@@ -557,7 +638,9 @@ namespace
             {
                 const cv::Mat image = loadImage(item.imagePath);
                 if (image.empty())
+                {
                     continue;
+                }
                 embedding = encodeImage(session, image);
                 storeEmbedding(database, item, embeddingModelKey, *embedding);
             }
@@ -586,45 +669,63 @@ namespace
     void validateMatcherInputs(const QVector<GalleryItem> &galleryItems, const GarmentMatcher::Options &options)
     {
         if (galleryItems.isEmpty())
+        {
             throw std::runtime_error("款号小图库为空");
+        }
         if (!QFileInfo::exists(options.segmentationModelPath))
+        {
             throw std::runtime_error("服装分割模型不存在");
+        }
         if (!QFileInfo::exists(options.embeddingModelPath))
+        {
             throw std::runtime_error("FashionCLIP 图像模型不存在");
+        }
     }
 
-    [[nodiscard]] QVector<GalleryEmbedding> prepareGallery(
-        Runtime &runtime, const QVector<GalleryItem> &galleryItems, const GarmentMatcher::Options &options)
+    [[nodiscard]] QVector<GalleryEmbedding> prepareGallery(Runtime                       &runtime,
+                                                           const QVector<GalleryItem>    &galleryItems,
+                                                           const GarmentMatcher::Options &options)
     {
         Database      database = openDatabase(options.featureDatabasePath);
         const QString embeddingModelKey =
             QStringLiteral("%1:%2:%3").arg(modelKey(options.embeddingModelPath), runtime.loaded->version, runtime.provider);
         QVector<GalleryEmbedding> gallery = galleryEmbeddings(*runtime.embedding, galleryItems, database.get(), embeddingModelKey);
         if (gallery.isEmpty())
+        {
             throw std::runtime_error("款号小图库中没有可读取的图片");
+        }
         return gallery;
     }
 
-    [[nodiscard]] GarmentMatcher::Result matchPhoto(
-        const QString &photoPath, Runtime &runtime, const QVector<GalleryEmbedding> &gallery)
+    [[nodiscard]] GarmentMatcher::Result matchPhoto(const QString &photoPath, Runtime &runtime, const QVector<GalleryEmbedding> &gallery)
     {
         GarmentMatcher::Result result;
         result.provider = runtime.provider;
         try
         {
             if (!QFileInfo::exists(photoPath))
+            {
                 throw std::runtime_error("当前实拍图不存在");
+            }
             cv::Mat photo = loadImage(photoPath);
             if (photo.empty())
+            {
                 throw std::runtime_error("无法读取当前实拍图");
+            }
 
             GarmentCrops crops = segmentGarments(*runtime.segmentation, photo);
             if (crops.upper.empty() && crops.lower.empty())
+            {
                 throw std::runtime_error("没有分割出上衣、裤子、裙子或连衣裙");
+            }
             if (!crops.upper.empty())
+            {
                 result.upper = bestMatch(encodeImage(*runtime.embedding, crops.upper), gallery);
+            }
             if (!crops.lower.empty())
+            {
                 result.lower = bestMatch(encodeImage(*runtime.embedding, crops.lower), gallery);
+            }
             result.success = true;
         }
         catch (const std::exception &error)
@@ -641,9 +742,13 @@ QStringList GarmentMatcher::availableProviders()
     QStringList providers;
 #ifdef Q_OS_WIN
     if (hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
+    {
         providers.push_back(QStringLiteral("CUDA"));
+    }
     if (QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))))
+    {
         providers.push_back(QStringLiteral("DirectML"));
+    }
 #endif
     providers.push_back(QStringLiteral("CPU"));
     return providers;
@@ -660,9 +765,13 @@ QString GarmentMatcher::Result::joinedStyleIds() const
 {
     QStringList styleIds;
     if (!upper.styleId.isEmpty())
+    {
         styleIds.push_back(upper.styleId);
+    }
     if (!lower.styleId.isEmpty() && lower.styleId != upper.styleId)
+    {
         styleIds.push_back(lower.styleId);
+    }
     return styleIds.join(QLatin1Char(','));
 }
 
@@ -672,11 +781,13 @@ GarmentMatcher::Result GarmentMatcher::match(const QString &photoPath, const QVe
     try
     {
         if (!QFileInfo::exists(photoPath))
+        {
             throw std::runtime_error("当前实拍图不存在");
+        }
         validateMatcherInputs(galleryItems, options);
-        Runtime runtime = createRuntime(options);
+        Runtime                         runtime = createRuntime(options);
         const QVector<GalleryEmbedding> gallery = prepareGallery(runtime, galleryItems, options);
-        result = matchPhoto(photoPath, runtime, gallery);
+        result                                  = matchPhoto(photoPath, runtime, gallery);
     }
     catch (const std::exception &error)
     {
@@ -685,27 +796,30 @@ GarmentMatcher::Result GarmentMatcher::match(const QString &photoPath, const QVe
     return result;
 }
 
-QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(
-    const QStringList &photoPaths,
-    const QVector<GalleryItem> &galleryItems,
-    const Options &options,
-    const std::atomic_bool *cancellationRequested,
-    int parallelThreadCount)
+QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(const QStringList          &photoPaths,
+                                                         const QVector<GalleryItem> &galleryItems,
+                                                         const Options              &options,
+                                                         const std::atomic_bool     *cancellationRequested,
+                                                         int                         parallelThreadCount)
 {
     QVector<Result> results;
     if (cancellationRequested && cancellationRequested->load())
+    {
         return results;
+    }
     try
     {
         validateMatcherInputs(galleryItems, options);
-        const int photoCount  = static_cast<int>(photoPaths.size());
-        const int workerCount = std::clamp(parallelThreadCount, 1, std::max(1, photoCount));
+        const int                             photoCount  = static_cast<int>(photoPaths.size());
+        const int                             workerCount = std::clamp(parallelThreadCount, 1, std::max(1, photoCount));
         std::vector<std::unique_ptr<Runtime>> runtimes;
         runtimes.reserve(static_cast<std::size_t>(workerCount));
         runtimes.push_back(std::make_unique<Runtime>(createRuntime(options)));
         const QVector<GalleryEmbedding> gallery = prepareGallery(*runtimes.front(), galleryItems, options);
         for (int index = 1; index < workerCount; ++index)
+        {
             runtimes.push_back(std::make_unique<Runtime>(createRuntime(options)));
+        }
 
         std::vector<Result> workerResults(static_cast<std::size_t>(photoCount));
         std::atomic_int     nextIndex {0};
@@ -720,7 +834,9 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(
                     {
                         const int photoIndex = nextIndex.fetch_add(1);
                         if (photoIndex >= photoCount)
+                        {
                             break;
+                        }
                         claimedCount.fetch_add(1);
                         workerResults[static_cast<std::size_t>(photoIndex)] = matchPhoto(photoPaths.at(photoIndex), *runtime, gallery);
                     }
@@ -729,7 +845,9 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(
         }
         results.reserve(claimedCount.load());
         for (int index = 0; index < claimedCount.load(); ++index)
+        {
             results.push_back(std::move(workerResults[static_cast<std::size_t>(index)]));
+        }
     }
     catch (const std::exception &error)
     {
@@ -743,3 +861,4 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(
     }
     return results;
 }
+// NOLINTEND(cppcoreguidelines-avoid-magic-numbers,cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,cppcoreguidelines-pro-bounds-constant-array-index,cppcoreguidelines-pro-bounds-pointer-arithmetic,cppcoreguidelines-pro-type-const-cast,cppcoreguidelines-pro-type-reinterpret-cast,readability-identifier-length,readability-magic-numbers)

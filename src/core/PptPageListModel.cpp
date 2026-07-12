@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <utility>
 
 #include <QStringList>
 
@@ -218,7 +219,7 @@ QString PptPageListModel::selectedPagesText() const
     std::sort(pages.begin(), pages.end());
     QStringList parts;
     parts.reserve(pages.size());
-    for (int page : pages)
+    for (int page : std::as_const(pages))
     {
         parts << QString::number(page);
     }

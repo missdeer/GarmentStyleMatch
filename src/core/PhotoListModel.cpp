@@ -1,5 +1,5 @@
-#include <algorithm>
 #include <iterator>
+#include <ranges>
 #include <utility>
 
 #include <QDir>
@@ -67,20 +67,20 @@ void PhotoListModel::setItems(QVector<PhotoItem> items)
 
 void PhotoListModel::setMatchStatuses(const QString &imagePath, PhotoMatchStatus upper, PhotoMatchStatus lower)
 {
-    const auto itemIt = std::find_if(m_items.begin(), m_items.end(), [&imagePath](const PhotoItem &item) { return item.imagePath == imagePath; });
+    const auto itemIt = std::ranges::find_if(m_items, [&imagePath](const PhotoItem &item) { return item.imagePath == imagePath; });
     if (itemIt == m_items.end() || (itemIt->upperMatchStatus == upper && itemIt->lowerMatchStatus == lower))
     {
         return;
     }
 
-    itemIt->upperMatchStatus = upper;
-    itemIt->lowerMatchStatus = lower;
-    const int itemRow        = static_cast<int>(std::distance(m_items.begin(), itemIt));
-    const int visibleRow     = m_visibleRows.indexOf(itemRow);
+    itemIt->upperMatchStatus   = upper;
+    itemIt->lowerMatchStatus   = lower;
+    const int       itemRow    = static_cast<int>(std::distance(m_items.begin(), itemIt));
+    const qsizetype visibleRow = m_visibleRows.indexOf(itemRow);
     if (visibleRow >= 0)
     {
-        const QModelIndex changedIndex = index(visibleRow);
-        emit dataChanged(changedIndex, changedIndex, {UpperMatchStatusRole, LowerMatchStatusRole});
+        const QModelIndex changedIndex = index(static_cast<int>(visibleRow));
+        emit              dataChanged(changedIndex, changedIndex, {UpperMatchStatusRole, LowerMatchStatusRole});
     }
 }
 

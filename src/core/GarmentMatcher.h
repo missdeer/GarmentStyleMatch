@@ -36,13 +36,12 @@ public:
         [[nodiscard]] QString joinedStyleIds() const;
     };
 
-    [[nodiscard]] static QStringList availableProviders();
-    [[nodiscard]] static QString     activeProvider();
-    [[nodiscard]] static Result      match(const QString &photoPath, const QVector<GalleryItem> &galleryItems, const Options &options);
-    [[nodiscard]] static QVector<Result> matchAll(
-        const QStringList &photoPaths,
-        const QVector<GalleryItem> &galleryItems,
-        const Options &options,
-        const std::atomic_bool *cancellationRequested = nullptr,
-        int parallelThreadCount = 1);
+    [[nodiscard]] static QStringList     availableProviders();
+    [[nodiscard]] static QString         activeProvider();
+    [[nodiscard]] static Result          match(const QString &photoPath, const QVector<GalleryItem> &galleryItems, const Options &options);
+    [[nodiscard]] static QVector<Result> matchAll(const QStringList          &photoPaths,
+                                                  const QVector<GalleryItem> &galleryItems,
+                                                  const Options              &options,
+                                                  const std::atomic_bool     *cancellationRequested = nullptr,
+                                                  int                         parallelThreadCount   = 1);
 };
