@@ -1,3 +1,4 @@
+#include <array>
 #include <utility>
 
 #include <QCoreApplication>
@@ -10,7 +11,12 @@
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QLibraryInfo>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPointer>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QQuickStyle>
 #include <QScopeGuard>
 #include <QSettings>
@@ -36,6 +42,47 @@
 namespace
 {
     constexpr qint64 kBytesPerKibibyte = 1024;
+    constexpr qint64 kModelDownloadSize = 512778784;
+
+    struct ModelDownload
+    {
+        QString    fileName;
+        QUrl       url;
+        QByteArray sha256;
+        qint64     size;
+    };
+
+    const std::array<ModelDownload, 2> &modelDownloads()
+    {
+        static const std::array<ModelDownload, 2> downloads = {
+            ModelDownload{QStringLiteral("clothes_segformer_b2.onnx"),
+                          QUrl(QStringLiteral("https://huggingface.co/mattmdjaga/segformer_b2_clothes/resolve/main/onnx/model.onnx")),
+                          QByteArrayLiteral("a93a8dac171b5c1fcc53632a8bfc180bfd9759ea69a3e207451bb07f76add54f"),
+                          110039290},
+            ModelDownload{QStringLiteral("fashion_clip.onnx"),
+                          QUrl(QStringLiteral("https://huggingface.co/patrickjohncyh/fashion-clip/resolve/main/onnx/model.onnx")),
+                          QByteArrayLiteral("dc4c724479e49d1da9598969125353113a341bd4fd5a1dbc7d528d3f1545bba9"),
+                          402739494},
+        };
+        return downloads;
+    }
+
+    QString modelSetupDir()
+    {
+        return QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+            .absoluteFilePath(QStringLiteral("GarmentStyleMatch-qt-model-setup"));
+    }
+
+    bool fileMatchesSha256(const QString &path, const QByteArray &expected)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            return false;
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        if (!hash.addData(&file))
+            return false;
+        return hash.result().toHex() == expected;
+    }
 
     bool hasConfirmedMatch(const StoredMatchResult &result, const QString &part)
     {
@@ -181,6 +228,333 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
 
     emit logMessage(QStringLiteral("推理引擎 %1 已保存，重启应用后生效").arg(selectedEngine));
     return true;
+}
+
+QString MatchController::modelDirectory()
+{
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).absoluteFilePath(QStringLiteral("models"));
+}
+
+QString MatchController::applicationModelDirectory()
+{
+    const QDir applicationDir(QCoreApplication::applicationDirPath());
+#ifdef Q_OS_MACOS
+    return QDir::cleanPath(applicationDir.absoluteFilePath(QStringLiteral("../Resources/models")));
+#else
+    return applicationDir.absoluteFilePath(QStringLiteral("models"));
+#endif
+}
+
+QString MatchController::findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir)
+{
+    const auto hasRequiredModels = [](const QString &directory) {
+        const QDir models(directory);
+        return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile()
+               && QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
+    };
+    if (hasRequiredModels(applicationModelsDir))
+        return applicationModelsDir;
+    return hasRequiredModels(localModelsDir) ? localModelsDir : QString();
+}
+
+QString MatchController::availableModelDirectory()
+{
+    return findAvailableModelDirectory(applicationModelDirectory(), modelDirectory());
+}
+
+bool MatchController::modelsAvailable() const
+{
+    const QDir models(modelDirectory());
+    return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile()
+           && QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
+}
+
+void MatchController::downloadModels()
+{
+    if (m_modelDownloadInProgress)
+        return;
+
+    const QString packagesDir = QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages"));
+    m_pythonPackagesDir = QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("python-packages"));
+    if (!QDir().mkpath(packagesDir) || !QDir().mkpath(m_pythonPackagesDir))
+    {
+        emit logMessage(QStringLiteral("下载模型失败：无法创建模型目录"));
+        return;
+    }
+
+    m_modelDownloadInProgress = true;
+    m_modelDownloadCancellationRequested = false;
+    m_modelDownloadIndex = 0;
+    m_modelDownloadBytesCompleted = 0;
+    m_modelDownloadError.clear();
+    emit modelDownloadInProgressChanged();
+    emit logMessage(QStringLiteral("正在下载并校验模型，首次下载可能需要较长时间..."));
+    startNextModelDownload();
+}
+
+void MatchController::cancelModelDownload()
+{
+    if (!m_modelDownloadInProgress || m_modelDownloadCancellationRequested)
+        return;
+
+    m_modelDownloadCancellationRequested = true;
+    emit logMessage(QStringLiteral("正在停止模型下载..."));
+    if (m_modelDownloadReply)
+        m_modelDownloadReply->abort();
+    else if (m_modelDownloadProcess)
+        m_modelDownloadProcess->kill();
+    else
+        finishModelDownload(QStringLiteral("模型下载已停止"));
+}
+
+void MatchController::startNextModelDownload()
+{
+    const auto &downloads = modelDownloads();
+    const QDir  packagesDir(QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages")));
+    while (m_modelDownloadIndex < static_cast<int>(downloads.size()))
+    {
+        const ModelDownload &download = downloads.at(m_modelDownloadIndex);
+        if (!fileMatchesSha256(packagesDir.absoluteFilePath(download.fileName), download.sha256))
+            break;
+        m_modelDownloadBytesCompleted += download.size;
+        ++m_modelDownloadIndex;
+    }
+
+    if (m_modelDownloadIndex == static_cast<int>(downloads.size()))
+    {
+        if (!QDir().mkpath(modelDirectory()))
+        {
+            finishModelDownload(QStringLiteral("模型准备失败：无法创建模型保存目录"));
+            return;
+        }
+        const QString source = packagesDir.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"));
+        const QString target = QDir(modelDirectory()).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"));
+        QFile::remove(target);
+        if (!QFile::copy(source, target))
+        {
+            finishModelDownload(QStringLiteral("模型准备失败：无法保存服装分割模型"));
+            return;
+        }
+        startPythonDependencyInstall();
+        return;
+    }
+
+    const ModelDownload &download = downloads.at(m_modelDownloadIndex);
+    const QString path = packagesDir.absoluteFilePath(download.fileName);
+    QFile::remove(path);
+    auto *file = new QFile(path);
+    if (!file->open(QIODevice::WriteOnly))
+    {
+        const QString error = file->errorString();
+        delete file;
+        finishModelDownload(QStringLiteral("下载模型失败：%1").arg(error));
+        return;
+    }
+
+    if (!m_modelDownloadNetworkManager)
+        m_modelDownloadNetworkManager = new QNetworkAccessManager(this);
+    QNetworkRequest request(download.url);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("GarmentStyleMatch/%1").arg(QCoreApplication::applicationVersion()));
+    auto *reply = m_modelDownloadNetworkManager->get(request);
+    m_modelDownloadReply = reply;
+
+    connect(reply, &QNetworkReply::readyRead, this, [this, reply, file] {
+        const QByteArray data = reply->readAll();
+        if (file->write(data) != data.size() && m_modelDownloadError.isEmpty())
+        {
+            m_modelDownloadError = QStringLiteral("写入模型临时文件失败：%1").arg(file->errorString());
+            reply->abort();
+        }
+    });
+    connect(reply, &QNetworkReply::downloadProgress, this, [this, download](qint64 received, qint64) {
+        const qint64 totalReceived = m_modelDownloadBytesCompleted + received;
+        const int percent = static_cast<int>(
+            qBound<qint64>(qint64{0}, totalReceived * 100 / kModelDownloadSize, qint64{100}));
+        emit logMessage(QStringLiteral("正在下载模型：%1 %2%").arg(download.fileName).arg(percent));
+    });
+    connect(reply, &QNetworkReply::finished, this, [this, reply, file, path, download] {
+        const QByteArray remaining = reply->readAll();
+        if (!remaining.isEmpty() && file->write(remaining) != remaining.size() && m_modelDownloadError.isEmpty())
+            m_modelDownloadError = QStringLiteral("写入模型临时文件失败：%1").arg(file->errorString());
+        file->close();
+        m_modelDownloadReply = nullptr;
+        file->deleteLater();
+        const QNetworkReply::NetworkError networkError = reply->error();
+        const QString networkErrorText = reply->errorString();
+        reply->deleteLater();
+
+        if (m_modelDownloadCancellationRequested)
+        {
+            QFile::remove(path);
+            finishModelDownload(QStringLiteral("模型下载已停止"));
+            return;
+        }
+        if (!m_modelDownloadError.isEmpty() || networkError != QNetworkReply::NoError)
+        {
+            QFile::remove(path);
+            finishModelDownload(m_modelDownloadError.isEmpty()
+                                    ? QStringLiteral("下载模型失败：%1").arg(networkErrorText)
+                                    : QStringLiteral("下载模型失败：%1").arg(m_modelDownloadError));
+            return;
+        }
+        if (!fileMatchesSha256(path, download.sha256))
+        {
+            QFile::remove(path);
+            finishModelDownload(QStringLiteral("下载模型失败：%1 的 SHA-256 校验不匹配").arg(download.fileName));
+            return;
+        }
+
+        m_modelDownloadBytesCompleted += download.size;
+        ++m_modelDownloadIndex;
+        m_modelDownloadError.clear();
+        startNextModelDownload();
+    });
+}
+
+void MatchController::startPythonDependencyInstall()
+{
+#ifdef Q_OS_WIN
+    const QStringList candidates = {QStringLiteral("python.exe"), QStringLiteral("python3.exe")};
+#else
+    const QStringList candidates = {QStringLiteral("python3"), QStringLiteral("python")};
+#endif
+    for (const QString &candidate : candidates)
+    {
+        m_pythonExecutable = QStandardPaths::findExecutable(candidate);
+        if (!m_pythonExecutable.isEmpty())
+            break;
+    }
+    if (m_pythonExecutable.isEmpty())
+    {
+        finishModelDownload(QStringLiteral("模型提取失败：找不到 Python"));
+        return;
+    }
+
+    if (QFileInfo::exists(QDir(m_pythonPackagesDir).absoluteFilePath(QStringLiteral("onnx/__init__.py"))))
+    {
+        startPythonModelExtraction();
+        return;
+    }
+
+    emit logMessage(QStringLiteral("正在准备模型提取所需的 Python onnx 包..."));
+    auto *process = new QProcess(this);
+    m_modelDownloadProcess = process;
+    connectModelProcessOutput(process);
+    connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
+            [this, process](int exitCode, QProcess::ExitStatus exitStatus) {
+                m_modelDownloadProcess = nullptr;
+                process->deleteLater();
+                if (m_modelDownloadCancellationRequested)
+                    finishModelDownload(QStringLiteral("模型下载已停止"));
+                else if (exitStatus != QProcess::NormalExit || exitCode != 0)
+                    finishModelDownload(QStringLiteral("模型提取失败：无法准备 Python onnx 包"));
+                else
+                    startPythonModelExtraction();
+            });
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+        {
+            m_modelDownloadProcess = nullptr;
+            const QString message = process->errorString();
+            process->deleteLater();
+            finishModelDownload(QStringLiteral("模型提取失败：%1").arg(message));
+        }
+    });
+    process->start(m_pythonExecutable,
+                   {QStringLiteral("-m"), QStringLiteral("pip"), QStringLiteral("install"),
+                    QStringLiteral("--disable-pip-version-check"), QStringLiteral("--target"),
+                    m_pythonPackagesDir, QStringLiteral("onnx==1.19.1")});
+}
+
+void MatchController::startPythonModelExtraction()
+{
+    emit logMessage(QStringLiteral("正在提取 FashionCLIP 图像模型..."));
+    const QDir packagesDir(QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages")));
+    const QString source = packagesDir.absoluteFilePath(QStringLiteral("fashion_clip.onnx"));
+    const QString extracted = packagesDir.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
+    QFile::remove(extracted);
+
+    auto *process = new QProcess(this);
+    m_modelDownloadProcess = process;
+    connectModelProcessOutput(process);
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    const QString existingPythonPath = environment.value(QStringLiteral("PYTHONPATH"));
+    environment.insert(QStringLiteral("PYTHONPATH"),
+                       existingPythonPath.isEmpty() ? m_pythonPackagesDir
+                                                    : m_pythonPackagesDir + QDir::listSeparator() + existingPythonPath);
+    process->setProcessEnvironment(environment);
+    connect(process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
+            [this, process, extracted](int exitCode, QProcess::ExitStatus exitStatus) {
+                m_modelDownloadProcess = nullptr;
+                process->deleteLater();
+                if (m_modelDownloadCancellationRequested)
+                {
+                    QFile::remove(extracted);
+                    finishModelDownload(QStringLiteral("模型下载已停止"));
+                    return;
+                }
+                if (exitStatus != QProcess::NormalExit || exitCode != 0
+                    || !fileMatchesSha256(extracted, QByteArrayLiteral("3a62f866d7139b45f061e7cd9eca5bb7242a1d18ada822b7e67fc0cba638ea53")))
+                {
+                    QFile::remove(extracted);
+                    finishModelDownload(QStringLiteral("模型提取失败：FashionCLIP 图像模型无效"));
+                    return;
+                }
+                const QString target = QDir(modelDirectory()).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
+                QFile::remove(target);
+                if (!QFile::copy(extracted, target))
+                {
+                    finishModelDownload(QStringLiteral("模型提取失败：无法保存 FashionCLIP 图像模型"));
+                    return;
+                }
+                finishModelDownload(QStringLiteral("模型下载完成：%1").arg(modelDirectory()));
+            });
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+        {
+            m_modelDownloadProcess = nullptr;
+            const QString message = process->errorString();
+            process->deleteLater();
+            finishModelDownload(QStringLiteral("模型提取失败：%1").arg(message));
+        }
+    });
+    process->start(m_pythonExecutable,
+                   {QStringLiteral("-c"),
+                    QStringLiteral("import sys; from onnx.utils import extract_model; "
+                                   "extract_model(sys.argv[1], sys.argv[2], ['pixel_values'], ['image_embeds'], check_model=True)"),
+                    source, extracted});
+}
+
+void MatchController::connectModelProcessOutput(QProcess *process)
+{
+    connect(process, &QProcess::readyReadStandardOutput, this, [this, process] {
+        const QString message = QString::fromLocal8Bit(process->readAllStandardOutput()).trimmed();
+        if (!message.isEmpty())
+            emit logMessage(message);
+    });
+    connect(process, &QProcess::readyReadStandardError, this, [this, process] {
+        const QString message = QString::fromLocal8Bit(process->readAllStandardError()).trimmed();
+        if (!message.isEmpty())
+            emit logMessage(message);
+    });
+}
+
+void MatchController::finishModelDownload(const QString &message)
+{
+    if (!m_modelDownloadInProgress)
+        return;
+    m_modelDownloadInProgress = false;
+    m_modelDownloadCancellationRequested = false;
+    emit modelDownloadInProgressChanged();
+    emit modelsAvailableChanged();
+    emit logMessage(message);
+}
+
+void MatchController::openModelDirectory() const
+{
+    QDir().mkpath(modelDirectory());
+    QDesktopServices::openUrl(QUrl::fromLocalFile(modelDirectory()));
 }
 
 QString MatchController::title()
@@ -1077,15 +1451,17 @@ void MatchController::autoMatchStyleIds()
         return;
     }
 
-    const QString           modelsDir = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("models"));
-    const QSettings         settings;
+    const QString modelsDir = availableModelDirectory();
+    if (modelsDir.isEmpty())
+    {
+        emit logMessage(QStringLiteral("自动匹配失败：未找到可用模型，请从顶部“下载模型”菜单下载"));
+        emit modelDownloadRequired();
+        return;
+    }
+
     GarmentMatcher::Options options;
-    options.segmentationModelPath =
-        settings.value(QStringLiteral("matching/segmentationModel"), QDir(modelsDir).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx")))
-            .toString();
-    options.embeddingModelPath =
-        settings.value(QStringLiteral("matching/embeddingModel"), QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx")))
-            .toString();
+    options.segmentationModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"));
+    options.embeddingModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
     options.featureDatabasePath =
         QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_embeddings.sqlite"));
 

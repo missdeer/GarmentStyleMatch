@@ -4,9 +4,12 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QTimer>
 
 #include <iostream>
 
@@ -31,9 +34,11 @@ bool createFile(const QString &path)
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
+    QStandardPaths::setTestModeEnabled(true);
     QTemporaryDir temporary;
     QTemporaryDir settingsTemporary;
-    if (!check(temporary.isValid() && settingsTemporary.isValid(),
+    QTemporaryDir modelTemporary;
+    if (!check(temporary.isValid() && settingsTemporary.isValid() && modelTemporary.isValid(),
                QStringLiteral("无法创建临时目录")))
         return 1;
 
@@ -61,6 +66,72 @@ int main(int argc, char *argv[])
     MatchController controller;
     controller.setCandidateModel(&model);
     controller.setOutputDir(temporary.path());
+
+    const QString expectedModelDirectory =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+            .absoluteFilePath(QStringLiteral("models"));
+    if (!check(controller.modelDirectory() == expectedModelDirectory,
+               QStringLiteral("下载模型必须保存到应用的 LocalAppData/models 目录")))
+        return 1;
+
+#ifdef Q_OS_MACOS
+    const QString expectedApplicationModelDirectory =
+        QDir::cleanPath(QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("../Resources/models")));
+#else
+    const QString expectedApplicationModelDirectory =
+        QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("models"));
+#endif
+    if (!check(controller.applicationModelDirectory() == expectedApplicationModelDirectory,
+               QStringLiteral("随应用打包的模型目录必须符合当前平台的应用布局")))
+        return 1;
+
+    QDir modelRoot(modelTemporary.path());
+    const QString applicationModelsDir = modelRoot.filePath(QStringLiteral("application-models"));
+    const QString localModelsDir = modelRoot.filePath(QStringLiteral("local-models"));
+    if (!check(modelRoot.mkpath(QStringLiteral("application-models"))
+                   && modelRoot.mkpath(QStringLiteral("local-models"))
+                   && createFile(QDir(applicationModelsDir).filePath(QStringLiteral("clothes_segformer_b2.onnx")))
+                   && createFile(QDir(applicationModelsDir).filePath(QStringLiteral("fashion_clip_vision.onnx")))
+                   && createFile(QDir(localModelsDir).filePath(QStringLiteral("clothes_segformer_b2.onnx")))
+                   && createFile(QDir(localModelsDir).filePath(QStringLiteral("fashion_clip_vision.onnx"))),
+               QStringLiteral("无法创建模型查找顺序测试文件")))
+        return 1;
+    if (!check(MatchController::findAvailableModelDirectory(applicationModelsDir, localModelsDir) == applicationModelsDir,
+               QStringLiteral("匹配必须优先使用 applicationDir/models 中的完整模型")))
+        return 1;
+    QFile::remove(QDir(applicationModelsDir).filePath(QStringLiteral("fashion_clip_vision.onnx")));
+    if (!check(MatchController::findAvailableModelDirectory(applicationModelsDir, localModelsDir) == localModelsDir,
+               QStringLiteral("应用目录模型不完整时必须回退到 LocalAppData/models")))
+        return 1;
+    QFile::remove(QDir(localModelsDir).filePath(QStringLiteral("fashion_clip_vision.onnx")));
+    if (!check(MatchController::findAvailableModelDirectory(applicationModelsDir, localModelsDir).isEmpty(),
+               QStringLiteral("两个目录的模型都不完整时必须报告无可用模型")))
+        return 1;
+
+#ifdef Q_OS_WIN
+    bool modelDownloadStopped = false;
+    QString lastModelDownloadMessage;
+    QObject::connect(&controller, &MatchController::logMessage, &controller, [&modelDownloadStopped, &lastModelDownloadMessage](const QString &message) {
+        lastModelDownloadMessage = message;
+        if (message == QStringLiteral("模型下载已停止"))
+            modelDownloadStopped = true;
+    });
+    QEventLoop downloadStopLoop;
+    QObject::connect(&controller, &MatchController::modelDownloadInProgressChanged, &downloadStopLoop, [&] {
+        if (!controller.modelDownloadInProgress())
+            downloadStopLoop.quit();
+    });
+    controller.downloadModels();
+    if (!check(controller.modelDownloadInProgress(),
+               QStringLiteral("触发模型下载后必须进入下载状态，实际消息：%1").arg(lastModelDownloadMessage)))
+        return 1;
+    QTimer::singleShot(0, &controller, &MatchController::cancelModelDownload);
+    QTimer::singleShot(5000, &downloadStopLoop, &QEventLoop::quit);
+    downloadStopLoop.exec();
+    if (!check(!controller.modelDownloadInProgress() && modelDownloadStopped,
+               QStringLiteral("停止下载必须终止下载进程并报告已停止")))
+        return 1;
+#endif
 
     if (!check(controller.availableInferenceEngines().contains(QStringLiteral("CPU")),
                QStringLiteral("推理引擎列表必须始终包含 CPU")))

@@ -109,6 +109,7 @@ target_link_libraries(MatchControllerTest PRIVATE
     Qt6::Concurrent
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::QuickControls2
     Qt6::Widgets
     LibArchive::LibArchive

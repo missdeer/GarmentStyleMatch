@@ -17,6 +17,9 @@ class CandidateListModel;
 class GalleryListModel;
 class PhotoListModel;
 class PptPageListModel;
+class QNetworkAccessManager;
+class QNetworkReply;
+class QProcess;
 
 class MatchController : public QObject
 {
@@ -43,6 +46,9 @@ class MatchController : public QObject
     Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
     Q_PROPERTY(QStringList availableInferenceEngines READ availableInferenceEngines CONSTANT)
     Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine CONSTANT)
+    Q_PROPERTY(QString modelDirectory READ modelDirectory CONSTANT)
+    Q_PROPERTY(bool modelsAvailable READ modelsAvailable NOTIFY modelsAvailableChanged)
+    Q_PROPERTY(bool modelDownloadInProgress READ modelDownloadInProgress NOTIFY modelDownloadInProgressChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
@@ -125,6 +131,15 @@ public:
     {
         return m_currentInferenceEngine;
     }
+    [[nodiscard]] static QString modelDirectory();
+    [[nodiscard]] static QString applicationModelDirectory();
+    [[nodiscard]] static QString findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir);
+    [[nodiscard]] static QString availableModelDirectory();
+    [[nodiscard]] bool           modelsAvailable() const;
+    [[nodiscard]] bool modelDownloadInProgress() const
+    {
+        return m_modelDownloadInProgress;
+    }
     [[nodiscard]] bool busy() const
     {
         return m_busy;
@@ -144,6 +159,9 @@ public:
 public slots:
     bool setCurrentUiStyle(const QString &style);
     bool setCurrentInferenceEngine(const QString &engine);
+    void downloadModels();
+    void cancelModelDownload();
+    void openModelDirectory() const;
 
     void loadDemoData();
     void restorePersistentState();
@@ -190,6 +208,9 @@ signals:
     void outputDirChanged();
     void pptPathChanged();
     void inputTabActiveChanged();
+    void modelsAvailableChanged();
+    void modelDownloadInProgressChanged();
+    void modelDownloadRequired();
     void busyChanged();
 
     void logMessage(const QString &msg);
@@ -235,8 +256,23 @@ private:
     QString           m_autoMatchImagePath;
     bool              m_busy              = false;
     bool              m_restoringPptState = false;
+    bool              m_modelDownloadInProgress = false;
+    bool              m_modelDownloadCancellationRequested = false;
+    int               m_modelDownloadIndex = 0;
+    qint64            m_modelDownloadBytesCompleted = 0;
+    QNetworkAccessManager *m_modelDownloadNetworkManager = nullptr;
+    QNetworkReply    *m_modelDownloadReply = nullptr;
+    QProcess         *m_modelDownloadProcess = nullptr;
+    QString           m_modelDownloadError;
+    QString           m_pythonExecutable;
+    QString           m_pythonPackagesDir;
 
     void                         setBusy(bool on);
+    void                         startNextModelDownload();
+    void                         startPythonDependencyInstall();
+    void                         startPythonModelExtraction();
+    void                         connectModelProcessOutput(QProcess *process);
+    void                         finishModelDownload(const QString &message);
     [[nodiscard]] static QString pptCacheDir(const QString &pptFilePath);
     [[nodiscard]] static QString pptPagesSettingsKey(const QString &pptFilePath);
     void                         persistSelectedPptPages();

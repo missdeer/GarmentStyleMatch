@@ -82,6 +82,7 @@ target_link_libraries(GarmentStyleMatch PRIVATE
     Qt6::Concurrent
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
@@ -115,10 +116,15 @@ else()
 endif()
 
 if(GSM_MODELS_AVAILABLE)
+    if(APPLE)
+        set(_gsm_build_models_dir "$<TARGET_BUNDLE_DIR:GarmentStyleMatch>/Contents/Resources/models")
+    else()
+        set(_gsm_build_models_dir "$<TARGET_FILE_DIR:GarmentStyleMatch>/models")
+    endif()
     add_custom_command(TARGET GarmentStyleMatch POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${GSM_MODEL_ROOT}"
-                "$<TARGET_FILE_DIR:GarmentStyleMatch>/models"
+                "${_gsm_build_models_dir}"
         COMMENT "Copying garment matching models"
         VERBATIM
     )
@@ -137,15 +143,17 @@ install(TARGETS GarmentStyleMatch
 
 if(APPLE)
     set(_gsm_runtime_install_dir "bin/GarmentStyleMatch.app/Contents/MacOS")
+    set(_gsm_models_install_dir "bin/GarmentStyleMatch.app/Contents/Resources/models")
 else()
     set(_gsm_runtime_install_dir "bin")
+    set(_gsm_models_install_dir "bin/models")
 endif()
 install(DIRECTORY "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/"
     DESTINATION "${_gsm_runtime_install_dir}/onnxruntime"
 )
 if(GSM_MODELS_AVAILABLE)
     install(DIRECTORY "${GSM_MODEL_ROOT}/"
-        DESTINATION "${_gsm_runtime_install_dir}/models"
+        DESTINATION "${_gsm_models_install_dir}"
     )
 endif()
 install(PROGRAMS "${CMAKE_SOURCE_DIR}/scripts/download-models.ps1"

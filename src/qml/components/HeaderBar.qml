@@ -44,6 +44,48 @@ Rectangle {
         }
     }
 
+    Menu {
+        id: downloadModelsMenu
+
+        MenuItem {
+            text: controller.modelDownloadInProgress
+                  ? qsTr("停止下载")
+                  : (controller.modelsAvailable ? qsTr("重新下载模型") : qsTr("下载服装匹配模型"))
+            onTriggered: {
+                if (controller.modelDownloadInProgress)
+                    controller.cancelModelDownload()
+                else
+                    controller.downloadModels()
+            }
+        }
+
+        MenuItem {
+            text: qsTr("打开模型目录")
+            onTriggered: controller.openModelDirectory()
+        }
+    }
+
+    Connections {
+        target: controller
+        function onModelDownloadRequired() { missingModelsDialog.open() }
+    }
+
+    Dialog {
+        id: missingModelsDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(420, parent.width - 32)
+        modal: true
+        title: qsTr("缺少匹配模型")
+        standardButtons: Dialog.Ok
+        closePolicy: Popup.CloseOnEscape
+
+        contentItem: Label {
+            text: qsTr("未找到可用的服装匹配模型。请从顶部“下载模型”菜单触发下载。")
+            wrapMode: Text.Wrap
+        }
+    }
+
     Dialog {
         id: inferenceEngineRestartDialog
         parent: Overlay.overlay
@@ -223,6 +265,22 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: inferenceEngineMenu.popup()
+            }
+        }
+
+        Label {
+            id: downloadModelsLink
+            text: controller.modelDownloadInProgress ? qsTr("模型下载中...") : qsTr("下载模型")
+            color: downloadModelsMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            font.pixelSize: 13
+            font.underline: true
+
+            MouseArea {
+                id: downloadModelsMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: downloadModelsMenu.popup()
             }
         }
 
