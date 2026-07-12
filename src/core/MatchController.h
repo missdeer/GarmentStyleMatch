@@ -241,6 +241,8 @@ private:
     void                  clearAutoMatchResult();
     void                  restoreAutoMatchResult();
     void                  rebuildAutoMatchedItems();
+    void                  refreshPhotoMatchStatuses();
+    void                  updatePhotoMatchStatuses(const QString &imagePath, const StoredMatchResult &result);
     bool                  persistAutoMatchResult(QString *error = nullptr) const;
     [[nodiscard]] QString matchDatabasePath() const;
     [[nodiscard]] QString galleryImagePath(const StoredGarmentMatch &match) const;

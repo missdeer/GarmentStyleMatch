@@ -24,6 +24,16 @@ Rectangle {
     signal outputFilterTextEdited(string text)
     signal inputTabActiveEdited(bool active)
 
+    function matchStatusMarker(status) {
+        return status === 2 ? "[✓]" : (status === 1 ? "[-]" : "[]")
+    }
+
+    TextMetrics {
+        id: matchStatusMetrics
+        font.pixelSize: 12
+        text: "[✓]"
+    }
+
     color: "#f5f7fa"
     border.color: "#dee3e8"
 
@@ -121,6 +131,8 @@ Rectangle {
                         required property int index
                         required property string displayLine
                         required property bool processed
+                        required property int upperMatchStatus
+                        required property int lowerMatchStatus
 
                         width: photoView.width
                         height: 26
@@ -134,11 +146,22 @@ Rectangle {
                             anchors.rightMargin: 8
                             spacing: 6
 
-                            Label {
-                                text: photoCell.processed ? "[✓]" : "[ ]"
-                                color: photoCell.selected ? "white" : "#3a6ea5"
-                                font.pixelSize: 12
+                            Row {
+                                spacing: 0
                                 anchors.verticalCenter: parent.verticalCenter
+
+                                Repeater {
+                                    model: [photoCell.upperMatchStatus, photoCell.lowerMatchStatus]
+
+                                    Label {
+                                        required property int modelData
+                                        width: Math.ceil(matchStatusMetrics.advanceWidth)
+                                        text: root.matchStatusMarker(modelData)
+                                        color: photoCell.selected ? "white" : "#3a6ea5"
+                                        font.pixelSize: 12
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+                                }
                             }
                             Label {
                                 text: photoCell.displayLine

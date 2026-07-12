@@ -6,12 +6,21 @@
 #include <QString>
 #include <QVector>
 
+enum class PhotoMatchStatus : std::uint8_t
+{
+    Unmatched,
+    Matched,
+    Confirmed,
+};
+
 struct PhotoItem
 {
-    QString fileName;          // 文件名(不含目录)
-    QString imagePath;         // 绝对路径
-    bool    processed = false; // 是否已归类
-    QString relativePath;      // 相对于实拍图片目录的路径
+    QString          fileName;          // 文件名(不含目录)
+    QString          imagePath;         // 绝对路径
+    bool             processed = false; // 是否已归类
+    QString          relativePath;      // 相对于实拍图片目录的路径
+    PhotoMatchStatus upperMatchStatus = PhotoMatchStatus::Unmatched;
+    PhotoMatchStatus lowerMatchStatus = PhotoMatchStatus::Unmatched;
 };
 
 class PhotoListModel : public QAbstractListModel
@@ -26,6 +35,8 @@ public:
         ImagePathRole,
         ProcessedRole,
         DisplayLineRole,
+        UpperMatchStatusRole,
+        LowerMatchStatusRole,
     };
 
     explicit PhotoListModel(QObject *parent = nullptr);
@@ -35,6 +46,7 @@ public:
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
     void                  setItems(QVector<PhotoItem> items);
+    void                  setMatchStatuses(const QString &imagePath, PhotoMatchStatus upper, PhotoMatchStatus lower);
     void                  setFilterText(const QString &text);
     [[nodiscard]] QString filterText() const
     {

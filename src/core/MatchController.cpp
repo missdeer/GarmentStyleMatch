@@ -112,6 +112,13 @@ namespace
         return stored;
     }
 
+    PhotoMatchStatus photoMatchStatus(const StoredGarmentMatch &match)
+    {
+        return match.isEmpty() ? PhotoMatchStatus::Unmatched
+               : match.confirmed ? PhotoMatchStatus::Confirmed
+                                 : PhotoMatchStatus::Matched;
+    }
+
     struct BatchAutoMatchSummary
     {
         int     succeeded             = 0;
@@ -1009,6 +1016,7 @@ void MatchController::scanPhotoDir()
         std::sort(items.begin(), items.end(), [](const PhotoItem &a, const PhotoItem &b) { return a.imagePath < b.imagePath; });
     }
     m_photoModel->setItems(std::move(items));
+    refreshPhotoMatchStatuses();
     const int  nextPhotoIndex   = m_photoModel->rowCount() > 0 ? 0 : -1;
     const bool selectionChanges = nextPhotoIndex != m_currentPhotoIndex || m_previewSource != PreviewPhoto;
     setCurrentPhotoIndex(nextPhotoIndex);
@@ -1603,6 +1611,8 @@ void MatchController::autoMatchStyleIds()
         QString persistenceError;
         if (!persistAutoMatchResult(&persistenceError))
             message += QStringLiteral("；未写入 gsm.db：%1").arg(persistenceError);
+        else
+            updatePhotoMatchStatuses(imagePath, m_autoMatchResult);
         emit logMessage(message);
     });
 
@@ -1655,6 +1665,7 @@ void MatchController::autoMatchAllStyleIds()
         m_batchAutoMatchCancellation.reset();
         setBatchAutoMatchInProgress(false);
         setBusy(false);
+        refreshPhotoMatchStatuses();
         if (m_previewSource == PreviewPhoto)
             restoreAutoMatchResult();
         if (summary.modelDownloadRequired)
@@ -1902,6 +1913,7 @@ bool MatchController::copyAdjacentStyleIds(int offset, const QString &part, bool
     m_autoMatchResult    = copied;
     m_autoMatchImagePath = targetImagePath;
     rebuildAutoMatchedItems();
+    updatePhotoMatchStatuses(targetImagePath, copied);
     const QString direction = offset < 0 ? QStringLiteral("上一张") : QStringLiteral("下一张");
     const QString garment   = part == QLatin1String("all")     ? QString()
                               : part == QLatin1String("upper") ? QStringLiteral("上衣")
@@ -1978,6 +1990,7 @@ bool MatchController::copyStyleIdsToAdjacent(int offset, const QString &part, bo
         emit logMessage(QStringLiteral("复制款号失败：%1").arg(error));
         return false;
     }
+    updatePhotoMatchStatuses(targetPhoto->imagePath, targetResult);
 
     const QString direction = offset < 0 ? QStringLiteral("上一张") : QStringLiteral("下一张");
     const QString garment   = part == QLatin1String("all")     ? QString()
@@ -2012,11 +2025,15 @@ void MatchController::restoreAutoMatchResult()
         return;
     }
     if (!result)
+    {
+        updatePhotoMatchStatuses(imagePath, {});
         return;
+    }
 
     m_autoMatchResult    = *result;
     m_autoMatchImagePath = imagePath;
     rebuildAutoMatchedItems();
+    updatePhotoMatchStatuses(imagePath, *result);
 }
 
 void MatchController::rebuildAutoMatchedItems()
@@ -2039,6 +2056,32 @@ void MatchController::rebuildAutoMatchedItems()
         return;
     m_autoMatchedItems = items;
     emit autoMatchedItemsChanged();
+}
+
+void MatchController::refreshPhotoMatchStatuses()
+{
+    if (!m_photoModel || m_photoDir.isEmpty())
+        return;
+
+    const QVector<PhotoItem> photos = m_photoModel->allItems();
+    for (const PhotoItem &photo : photos)
+    {
+        QString    error;
+        const auto result = MatchResultStore::load(matchDatabasePath(), photo.imagePath, &error);
+        if (!error.isEmpty())
+        {
+            emit logMessage(QStringLiteral("读取 %1 的款号状态失败：%2").arg(photo.fileName, error));
+            continue;
+        }
+        updatePhotoMatchStatuses(photo.imagePath, result.value_or(StoredMatchResult {}));
+    }
+}
+
+void MatchController::updatePhotoMatchStatuses(const QString &imagePath, const StoredMatchResult &result)
+{
+    if (!m_photoModel)
+        return;
+    m_photoModel->setMatchStatuses(imagePath, photoMatchStatus(result.upper), photoMatchStatus(result.lower));
 }
 
 bool MatchController::persistAutoMatchResult(QString *error) const
@@ -2087,6 +2130,7 @@ void MatchController::confirmAutoMatch(const QString &part)
         emit logMessage(QStringLiteral("确认结果未写入 gsm.db：%1").arg(error));
         return;
     }
+    updatePhotoMatchStatuses(m_autoMatchImagePath, m_autoMatchResult);
     emit logMessage(
         QStringLiteral("%1款号 %2 已确认").arg(part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙"), match->styleId));
 }
@@ -2110,6 +2154,7 @@ void MatchController::rejectAutoMatch(const QString &part)
         emit logMessage(QStringLiteral("删除%1匹配后未能更新 gsm.db：%2").arg(garment, error));
         return;
     }
+    updatePhotoMatchStatuses(m_autoMatchImagePath, m_autoMatchResult);
     emit logMessage(QStringLiteral("已删除错误的%1匹配记录").arg(garment));
 }
 

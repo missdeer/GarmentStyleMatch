@@ -230,6 +230,13 @@ int main(int argc, char *argv[])
     controller.setPhotoModel(&photoModel);
     controller.setCurrentPhotoIndex(0);
 
+    if (!check(photoModel.data(photoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt()
+                       == static_cast<int>(PhotoMatchStatus::Unmatched)
+                   && photoModel.data(photoModel.index(0), PhotoListModel::LowerMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Unmatched),
+               QStringLiteral("无款号记录的实拍图上衣和裤裙状态都必须是未匹配")))
+        return 1;
+
     if (!check(controller.previousPhotoPath().isEmpty()
                    && controller.nextPhotoPath() == root.filePath(QStringLiteral("photo-2.jpg")),
                QStringLiteral("第一张实拍图只能预览下一张相邻图片")))
@@ -314,7 +321,14 @@ int main(int argc, char *argv[])
     QString autoMatchPolicyMessage;
     QObject::connect(&controller, &MatchController::logMessage, &controller,
                      [&autoMatchPolicyMessage](const QString &message) { autoMatchPolicyMessage = message; });
+    controller.setCurrentPhotoIndex(1);
     controller.setCurrentPhotoIndex(0);
+    if (!check(photoModel.data(photoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt()
+                       == static_cast<int>(PhotoMatchStatus::Confirmed)
+                   && photoModel.data(photoModel.index(0), PhotoListModel::LowerMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Confirmed),
+               QStringLiteral("选中已确认图片后，列表必须恢复上衣和裤裙的已确认状态")))
+        return 1;
     controller.autoMatchStyleIds();
     if (!check(!controller.busy() && autoMatchPolicyMessage.contains(QStringLiteral("均已确认，已跳过自动匹配")),
                QStringLiteral("当前实拍图的上衣和裤裙均确认时不得启动推理")))
@@ -371,6 +385,12 @@ int main(int argc, char *argv[])
                    && !copiedResult->upper.confirmed && copiedResult->lower.styleId == QStringLiteral("CURRENT-LOWER")
                    && copiedResult->lower.confirmed,
                QStringLiteral("只复制上衣时应将上衣设为待确认，并保留当前裤裙记录")))
+        return 1;
+    if (!check(photoModel.data(photoModel.index(1), PhotoListModel::UpperMatchStatusRole).toInt()
+                       == static_cast<int>(PhotoMatchStatus::Matched)
+                   && photoModel.data(photoModel.index(1), PhotoListModel::LowerMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Confirmed),
+               QStringLiteral("复制上衣款号后，列表必须立即显示上衣待确认、裤裙已确认")))
         return 1;
 
     if (!check(controller.copyWouldOverwriteConfirmedStyleIds(1, QStringLiteral("all"), false),
@@ -449,6 +469,14 @@ int main(int argc, char *argv[])
         return 1;
 
     controller.setCurrentPhotoIndex(1);
+    controller.confirmAutoMatch(QStringLiteral("upper"));
+    controller.rejectAutoMatch(QStringLiteral("lower"));
+    if (!check(photoModel.data(photoModel.index(1), PhotoListModel::UpperMatchStatusRole).toInt()
+                       == static_cast<int>(PhotoMatchStatus::Confirmed)
+                   && photoModel.data(photoModel.index(1), PhotoListModel::LowerMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Unmatched),
+               QStringLiteral("确认上衣并删除裤裙匹配后，列表必须立即显示已确认和未匹配状态")))
+        return 1;
     controller.setCurrentIndex(0);
     controller.setCurrentImagePage(1);
     controller.activatePreview(true);
@@ -466,6 +494,20 @@ int main(int argc, char *argv[])
     if (!check(restoredController.photoDir() == photoDir
                    && restoredPhotoModel.rowCount() == 3,
                QStringLiteral("启动恢复后应自动加载实拍图片目录")))
+        return 1;
+    if (!check(restoredPhotoModel.data(restoredPhotoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt()
+                       == static_cast<int>(PhotoMatchStatus::Matched)
+                   && restoredPhotoModel.data(restoredPhotoModel.index(0), PhotoListModel::LowerMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Confirmed)
+                   && restoredPhotoModel.data(restoredPhotoModel.index(1), PhotoListModel::UpperMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Confirmed)
+                   && restoredPhotoModel.data(restoredPhotoModel.index(1), PhotoListModel::LowerMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Unmatched)
+                   && restoredPhotoModel.data(restoredPhotoModel.index(2), PhotoListModel::UpperMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Matched)
+                   && restoredPhotoModel.data(restoredPhotoModel.index(2), PhotoListModel::LowerMatchStatusRole).toInt()
+                          == static_cast<int>(PhotoMatchStatus::Matched),
+               QStringLiteral("启动扫描必须从 gsm.db 恢复每张实拍图两个部位的匹配状态")))
         return 1;
     if (!check(restoredController.outputDir() == temporary.path()
                    && restoredCandidateModel.rowCount() == 3,

@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <iterator>
 #include <utility>
 
 #include <QDir>
@@ -33,6 +35,10 @@ QVariant PhotoListModel::data(const QModelIndex &index, int role) const
         return item.processed;
     case DisplayLineRole:
         return QDir::toNativeSeparators(item.relativePath.isEmpty() ? item.fileName : item.relativePath);
+    case UpperMatchStatusRole:
+        return static_cast<int>(item.upperMatchStatus);
+    case LowerMatchStatusRole:
+        return static_cast<int>(item.lowerMatchStatus);
     default:
         return {};
     }
@@ -45,6 +51,8 @@ QHash<int, QByteArray> PhotoListModel::roleNames() const
         {ImagePathRole, "imagePath"},
         {ProcessedRole, "processed"},
         {DisplayLineRole, "displayLine"},
+        {UpperMatchStatusRole, "upperMatchStatus"},
+        {LowerMatchStatusRole, "lowerMatchStatus"},
     };
 }
 
@@ -55,6 +63,25 @@ void PhotoListModel::setItems(QVector<PhotoItem> items)
     rebuildVisibleRows();
     endResetModel();
     emit countChanged();
+}
+
+void PhotoListModel::setMatchStatuses(const QString &imagePath, PhotoMatchStatus upper, PhotoMatchStatus lower)
+{
+    const auto itemIt = std::find_if(m_items.begin(), m_items.end(), [&imagePath](const PhotoItem &item) { return item.imagePath == imagePath; });
+    if (itemIt == m_items.end() || (itemIt->upperMatchStatus == upper && itemIt->lowerMatchStatus == lower))
+    {
+        return;
+    }
+
+    itemIt->upperMatchStatus = upper;
+    itemIt->lowerMatchStatus = lower;
+    const int itemRow        = static_cast<int>(std::distance(m_items.begin(), itemIt));
+    const int visibleRow     = m_visibleRows.indexOf(itemRow);
+    if (visibleRow >= 0)
+    {
+        const QModelIndex changedIndex = index(visibleRow);
+        emit dataChanged(changedIndex, changedIndex, {UpperMatchStatusRole, LowerMatchStatusRole});
+    }
 }
 
 void PhotoListModel::setFilterText(const QString &text)
