@@ -230,6 +230,11 @@ int main(int argc, char *argv[])
     controller.setPhotoModel(&photoModel);
     controller.setCurrentPhotoIndex(0);
 
+    if (!check(controller.previousPhotoPath().isEmpty()
+                   && controller.nextPhotoPath() == root.filePath(QStringLiteral("photo-2.jpg")),
+               QStringLiteral("第一张实拍图只能预览下一张相邻图片")))
+        return 1;
+
     controller.setInputFilterText(QStringLiteral("PHOTO-2"));
     if (!check(photoModel.rowCount() == 1
                    && photoModel.at(0)->fileName == QStringLiteral("photo-2.jpg")
@@ -268,8 +273,10 @@ int main(int argc, char *argv[])
     controller.nextImage(true);
     if (!check(controller.currentPhotoIndex() == 1
                    && controller.currentImagePath()
-                       == root.filePath(QStringLiteral("photo-2.jpg")),
-               QStringLiteral("输入 Tab 的下一张应切换实拍图列表项")))
+                       == root.filePath(QStringLiteral("photo-2.jpg"))
+                   && controller.previousPhotoPath() == root.filePath(QStringLiteral("photo-1.jpg"))
+                   && controller.nextPhotoPath().isEmpty(),
+               QStringLiteral("输入 Tab 的下一张应切换实拍图列表项并更新相邻图片预览")))
         return 1;
 
     const QString photoDir = root.filePath(QStringLiteral("photos"));

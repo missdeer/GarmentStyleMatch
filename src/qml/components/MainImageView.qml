@@ -8,6 +8,9 @@ Rectangle {
     property string imagePath: ""
     property string styleId:   ""
     property var matchedItems: []
+    property bool showAdjacentPhotoPreviews: false
+    property string previousPhotoPath: ""
+    property string nextPhotoPath: ""
     property int    pageIndex: 0
     property int    pageCount: 0
     property bool   previousEnabled: pageIndex > 0
@@ -32,6 +35,69 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
+
+            Rectangle {
+                Layout.fillHeight: true
+                Layout.preferredWidth: visible ? Math.min(180, Math.max(120, imageArea.width * 0.2)) : 0
+                visible: root.showAdjacentPhotoPreviews
+                color: "#f5f7fa"
+                border.color: "#cfd8df"
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 6
+
+                    Repeater {
+                        model: [
+                            { label: qsTr("上一张"), path: root.previousPhotoPath, offset: -1 },
+                            { label: qsTr("下一张"), path: root.nextPhotoPath, offset: 1 }
+                        ]
+
+                        delegate: Rectangle {
+                            id: adjacentCell
+                            required property var modelData
+
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.preferredHeight: 1
+                            color: modelData.path !== "" ? "#ffffff" : "#eef1f4"
+                            border.color: "#dee3e8"
+
+                            Image {
+                                anchors.fill: parent
+                                anchors.bottomMargin: adjacentLabel.height + 4
+                                anchors.margins: 4
+                                source: adjacentCell.modelData.path !== "" ? "file:///" + adjacentCell.modelData.path : ""
+                                sourceSize.width: 384
+                                sourceSize.height: 384
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true
+                            }
+
+                            Label {
+                                id: adjacentLabel
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 6
+                                text: adjacentCell.modelData.label
+                                horizontalAlignment: Text.AlignHCenter
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: adjacentCell.modelData.path !== "" ? "#3a4a5a" : "#9aa7b2"
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: adjacentCell.modelData.path !== ""
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: adjacentCell.modelData.offset < 0 ? root.prev() : root.next()
+                            }
+                        }
+                    }
+                }
+            }
 
             Image {
                 id: preview

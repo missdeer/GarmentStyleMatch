@@ -667,6 +667,26 @@ QString MatchController::currentPhotoPath() const
     return photo ? photo->imagePath : QString();
 }
 
+QString MatchController::previousPhotoPath() const
+{
+    if (!m_photoModel)
+    {
+        return {};
+    }
+    const auto *photo = m_photoModel->at(m_currentPhotoIndex - 1);
+    return photo ? photo->imagePath : QString();
+}
+
+QString MatchController::nextPhotoPath() const
+{
+    if (!m_photoModel)
+    {
+        return {};
+    }
+    const auto *photo = m_photoModel->at(m_currentPhotoIndex + 1);
+    return photo ? photo->imagePath : QString();
+}
+
 QString MatchController::currentStyleId() const
 {
     if (m_previewSource == PreviewPhoto)

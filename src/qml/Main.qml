@@ -139,6 +139,9 @@ ApplicationWindow {
                         imagePath:       controller.currentImagePath
                         styleId:         controller.currentStyleId
                         matchedItems:     controller.autoMatchedItems
+                        showAdjacentPhotoPreviews: candidatePanel.inputTabActive
+                        previousPhotoPath: controller.previousPhotoPath
+                        nextPhotoPath:     controller.nextPhotoPath
                         pageIndex:       controller.currentImagePage
                         pageCount:       controller.currentImageCount
                         previousEnabled: candidatePanel.inputTabActive

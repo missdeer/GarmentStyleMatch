@@ -34,6 +34,8 @@ class MatchController : public QObject
     Q_PROPERTY(QString currentImagePath READ currentImagePath NOTIFY currentImagePathChanged)
     Q_PROPERTY(QStringList currentOutputImagePaths READ currentOutputImagePaths NOTIFY currentOutputImagePathsChanged)
     Q_PROPERTY(QString currentPhotoPath READ currentPhotoPath NOTIFY currentPhotoPathChanged)
+    Q_PROPERTY(QString previousPhotoPath READ previousPhotoPath NOTIFY currentPhotoPathChanged)
+    Q_PROPERTY(QString nextPhotoPath READ nextPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString currentStyleId READ currentStyleId NOTIFY currentStyleIdChanged)
     Q_PROPERTY(QVariantList autoMatchedItems READ autoMatchedItems NOTIFY autoMatchedItemsChanged)
     Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
@@ -82,6 +84,8 @@ public:
     [[nodiscard]] QString      currentImagePath() const;
     [[nodiscard]] QStringList  currentOutputImagePaths() const;
     [[nodiscard]] QString      currentPhotoPath() const;
+    [[nodiscard]] QString      previousPhotoPath() const;
+    [[nodiscard]] QString      nextPhotoPath() const;
     [[nodiscard]] QString      currentStyleId() const;
     [[nodiscard]] QVariantList autoMatchedItems() const
     {
