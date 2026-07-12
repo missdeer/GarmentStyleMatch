@@ -43,5 +43,6 @@ public:
         const QStringList &photoPaths,
         const QVector<GalleryItem> &galleryItems,
         const Options &options,
-        const std::atomic_bool *cancellationRequested = nullptr);
+        const std::atomic_bool *cancellationRequested = nullptr,
+        int parallelThreadCount = 1);
 };

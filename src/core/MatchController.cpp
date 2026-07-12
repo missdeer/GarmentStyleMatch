@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -121,6 +122,13 @@ namespace
         bool    modelDownloadRequired = false;
         QString firstError;
     };
+
+    [[nodiscard]] int recommendedParallelMatchThreadCount(const QString &inferenceEngine)
+    {
+        return inferenceEngine == QLatin1String("CUDA")       ? 4
+               : inferenceEngine == QLatin1String("DirectML") ? 2
+                                                               : 1;
+    }
 } // namespace
 
 MatchController::MatchController(QObject *parent)
@@ -130,7 +138,12 @@ MatchController::MatchController(QObject *parent)
       m_availableInferenceEngines(GarmentMatcher::availableProviders()),
       m_currentInferenceEngine(GarmentMatcher::activeProvider())
 {
-    QSettings().setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
+    QSettings settings;
+    settings.setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
+    m_parallelMatchThreadCount = settings.value(QStringLiteral("matching/parallelThreads"),
+                                                recommendedParallelMatchThreadCount(m_currentInferenceEngine))
+                                     .toInt();
+    m_parallelMatchThreadCount = std::clamp(m_parallelMatchThreadCount, 1, 8);
 }
 
 QStringList MatchController::systemUiStyles()
@@ -257,6 +270,16 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
 
     emit logMessage(QStringLiteral("推理引擎 %1 已保存，重启应用后生效").arg(selectedEngine));
     return true;
+}
+
+void MatchController::setParallelMatchThreadCount(int count)
+{
+    if (m_busy || count < 1 || count > 8 || count == m_parallelMatchThreadCount)
+        return;
+    m_parallelMatchThreadCount = count;
+    QSettings().setValue(QStringLiteral("matching/parallelThreads"), count);
+    emit parallelMatchThreadCountChanged();
+    emit logMessage(QStringLiteral("并行匹配线程数已设置为 %1").arg(count));
 }
 
 QString MatchController::modelDirectory()
@@ -1642,8 +1665,11 @@ void MatchController::autoMatchAllStyleIds()
 
     setBatchAutoMatchInProgress(true);
     setBusy(true);
-    emit logMessage(QStringLiteral("正在检查并批量匹配 %1 张实拍图...").arg(photoPaths.size()));
-    watcher->setFuture(QtConcurrent::run([photoPaths, galleryItems, modelsDir, options, databasePath, cancellation] {
+    emit logMessage(QStringLiteral("正在检查并使用 %1 个线程批量匹配 %2 张实拍图...")
+                        .arg(m_parallelMatchThreadCount)
+                        .arg(photoPaths.size()));
+    const int parallelThreadCount = m_parallelMatchThreadCount;
+    watcher->setFuture(QtConcurrent::run([photoPaths, galleryItems, modelsDir, options, databasePath, cancellation, parallelThreadCount] {
         BatchAutoMatchSummary summary;
         const auto cancelledSummary = [&] {
             summary.cancelled = true;
@@ -1694,7 +1720,7 @@ void MatchController::autoMatchAllStyleIds()
         }
 
         const QVector<GarmentMatcher::Result> results =
-            GarmentMatcher::matchAll(pendingPhotoPaths, galleryItems, options, cancellation.get());
+            GarmentMatcher::matchAll(pendingPhotoPaths, galleryItems, options, cancellation.get(), parallelThreadCount);
         const bool matchingCancelled = results.size() < pendingPhotoPaths.size();
         for (int index = 0; index < results.size(); ++index)
         {

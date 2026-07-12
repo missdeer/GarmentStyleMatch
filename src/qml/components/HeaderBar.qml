@@ -21,6 +21,11 @@ Rectangle {
         exclusive: true
     }
 
+    ButtonGroup {
+        id: parallelMatchThreadButtonGroup
+        exclusive: true
+    }
+
     Menu {
         id: inferenceEngineMenu
 
@@ -63,6 +68,26 @@ Rectangle {
             text: qsTr("打开模型目录")
             onTriggered: controller.openModelDirectory()
         }
+    }
+
+    Menu {
+        id: parallelMatchThreadMenu
+
+        Repeater {
+            model: 8
+
+            delegate: MenuItem {
+                required property int index
+
+                text: qsTr("%1 线程").arg(index + 1)
+                checkable: true
+                checked: controller.parallelMatchThreadCount === index + 1
+                enabled: !controller.busy
+                ButtonGroup.group: parallelMatchThreadButtonGroup
+                onTriggered: controller.parallelMatchThreadCount = index + 1
+            }
+        }
+
     }
 
     Connections {
@@ -265,6 +290,28 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: inferenceEngineMenu.popup()
+            }
+        }
+
+        Label {
+            id: parallelMatchThreadLink
+            text: qsTr("匹配线程：%1").arg(controller.parallelMatchThreadCount)
+            color: parallelMatchThreadMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            font.pixelSize: 13
+            font.underline: true
+            ToolTip.visible: parallelMatchThreadMouse.containsMouse
+            ToolTip.delay: 500
+            ToolTip.text: qsTr("推荐配置：CPU 1 线程，DirectML 2 线程，CUDA 4 线程")
+
+            MouseArea {
+                id: parallelMatchThreadMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: controller.busy ? Qt.ArrowCursor : Qt.PointingHandCursor
+                onClicked: {
+                    if (!controller.busy)
+                        parallelMatchThreadMenu.popup()
+                }
             }
         }
 

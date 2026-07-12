@@ -97,19 +97,20 @@ int main(int argc, char *argv[])
     if (!check(QFileInfo(options.featureDatabasePath).size() > 0, QStringLiteral("未生成 SQLite 特征缓存")))
         return 1;
 
-    if (requestedProvider.isEmpty())
+    if (!verifyRestartRule)
     {
         std::atomic_bool cancellationRequested = true;
         if (!check(GarmentMatcher::matchAll({photoPath, photoPath}, gallery, options, &cancellationRequested).isEmpty(),
                    QStringLiteral("批量匹配收到停止请求后不得开始下一张实拍图")))
             return 1;
 
+        const QString missingPhotoPath = QDir(temporary.path()).absoluteFilePath(QStringLiteral("missing.jpg"));
         const QVector<GarmentMatcher::Result> batchResults =
-            GarmentMatcher::matchAll({photoPath, photoPath}, gallery, options);
-        if (!check(batchResults.size() == 2 && batchResults.at(0).success && batchResults.at(1).success
+            GarmentMatcher::matchAll({photoPath, missingPhotoPath, photoPath}, gallery, options, nullptr, 2);
+        if (!check(batchResults.size() == 3 && batchResults.at(0).success && !batchResults.at(1).success && batchResults.at(2).success
                        && batchResults.at(0).joinedStyleIds() == QStringLiteral("STYLE001")
-                       && batchResults.at(1).joinedStyleIds() == QStringLiteral("STYLE001"),
-                   QStringLiteral("批量匹配必须使用同一图库完成每一张输入实拍图")))
+                       && batchResults.at(2).joinedStyleIds() == QStringLiteral("STYLE001"),
+                   QStringLiteral("并行批量匹配必须按输入顺序返回每张实拍图的独立结果")))
             return 1;
     }
 

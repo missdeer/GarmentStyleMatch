@@ -137,6 +137,26 @@ int main(int argc, char *argv[])
                QStringLiteral("推理引擎列表必须始终包含 CPU")))
         return 1;
     const QString activeInferenceEngine = controller.currentInferenceEngine();
+    const int recommendedParallelThreads = activeInferenceEngine == QStringLiteral("CUDA")       ? 4
+                                           : activeInferenceEngine == QStringLiteral("DirectML") ? 2
+                                                                                                : 1;
+    if (!check(controller.parallelMatchThreadCount() == recommendedParallelThreads,
+               QStringLiteral("首次启动应采用当前推理引擎的推荐并行匹配线程数")))
+        return 1;
+    controller.setParallelMatchThreadCount(3);
+    if (!check(controller.parallelMatchThreadCount() == 3
+                   && QSettings().value(QStringLiteral("matching/parallelThreads")).toInt() == 3,
+               QStringLiteral("并行匹配线程数必须持久化")))
+        return 1;
+    controller.setParallelMatchThreadCount(0);
+    controller.setParallelMatchThreadCount(9);
+    if (!check(controller.parallelMatchThreadCount() == 3,
+               QStringLiteral("并行匹配线程数必须限制为 1 到 8")))
+        return 1;
+    MatchController restoredParallelThreadController;
+    if (!check(restoredParallelThreadController.parallelMatchThreadCount() == 3,
+               QStringLiteral("重建控制器后必须恢复并行匹配线程数")))
+        return 1;
     if (!check(controller.setCurrentInferenceEngine(QStringLiteral("CPU"))
                    || controller.currentInferenceEngine() == QStringLiteral("CPU"),
                QStringLiteral("应允许选择 CPU 推理引擎")))
@@ -312,6 +332,11 @@ int main(int argc, char *argv[])
     if (!check(controller.busy() && controller.batchAutoMatchInProgress(),
                QStringLiteral("批量匹配期间必须暴露可停止状态")))
         return 1;
+    controller.setParallelMatchThreadCount(4);
+    if (!check(controller.parallelMatchThreadCount() == 3
+                   && QSettings().value(QStringLiteral("matching/parallelThreads")).toInt() == 3,
+               QStringLiteral("批量匹配期间不得切换或持久化并行匹配线程数")))
+        return 1;
     controller.cancelAutoMatchAllStyleIds();
     QEventLoop cancelledBatchLoop;
     QObject::connect(&controller, &MatchController::batchAutoMatchInProgressChanged, &cancelledBatchLoop, [&] {
@@ -323,6 +348,10 @@ int main(int argc, char *argv[])
     if (!check(!controller.busy() && !controller.batchAutoMatchInProgress()
                    && autoMatchPolicyMessage.contains(QStringLiteral("批量自动匹配已停止")),
                QStringLiteral("停止请求必须结束批量匹配并恢复按钮状态")))
+        return 1;
+    controller.setParallelMatchThreadCount(4);
+    if (!check(controller.parallelMatchThreadCount() == 4,
+               QStringLiteral("空闲状态下应允许切换并行匹配线程数")))
         return 1;
 
     controller.setCurrentPhotoIndex(0);

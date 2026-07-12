@@ -48,6 +48,7 @@ class MatchController : public QObject
     Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
     Q_PROPERTY(QStringList availableInferenceEngines READ availableInferenceEngines CONSTANT)
     Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine CONSTANT)
+    Q_PROPERTY(int parallelMatchThreadCount READ parallelMatchThreadCount WRITE setParallelMatchThreadCount NOTIFY parallelMatchThreadCountChanged)
     Q_PROPERTY(QString modelDirectory READ modelDirectory CONSTANT)
     Q_PROPERTY(bool modelsAvailable READ modelsAvailable NOTIFY modelsAvailableChanged)
     Q_PROPERTY(bool modelDownloadInProgress READ modelDownloadInProgress NOTIFY modelDownloadInProgressChanged)
@@ -134,6 +135,10 @@ public:
     {
         return m_currentInferenceEngine;
     }
+    [[nodiscard]] int parallelMatchThreadCount() const
+    {
+        return m_parallelMatchThreadCount;
+    }
     [[nodiscard]] static QString modelDirectory();
     [[nodiscard]] static QString applicationModelDirectory();
     [[nodiscard]] static QString findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir);
@@ -162,6 +167,7 @@ public:
     void setPhotoDir(const QString &v);
     void setOutputDir(const QString &v);
     void setPptPath(const QString &v);
+    void setParallelMatchThreadCount(int count);
 
 public slots:
     bool setCurrentUiStyle(const QString &style);
@@ -220,6 +226,7 @@ signals:
     void modelsAvailableChanged();
     void modelDownloadInProgressChanged();
     void batchAutoMatchInProgressChanged();
+    void parallelMatchThreadCountChanged();
     void modelDownloadRequired();
     void busyChanged();
 
@@ -261,6 +268,7 @@ private:
     QString           m_currentUiStyle;
     QStringList       m_availableInferenceEngines;
     QString           m_currentInferenceEngine;
+    int               m_parallelMatchThreadCount = 1;
     QVariantList      m_autoMatchedItems;
     StoredMatchResult m_autoMatchResult;
     QString           m_autoMatchImagePath;

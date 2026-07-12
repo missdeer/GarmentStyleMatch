@@ -7,6 +7,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #define ORT_API_MANUAL_INIT
@@ -688,23 +689,47 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(
     const QStringList &photoPaths,
     const QVector<GalleryItem> &galleryItems,
     const Options &options,
-    const std::atomic_bool *cancellationRequested)
+    const std::atomic_bool *cancellationRequested,
+    int parallelThreadCount)
 {
     QVector<Result> results;
-    results.reserve(photoPaths.size());
     if (cancellationRequested && cancellationRequested->load())
         return results;
     try
     {
         validateMatcherInputs(galleryItems, options);
-        Runtime runtime = createRuntime(options);
-        const QVector<GalleryEmbedding> gallery = prepareGallery(runtime, galleryItems, options);
-        for (const QString &photoPath : photoPaths)
+        const int photoCount  = static_cast<int>(photoPaths.size());
+        const int workerCount = std::clamp(parallelThreadCount, 1, std::max(1, photoCount));
+        std::vector<std::unique_ptr<Runtime>> runtimes;
+        runtimes.reserve(static_cast<std::size_t>(workerCount));
+        runtimes.push_back(std::make_unique<Runtime>(createRuntime(options)));
+        const QVector<GalleryEmbedding> gallery = prepareGallery(*runtimes.front(), galleryItems, options);
+        for (int index = 1; index < workerCount; ++index)
+            runtimes.push_back(std::make_unique<Runtime>(createRuntime(options)));
+
+        std::vector<Result> workerResults(static_cast<std::size_t>(photoCount));
+        std::atomic_int     nextIndex {0};
+        std::atomic_int     claimedCount {0};
         {
-            if (cancellationRequested && cancellationRequested->load())
-                break;
-            results.push_back(matchPhoto(photoPath, runtime, gallery));
+            std::vector<std::jthread> workers;
+            workers.reserve(static_cast<std::size_t>(workerCount));
+            for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex)
+            {
+                workers.emplace_back([&, runtime = runtimes[static_cast<std::size_t>(workerIndex)].get()] {
+                    while (!cancellationRequested || !cancellationRequested->load())
+                    {
+                        const int photoIndex = nextIndex.fetch_add(1);
+                        if (photoIndex >= photoCount)
+                            break;
+                        claimedCount.fetch_add(1);
+                        workerResults[static_cast<std::size_t>(photoIndex)] = matchPhoto(photoPaths.at(photoIndex), *runtime, gallery);
+                    }
+                });
+            }
         }
+        results.reserve(claimedCount.load());
+        for (int index = 0; index < claimedCount.load(); ++index)
+            results.push_back(std::move(workerResults[static_cast<std::size_t>(index)]));
     }
     catch (const std::exception &error)
     {
