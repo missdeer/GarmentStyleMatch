@@ -26,7 +26,7 @@ Rectangle {
 
         Button {
             Layout.fillWidth: true
-            text: qsTr("自动匹配款号")
+            text: qsTr("自动匹配当前实拍图款号")
             highlighted: true
             enabled: !root.busy
             onClicked: root.autoMatchRequested()
