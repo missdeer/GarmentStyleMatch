@@ -220,6 +220,57 @@ int main(int argc, char *argv[])
                QStringLiteral("上一张应同步切回前一个缩略图")))
         return 1;
 
+    PhotoListModel navigationPhotoModel;
+    QVector<PhotoItem> navigationPhotos = {
+        {QStringLiteral("unmatched-upper.jpg"), QStringLiteral("unmatched-upper.jpg"), false, {},
+         PhotoMatchStatus::Unmatched, PhotoMatchStatus::Confirmed},
+        {QStringLiteral("confirmed-1.jpg"), QStringLiteral("confirmed-1.jpg"), false, {},
+         PhotoMatchStatus::Confirmed, PhotoMatchStatus::Confirmed},
+        {QStringLiteral("unconfirmed-upper.jpg"), QStringLiteral("unconfirmed-upper.jpg"), false, {},
+         PhotoMatchStatus::Matched, PhotoMatchStatus::Confirmed},
+        {QStringLiteral("unmatched-lower.jpg"), QStringLiteral("unmatched-lower.jpg"), false, {},
+         PhotoMatchStatus::Confirmed, PhotoMatchStatus::Unmatched},
+        {QStringLiteral("unconfirmed-lower.jpg"), QStringLiteral("unconfirmed-lower.jpg"), false, {},
+         PhotoMatchStatus::Confirmed, PhotoMatchStatus::Matched},
+        {QStringLiteral("confirmed-2.jpg"), QStringLiteral("confirmed-2.jpg"), false, {},
+         PhotoMatchStatus::Confirmed, PhotoMatchStatus::Confirmed},
+    };
+    navigationPhotoModel.setItems(std::move(navigationPhotos));
+    MatchController navigationController;
+    navigationController.setPhotoModel(&navigationPhotoModel);
+    navigationController.setCurrentPhotoIndex(1);
+    navigationController.nextUnmatchedPhoto();
+    if (!check(navigationController.currentPhotoIndex() == 3,
+               QStringLiteral("下一张未匹配必须跳过待确认项，并识别裤裙未匹配的实拍图")))
+        return 1;
+    navigationController.previousUnmatchedPhoto();
+    if (!check(navigationController.currentPhotoIndex() == 0,
+               QStringLiteral("上一张未匹配必须识别上衣未匹配的实拍图")))
+        return 1;
+    navigationController.setCurrentPhotoIndex(3);
+    navigationController.previousUnconfirmedPhoto();
+    if (!check(navigationController.currentPhotoIndex() == 2,
+               QStringLiteral("上一张未确认必须定位存在仅匹配款号的实拍图")))
+        return 1;
+    navigationController.nextUnconfirmedPhoto();
+    if (!check(navigationController.currentPhotoIndex() == 3,
+               QStringLiteral("下一张未确认必须把任一部位未匹配的实拍图视为符合条件")))
+        return 1;
+    navigationController.nextUnconfirmedPhoto();
+    if (!check(navigationController.currentPhotoIndex() == 4,
+               QStringLiteral("下一张未确认必须把任一部位仅匹配的实拍图视为符合条件")))
+        return 1;
+    navigationController.nextUnmatchedPhoto();
+    if (!check(navigationController.currentPhotoIndex() == 4,
+               QStringLiteral("没有后续未匹配实拍图时必须保持当前选择")))
+        return 1;
+    navigationController.setCurrentPhotoIndex(1);
+    navigationController.activatePreview(false);
+    navigationController.nextUnmatchedPhoto();
+    if (!check(navigationController.currentPhotoIndex() == 1,
+               QStringLiteral("输出 Tab 激活时未匹配导航不得改变实拍图选择")))
+        return 1;
+
     PhotoListModel photoModel;
     QVector<PhotoItem> photos;
     photos.push_back({QStringLiteral("photo-1.jpg"),

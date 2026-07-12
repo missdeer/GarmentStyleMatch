@@ -139,6 +139,7 @@ ApplicationWindow {
                         imagePath:       controller.currentImagePath
                         styleId:         controller.currentStyleId
                         matchedItems:     controller.autoMatchedItems
+                        inputTabActive: controller.inputTabActive
                         showAdjacentPhotoPreviews: candidatePanel.inputTabActive
                         previousPhotoPath: controller.previousPhotoPath
                         nextPhotoPath:     controller.nextPhotoPath
@@ -153,6 +154,10 @@ ApplicationWindow {
                                          : controller.currentImagePage + 1 < controller.currentImageCount
                         onPrev:          controller.previousImage(candidatePanel.inputTabActive)
                         onNext:          controller.nextImage(candidatePanel.inputTabActive)
+                        onPreviousUnmatchedPhoto: controller.previousUnmatchedPhoto()
+                        onNextUnmatchedPhoto: controller.nextUnmatchedPhoto()
+                        onPreviousUnconfirmedPhoto: controller.previousUnconfirmedPhoto()
+                        onNextUnconfirmedPhoto: controller.nextUnconfirmedPhoto()
                         onOpenOriginal:  controller.openCurrentImageExternally()
                         onMatchConfirmed: (part) => controller.confirmAutoMatch(part)
                         onMatchRejected:  (part) => controller.rejectAutoMatch(part)

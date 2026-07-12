@@ -1479,6 +1479,50 @@ void MatchController::nextImage(bool inputTabActive)
     restoreAutoMatchResult();
 }
 
+void MatchController::previousUnmatchedPhoto()
+{
+    navigatePhoto(-1, PhotoNavigationFilter::Unmatched);
+}
+
+void MatchController::nextUnmatchedPhoto()
+{
+    navigatePhoto(1, PhotoNavigationFilter::Unmatched);
+}
+
+void MatchController::previousUnconfirmedPhoto()
+{
+    navigatePhoto(-1, PhotoNavigationFilter::Unconfirmed);
+}
+
+void MatchController::nextUnconfirmedPhoto()
+{
+    navigatePhoto(1, PhotoNavigationFilter::Unconfirmed);
+}
+
+void MatchController::navigatePhoto(int direction, PhotoNavigationFilter filter)
+{
+    if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0)
+        return;
+
+    for (int row = m_currentPhotoIndex + direction; row >= 0 && row < m_photoModel->rowCount(); row += direction)
+    {
+        const PhotoItem *photo = m_photoModel->at(row);
+        if (!photo)
+            continue;
+
+        const bool hasUnmatched = photo->upperMatchStatus == PhotoMatchStatus::Unmatched
+                                  || photo->lowerMatchStatus == PhotoMatchStatus::Unmatched;
+        const bool hasUnconfirmed = photo->upperMatchStatus != PhotoMatchStatus::Confirmed
+                                    || photo->lowerMatchStatus != PhotoMatchStatus::Confirmed;
+        const bool matches = filter == PhotoNavigationFilter::Unmatched ? hasUnmatched : hasUnconfirmed;
+        if (matches)
+        {
+            setCurrentPhotoIndex(row);
+            return;
+        }
+    }
+}
+
 void MatchController::openCurrentImageExternally() const
 {
     const QString p = currentImagePath();

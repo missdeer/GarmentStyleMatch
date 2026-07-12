@@ -8,6 +8,7 @@ Rectangle {
     property string imagePath: ""
     property string styleId:   ""
     property var matchedItems: []
+    property bool inputTabActive: false
     property bool showAdjacentPhotoPreviews: false
     property string previousPhotoPath: ""
     property string nextPhotoPath: ""
@@ -19,6 +20,10 @@ Rectangle {
 
     signal prev()
     signal next()
+    signal previousUnmatchedPhoto()
+    signal nextUnmatchedPhoto()
+    signal previousUnconfirmedPhoto()
+    signal nextUnconfirmedPhoto()
     signal openOriginal()
     signal matchConfirmed(string part)
     signal matchRejected(string part)
@@ -226,6 +231,26 @@ Rectangle {
                 Button {
                     text: qsTr("查看原图")
                     onClicked: root.openOriginal()
+                }
+                Button {
+                    text: qsTr("上一张未匹配")
+                    enabled: root.inputTabActive
+                    onClicked: root.previousUnmatchedPhoto()
+                }
+                Button {
+                    text: qsTr("下一张未匹配")
+                    enabled: root.inputTabActive
+                    onClicked: root.nextUnmatchedPhoto()
+                }
+                Button {
+                    text: qsTr("上一张未确认")
+                    enabled: root.inputTabActive
+                    onClicked: root.previousUnconfirmedPhoto()
+                }
+                Button {
+                    text: qsTr("下一张未确认")
+                    enabled: root.inputTabActive
+                    onClicked: root.nextUnconfirmedPhoto()
                 }
                 Label {
                     text: qsTr("第 %1 / %2 张").arg(root.pageCount === 0 ? 0 : root.pageIndex + 1).arg(root.pageCount)

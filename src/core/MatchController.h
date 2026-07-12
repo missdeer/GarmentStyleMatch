@@ -19,6 +19,7 @@ class CandidateListModel;
 class GalleryListModel;
 class PhotoListModel;
 class PptPageListModel;
+enum class PhotoMatchStatus : std::uint8_t;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QProcess;
@@ -186,6 +187,10 @@ public slots:
 
     void previousImage(bool inputTabActive = false);
     void nextImage(bool inputTabActive = false);
+    void previousUnmatchedPhoto();
+    void nextUnmatchedPhoto();
+    void previousUnconfirmedPhoto();
+    void nextUnconfirmedPhoto();
     void openCurrentImageExternally() const;
 
     void previousCandidate();
@@ -237,12 +242,19 @@ signals:
     void logMessage(const QString &msg);
 
 private:
+    enum class PhotoNavigationFilter : std::uint8_t
+    {
+        Unmatched,
+        Unconfirmed,
+    };
+
     void                  emitCurrentChanged();
     void                  clearAutoMatchResult();
     void                  restoreAutoMatchResult();
     void                  rebuildAutoMatchedItems();
     void                  refreshPhotoMatchStatuses();
     void                  updatePhotoMatchStatuses(const QString &imagePath, const StoredMatchResult &result);
+    void                  navigatePhoto(int direction, PhotoNavigationFilter filter);
     bool                  persistAutoMatchResult(QString *error = nullptr) const;
     [[nodiscard]] QString matchDatabasePath() const;
     [[nodiscard]] QString galleryImagePath(const StoredGarmentMatch &match) const;
