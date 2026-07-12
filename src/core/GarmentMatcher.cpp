@@ -534,6 +534,7 @@ namespace
     {
         Runtime       runtime(loadOrtLibrary());
         const QString preferredProvider = runtime.loaded->preferredProvider;
+#ifdef Q_OS_WIN
         if (!runtime.loaded->windowsMlEpName.isEmpty())
         {
             QString error;
@@ -548,6 +549,7 @@ namespace
             }
             runtime.environment.RegisterExecutionProviderLibrary(runtime.loaded->windowsMlEpName.toUtf8().constData(), libraryPath.toStdWString());
         }
+#endif
         const QString tensorRtEngineCacheRoot =
             QDir(QFileInfo(options.featureDatabasePath).absolutePath()).absoluteFilePath(QStringLiteral("tensorrt-engines"));
         const QString tensorRtEngineCachePath = preferredProvider == QStringLiteral("TensorRT")
