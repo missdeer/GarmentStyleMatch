@@ -50,7 +50,7 @@ namespace
 
 } // namespace
 
-int main(int argc, char *argv[])
+int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-complexity)
 {
     QCoreApplication application(argc, argv);
     const QDir       executableDir(QCoreApplication::applicationDirPath());
@@ -74,7 +74,9 @@ int main(int argc, char *argv[])
     const QString requestedProvider = argc > 1 ? QString::fromLocal8Bit(argv[1]).trimmed().toLower() : QString();
     const bool    verifyRestartRule = requestedProvider == QStringLiteral("restart-rule");
 #ifdef Q_OS_WIN
-    const QString initialProvider = verifyRestartRule ? QStringLiteral("directml") : requestedProvider;
+    const QString initialProvider = verifyRestartRule             ? QStringLiteral("directml")
+                                    : requestedProvider.isEmpty() ? QStringLiteral("cpu")
+                                                                  : requestedProvider;
 #else
     const QString initialProvider = requestedProvider;
 #endif
@@ -83,6 +85,18 @@ int main(int argc, char *argv[])
         QSettings().setValue(QStringLiteral("matching/provider"), initialProvider);
     }
     const QString expectedProvider = GarmentMatcher::activeProvider();
+    if (!verifyRestartRule && !requestedProvider.isEmpty())
+    {
+        const QString requestedProviderName =
+            requestedProvider == QStringLiteral("tensorrt")
+                ? QStringLiteral("TensorRT")
+                : (requestedProvider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CUDA"));
+        if (!check(expectedProvider == requestedProviderName,
+                   QStringLiteral("请求的 %1 推理引擎不可用，实际选择 %2").arg(requestedProviderName, expectedProvider)))
+        {
+            return 1;
+        }
+    }
 
     const QString photoPath   = QDir(temporary.path()).absoluteFilePath(QStringLiteral("photo.jpg"));
     const QString galleryPath = QDir(temporary.path()).absoluteFilePath(QStringLiteral("gallery.bmp"));
@@ -96,9 +110,10 @@ int main(int argc, char *argv[])
     }
 
     GarmentMatcher::Options options;
-    options.segmentationModelPath = executableDir.absoluteFilePath(QStringLiteral("models/clothes_segformer_b2.onnx"));
-    options.embeddingModelPath    = executableDir.absoluteFilePath(QStringLiteral("models/fashion_clip_vision.onnx"));
-    options.featureDatabasePath   = QDir(temporary.path()).absoluteFilePath(QStringLiteral("features.sqlite"));
+    options.segmentationModelPath                   = executableDir.absoluteFilePath(QStringLiteral("models/clothes_segformer_b2.onnx"));
+    options.embeddingModelPath                      = executableDir.absoluteFilePath(QStringLiteral("models/fashion_clip_vision.onnx"));
+    options.featureDatabasePath                     = QDir(temporary.path()).absoluteFilePath(QStringLiteral("features.sqlite"));
+    const QStringList workingDirectoryEnginesBefore = executableDir.entryList({QStringLiteral("gsm_fp16*.engine")}, QDir::Files);
 
     const QVector<GalleryItem>   gallery {{QStringLiteral("STYLE001"), galleryPath, QStringLiteral("test")}};
     const GarmentMatcher::Result result = GarmentMatcher::match(photoPath, gallery, options);
@@ -123,6 +138,29 @@ int main(int argc, char *argv[])
         return 1;
     }
     if (!check(QFileInfo(options.featureDatabasePath).size() > 0, QStringLiteral("未生成 SQLite 特征缓存")))
+    {
+        return 1;
+    }
+    if (expectedProvider == QStringLiteral("TensorRT"))
+    {
+        const QDir        tensorRtEngineCacheRoot(QDir(temporary.path()).absoluteFilePath(QStringLiteral("tensorrt-engines")));
+        const QStringList namespaces =
+            tensorRtEngineCacheRoot.entryList({QStringLiteral("ort-*_trt-*_cuda13_fp16")}, QDir::Dirs | QDir::NoDotAndDotDot);
+        const QDir tensorRtEngineCache(namespaces.size() == 1 ? tensorRtEngineCacheRoot.absoluteFilePath(namespaces.front()) : QString());
+        if (!check(namespaces.size() == 1, QStringLiteral("TensorRT engine 必须使用唯一的运行时版本缓存目录")) ||
+            !check(!tensorRtEngineCache.entryList({QStringLiteral("gsm_fp16*.engine")}, QDir::Files).isEmpty(),
+                   QStringLiteral("TensorRT FP16 engine 必须写入应用缓存目录")) ||
+            !check(executableDir.entryList({QStringLiteral("gsm_fp16*.engine")}, QDir::Files) == workingDirectoryEnginesBefore,
+                   QStringLiteral("TensorRT engine 不得写入当前工作目录")))
+        {
+            return 1;
+        }
+    }
+
+    const QVector<GalleryItem>   changedGallery {{QStringLiteral("STYLE002"), galleryPath, QStringLiteral("test")}};
+    const GarmentMatcher::Result changedGalleryResult = GarmentMatcher::match(photoPath, changedGallery, options);
+    if (!check(changedGalleryResult.success && changedGalleryResult.joinedStyleIds() == QStringLiteral("STYLE002"),
+               QStringLiteral("款号小图库变化后必须刷新常驻 Runtime 使用的图库特征")))
     {
         return 1;
     }

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <optional>
 #include <stdexcept>
@@ -59,8 +60,9 @@ namespace
     using Database  = std::unique_ptr<sqlite3, SqliteDeleter>;
     using Statement = std::unique_ptr<sqlite3_stmt, StatementDeleter>;
 
-    using OrtGetApiBaseFunction = const OrtApiBase *(ORT_API_CALL *)();
-    using AppendDmlFunction     = OrtStatus *(ORT_API_CALL *)(OrtSessionOptions *, int);
+    using OrtGetApiBaseFunction      = const OrtApiBase *(ORT_API_CALL *)();
+    using AppendDmlFunction          = OrtStatus *(ORT_API_CALL *)(OrtSessionOptions *, int);
+    using GetTensorRtVersionFunction = int (*)();
 
     struct LoadedOrt
     {
@@ -145,11 +147,34 @@ namespace
         return true;
     }
 
+    void prepareTensorRtDllSearchPath()
+    {
+        const QString tensorRtRoot = QString::fromLocal8Bit(qgetenv("TENSORRT_ROOT"));
+        if (tensorRtRoot.isEmpty())
+        {
+            return;
+        }
+
+        const QString directory = QDir(tensorRtRoot).absoluteFilePath(QStringLiteral("lib"));
+        if (!QDir(directory).exists())
+        {
+            return;
+        }
+
+        QByteArray       path    = qgetenv("PATH");
+        const QByteArray encoded = QDir::toNativeSeparators(directory).toLocal8Bit();
+        if (!path.contains(encoded))
+        {
+            path.prepend(encoded + ';');
+            qputenv("PATH", path);
+        }
+    }
+
     [[nodiscard]] QString runtimeLibraryPath(const QString &provider)
     {
 #ifdef Q_OS_WIN
-        return QDir(QCoreApplication::applicationDirPath())
-            .absoluteFilePath(QStringLiteral("onnxruntime/%1/onnxruntime.dll").arg(provider.toLower()));
+        const QString runtimeDirectory = provider == QStringLiteral("tensorrt") ? QStringLiteral("cuda") : provider.toLower();
+        return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("onnxruntime/%1/onnxruntime.dll").arg(runtimeDirectory));
 #elif defined(Q_OS_MACOS)
         return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("onnxruntime/cpu/libonnxruntime.dylib"));
 #else
@@ -157,13 +182,65 @@ namespace
 #endif
     }
 
+    [[nodiscard]] bool hasTensorRtRuntime()
+    {
+#ifdef Q_OS_WIN
+        if (!hasCudaRuntime() || !QFileInfo::exists(runtimeLibraryPath(QStringLiteral("tensorrt"))))
+        {
+            return false;
+        }
+        const QDir cudaRuntimeDirectory(QFileInfo(runtimeLibraryPath(QStringLiteral("tensorrt"))).absolutePath());
+        if (!cudaRuntimeDirectory.exists(QStringLiteral("onnxruntime_providers_tensorrt.dll")))
+        {
+            return false;
+        }
+        prepareTensorRtDllSearchPath();
+        QLibrary tensorRt(QStringLiteral("nvinfer_10"));
+        QLibrary parser(QStringLiteral("nvonnxparser_10"));
+        return tensorRt.load() && parser.load();
+#else
+        return false;
+#endif
+    }
+
+    [[nodiscard]] QString tensorRtVersion()
+    {
+#ifdef Q_OS_WIN
+        prepareTensorRtDllSearchPath();
+        QLibrary library(QStringLiteral("nvinfer_10"));
+        if (!library.load())
+        {
+            throw std::runtime_error(QStringLiteral("无法加载 TensorRT：%1").arg(library.errorString()).toStdString());
+        }
+        const auto getVersion = reinterpret_cast<GetTensorRtVersionFunction>(library.resolve("getInferLibVersion"));
+        if (!getVersion)
+        {
+            throw std::runtime_error("TensorRT 缺少 getInferLibVersion");
+        }
+        const int version = getVersion();
+        return QStringLiteral("%1.%2.%3").arg(version / 10000).arg((version % 10000) / 100).arg(version % 100);
+#else
+        return {};
+#endif
+    }
+
+    [[nodiscard]] QString tensorRtEngineCacheNamespace(const LoadedOrt &loaded)
+    {
+        return QStringLiteral("ort-%1_trt-%2_cuda13_fp16").arg(loaded.version, tensorRtVersion());
+    }
+
     [[nodiscard]] QString startupProvider()
     {
         static const QString provider = [] {
 #ifdef Q_OS_WIN
             const QString configured = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString().trimmed().toLower();
+            const bool    tensorRtAvailable = hasTensorRtRuntime();
             const bool    cudaAvailable     = hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda")));
             const bool    directMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml")));
+            if (configured == QStringLiteral("tensorrt") && tensorRtAvailable)
+            {
+                return QStringLiteral("tensorrt");
+            }
             if (configured == QStringLiteral("cuda") && cudaAvailable)
             {
                 return QStringLiteral("cuda");
@@ -175,6 +252,10 @@ namespace
             if (configured == QStringLiteral("cpu"))
             {
                 return QStringLiteral("cpu");
+            }
+            if (tensorRtAvailable)
+            {
+                return QStringLiteral("tensorrt");
             }
             if (cudaAvailable)
             {
@@ -205,9 +286,10 @@ namespace
     {
         const QString provider = startupProvider();
         const QString backend  = runtimeBackend(provider);
-        if (backend == QStringLiteral("cuda"))
+        if (backend == QStringLiteral("cuda") || backend == QStringLiteral("tensorrt"))
         {
             prepareCudaDllSearchPath();
+            prepareTensorRtDllSearchPath();
         }
 
         auto loaded = std::make_unique<LoadedOrt>();
@@ -239,9 +321,11 @@ namespace
                 throw std::runtime_error("DirectML ONNX Runtime 缺少 DML provider API");
             }
         }
-        loaded->preferredProvider = provider == QStringLiteral("cuda")
-                                        ? QStringLiteral("CUDA")
-                                        : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU"));
+        loaded->preferredProvider = provider == QStringLiteral("tensorrt")
+                                        ? QStringLiteral("TensorRT")
+                                        : (provider == QStringLiteral("cuda")
+                                               ? QStringLiteral("CUDA")
+                                               : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU")));
         return loaded;
     }
 
@@ -308,11 +392,26 @@ namespace
         return tensor;
     }
 
-    [[nodiscard]] Ort::SessionOptions sessionOptions(const QString &provider, const LoadedOrt &loaded)
+    [[nodiscard]] Ort::SessionOptions sessionOptions(const QString &provider, const LoadedOrt &loaded, const QString &tensorRtEngineCachePath)
     {
         Ort::SessionOptions options;
         options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        if (provider == QStringLiteral("CUDA"))
+        if (provider == QStringLiteral("TensorRT"))
+        {
+            if (!QDir().mkpath(tensorRtEngineCachePath))
+            {
+                throw std::runtime_error(QStringLiteral("无法创建 TensorRT engine 缓存目录：%1").arg(tensorRtEngineCachePath).toStdString());
+            }
+            Ort::TensorRTProviderOptions tensorRtOptions;
+            tensorRtOptions.Update({{"trt_engine_cache_enable", "1"},
+                                    {"trt_engine_cache_path", QDir::toNativeSeparators(tensorRtEngineCachePath).toStdString()},
+                                    {"trt_engine_cache_prefix", "gsm_fp16"},
+                                    {"trt_fp16_enable", "1"}});
+            options.AppendExecutionProvider_TensorRT_V2(*tensorRtOptions);
+            OrtCUDAProviderOptions cudaOptions {};
+            options.AppendExecutionProvider_CUDA(cudaOptions);
+        }
+        else if (provider == QStringLiteral("CUDA"))
         {
             OrtCUDAProviderOptions cudaOptions {};
             options.AppendExecutionProvider_CUDA(cudaOptions);
@@ -328,12 +427,10 @@ namespace
         return options;
     }
 
-    [[nodiscard]] std::unique_ptr<Ort::Session> createSession(Ort::Env        &environment,
-                                                              const QString   &path,
-                                                              const QString   &provider,
-                                                              const LoadedOrt &loaded)
+    [[nodiscard]] std::unique_ptr<Ort::Session> createSession(
+        Ort::Env &environment, const QString &path, const QString &provider, const LoadedOrt &loaded, const QString &tensorRtEngineCachePath)
     {
-        const Ort::SessionOptions options = sessionOptions(provider, loaded);
+        const Ort::SessionOptions options = sessionOptions(provider, loaded, tensorRtEngineCachePath);
 #ifdef Q_OS_WIN
         const std::wstring nativePath = QDir::toNativeSeparators(path).toStdWString();
         return std::make_unique<Ort::Session>(environment, nativePath.c_str(), options);
@@ -347,8 +444,17 @@ namespace
     {
         Runtime       runtime(loadOrtLibrary());
         const QString preferredProvider = runtime.loaded->preferredProvider;
+        const QString tensorRtEngineCacheRoot =
+            QDir(QFileInfo(options.featureDatabasePath).absolutePath()).absoluteFilePath(QStringLiteral("tensorrt-engines"));
+        const QString tensorRtEngineCachePath = preferredProvider == QStringLiteral("TensorRT")
+                                                    ? QDir(tensorRtEngineCacheRoot).absoluteFilePath(tensorRtEngineCacheNamespace(*runtime.loaded))
+                                                    : tensorRtEngineCacheRoot;
         QStringList   providers {preferredProvider};
-        if (preferredProvider != QStringLiteral("CPU"))
+        if (preferredProvider == QStringLiteral("TensorRT"))
+        {
+            providers.push_back(QStringLiteral("CUDA"));
+        }
+        if (!providers.contains(QStringLiteral("CPU")))
         {
             providers.push_back(QStringLiteral("CPU"));
         }
@@ -358,9 +464,11 @@ namespace
         {
             try
             {
-                runtime.segmentation = createSession(runtime.environment, options.segmentationModelPath, provider, *runtime.loaded);
-                runtime.embedding    = createSession(runtime.environment, options.embeddingModelPath, provider, *runtime.loaded);
-                runtime.provider     = provider;
+                runtime.segmentation =
+                    createSession(runtime.environment, options.segmentationModelPath, provider, *runtime.loaded, tensorRtEngineCachePath);
+                runtime.embedding =
+                    createSession(runtime.environment, options.embeddingModelPath, provider, *runtime.loaded, tensorRtEngineCachePath);
+                runtime.provider = provider;
                 return runtime;
             }
             catch (const Ort::Exception &error)
@@ -686,15 +794,83 @@ namespace
                                                            const QVector<GalleryItem>    &galleryItems,
                                                            const GarmentMatcher::Options &options)
     {
-        Database      database = openDatabase(options.featureDatabasePath);
-        const QString embeddingModelKey =
-            QStringLiteral("%1:%2:%3").arg(modelKey(options.embeddingModelPath), runtime.loaded->version, runtime.provider);
+        Database      database          = openDatabase(options.featureDatabasePath);
+        const QString providerKey       = runtime.provider == QStringLiteral("TensorRT") ? QStringLiteral("TensorRT-FP16") : runtime.provider;
+        const QString embeddingModelKey = QStringLiteral("%1:%2:%3").arg(modelKey(options.embeddingModelPath), runtime.loaded->version, providerKey);
         QVector<GalleryEmbedding> gallery = galleryEmbeddings(*runtime.embedding, galleryItems, database.get(), embeddingModelKey);
         if (gallery.isEmpty())
         {
             throw std::runtime_error("款号小图库中没有可读取的图片");
         }
         return gallery;
+    }
+
+    struct MatcherCache
+    {
+        std::mutex                mutex;
+        std::unique_ptr<Runtime>  runtime;
+        QString                   runtimeKey;
+        QVector<GalleryEmbedding> gallery;
+        QString                   galleryKey;
+    };
+
+    [[nodiscard]] MatcherCache &matcherCache()
+    {
+        static MatcherCache cache;
+        return cache;
+    }
+
+    [[nodiscard]] QString runtimeCacheKey(const GarmentMatcher::Options &options)
+    {
+        return QStringLiteral("%1:%2:%3:%4")
+            .arg(QFileInfo(options.segmentationModelPath).absoluteFilePath(),
+                 modelKey(options.segmentationModelPath),
+                 QFileInfo(options.embeddingModelPath).absoluteFilePath(),
+                 modelKey(options.embeddingModelPath));
+    }
+
+    [[nodiscard]] QString galleryCacheKey(const QVector<GalleryItem> &items, const Runtime &runtime)
+    {
+        QStringList keys;
+        keys.reserve(items.size() + 2);
+        keys.push_back(runtime.loaded->version);
+        keys.push_back(runtime.provider);
+        for (const GalleryItem &item : items)
+        {
+            const QFileInfo info(item.imagePath);
+            keys.push_back(QStringLiteral("%1:%2:%3:%4")
+                               .arg(item.styleId, info.absoluteFilePath())
+                               .arg(info.size())
+                               .arg(info.lastModified().toMSecsSinceEpoch()));
+        }
+        return keys.join(QLatin1Char('\n'));
+    }
+
+    [[nodiscard]] Runtime &cachedRuntime(MatcherCache &cache, const GarmentMatcher::Options &options)
+    {
+        const QString key = runtimeCacheKey(options);
+        if (!cache.runtime || cache.runtimeKey != key)
+        {
+            cache.runtime    = std::make_unique<Runtime>(createRuntime(options));
+            cache.runtimeKey = key;
+            cache.gallery.clear();
+            cache.galleryKey.clear();
+        }
+        return *cache.runtime;
+    }
+
+    [[nodiscard]] const QVector<GalleryEmbedding> &cachedGallery(MatcherCache                  &cache,
+                                                                 Runtime                       &runtime,
+                                                                 const QVector<GalleryItem>    &galleryItems,
+                                                                 const GarmentMatcher::Options &options)
+    {
+        const QString key = galleryCacheKey(galleryItems, runtime);
+        if (cache.gallery.isEmpty() || cache.galleryKey != key)
+        {
+            cache.gallery    = prepareGallery(runtime, galleryItems, options);
+            cache.galleryKey = key;
+        }
+        return cache.gallery;
     }
 
     [[nodiscard]] GarmentMatcher::Result matchPhoto(const QString &photoPath, Runtime &runtime, const QVector<GalleryEmbedding> &gallery)
@@ -741,6 +917,10 @@ QStringList GarmentMatcher::availableProviders()
 {
     QStringList providers;
 #ifdef Q_OS_WIN
+    if (hasTensorRtRuntime())
+    {
+        providers.push_back(QStringLiteral("TensorRT"));
+    }
     if (hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
     {
         providers.push_back(QStringLiteral("CUDA"));
@@ -757,8 +937,10 @@ QStringList GarmentMatcher::availableProviders()
 QString GarmentMatcher::activeProvider()
 {
     const QString provider = startupProvider();
-    return provider == QStringLiteral("cuda") ? QStringLiteral("CUDA")
-                                              : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU"));
+    return provider == QStringLiteral("tensorrt")
+               ? QStringLiteral("TensorRT")
+               : (provider == QStringLiteral("cuda") ? QStringLiteral("CUDA")
+                                                     : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU")));
 }
 
 QString GarmentMatcher::Result::joinedStyleIds() const
@@ -785,9 +967,11 @@ GarmentMatcher::Result GarmentMatcher::match(const QString &photoPath, const QVe
             throw std::runtime_error("当前实拍图不存在");
         }
         validateMatcherInputs(galleryItems, options);
-        Runtime                         runtime = createRuntime(options);
-        const QVector<GalleryEmbedding> gallery = prepareGallery(runtime, galleryItems, options);
-        result                                  = matchPhoto(photoPath, runtime, gallery);
+        MatcherCache          &cache = matcherCache();
+        const std::scoped_lock lock(cache.mutex);
+        Runtime               &runtime = cachedRuntime(cache, options);
+        const auto            &gallery = cachedGallery(cache, runtime, galleryItems, options);
+        result                         = matchPhoto(photoPath, runtime, gallery);
     }
     catch (const std::exception &error)
     {
@@ -810,15 +994,21 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(const QStringList      
     try
     {
         validateMatcherInputs(galleryItems, options);
-        const int                             photoCount  = static_cast<int>(photoPaths.size());
-        const int                             workerCount = std::clamp(parallelThreadCount, 1, std::max(1, photoCount));
-        std::vector<std::unique_ptr<Runtime>> runtimes;
+        MatcherCache          &cache = matcherCache();
+        const std::scoped_lock lock(cache.mutex);
+        Runtime               &primaryRuntime = cachedRuntime(cache, options);
+        const auto            &gallery        = cachedGallery(cache, primaryRuntime, galleryItems, options);
+        const int              photoCount     = static_cast<int>(photoPaths.size());
+        const int              workerCount    = std::clamp(parallelThreadCount, 1, std::max(1, photoCount));
+
+        std::vector<std::unique_ptr<Runtime>> additionalRuntimes;
+        additionalRuntimes.reserve(static_cast<std::size_t>(workerCount - 1));
+        std::vector<Runtime *> runtimes {&primaryRuntime};
         runtimes.reserve(static_cast<std::size_t>(workerCount));
-        runtimes.push_back(std::make_unique<Runtime>(createRuntime(options)));
-        const QVector<GalleryEmbedding> gallery = prepareGallery(*runtimes.front(), galleryItems, options);
         for (int index = 1; index < workerCount; ++index)
         {
-            runtimes.push_back(std::make_unique<Runtime>(createRuntime(options)));
+            additionalRuntimes.push_back(std::make_unique<Runtime>(createRuntime(options)));
+            runtimes.push_back(additionalRuntimes.back().get());
         }
 
         std::vector<Result> workerResults(static_cast<std::size_t>(photoCount));
@@ -829,7 +1019,7 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(const QStringList      
             workers.reserve(static_cast<std::size_t>(workerCount));
             for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex)
             {
-                workers.emplace_back([&, runtime = runtimes[static_cast<std::size_t>(workerIndex)].get()] {
+                workers.emplace_back([&, runtime = runtimes[static_cast<std::size_t>(workerIndex)]] {
                     while (!cancellationRequested || !cancellationRequested->load())
                     {
                         const int photoIndex = nextIndex.fetch_add(1);

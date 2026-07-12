@@ -171,6 +171,13 @@ if(GSM_MODELS_AVAILABLE)
     add_test(NAME GarmentMatcherRuntimeTest COMMAND GarmentMatcherRuntimeTest)
     if(WIN32)
         add_test(NAME GarmentMatcherDirectMLRuntimeTest COMMAND GarmentMatcherRuntimeTest directml)
+        find_file(GSM_TENSORRT_NVINFER_DLL nvinfer_10.dll HINTS "$ENV{TENSORRT_ROOT}/lib")
+        find_file(GSM_TENSORRT_PARSER_DLL nvonnxparser_10.dll HINTS "$ENV{TENSORRT_ROOT}/lib")
+        if(EXISTS "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/cuda/onnxruntime_providers_tensorrt.dll"
+           AND GSM_TENSORRT_NVINFER_DLL
+           AND GSM_TENSORRT_PARSER_DLL)
+            add_test(NAME GarmentMatcherTensorRTRuntimeTest COMMAND GarmentMatcherRuntimeTest tensorrt)
+        endif()
         add_test(NAME GarmentMatcherProviderRestartRuleTest COMMAND GarmentMatcherRuntimeTest restart-rule)
     endif()
 endif()

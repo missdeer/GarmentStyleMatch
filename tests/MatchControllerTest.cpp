@@ -157,11 +157,8 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    const QString activeInferenceEngine      = controller.currentInferenceEngine();
-    const int     recommendedParallelThreads = activeInferenceEngine == QStringLiteral("CUDA")       ? 4
-                                               : activeInferenceEngine == QStringLiteral("DirectML") ? 2
-                                                                                                     : 1;
-    if (!check(controller.parallelMatchThreadCount() == recommendedParallelThreads, QStringLiteral("首次启动应采用当前推理引擎的推荐并行匹配线程数")))
+    const QString activeInferenceEngine = controller.currentInferenceEngine();
+    if (!check(controller.parallelMatchThreadCount() == 1, QStringLiteral("所有推理引擎首次启动都应只创建一套 Runtime")))
     {
         return 1;
     }

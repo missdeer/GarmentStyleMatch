@@ -31,6 +31,7 @@ endfunction()
 if(WIN32)
     if(NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h"
        OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda/onnxruntime.dll"
+       OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda/onnxruntime_providers_tensorrt.dll"
        OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/directml/onnxruntime.dll")
         set(_ort_cuda_archive "${_ort_package_root}/onnxruntime-cuda13-1.27.1.zip")
         set(_ort_directml_package "${_ort_package_root}/onnxruntime-directml-1.24.4.nupkg")
@@ -63,6 +64,7 @@ if(WIN32)
             "${_ort_cuda_extract}/onnxruntime-win-x64-gpu_cuda13-1.27.1/lib/onnxruntime.dll"
             "${_ort_cuda_extract}/onnxruntime-win-x64-gpu_cuda13-1.27.1/lib/onnxruntime_providers_cuda.dll"
             "${_ort_cuda_extract}/onnxruntime-win-x64-gpu_cuda13-1.27.1/lib/onnxruntime_providers_shared.dll"
+            "${_ort_cuda_extract}/onnxruntime-win-x64-gpu_cuda13-1.27.1/lib/onnxruntime_providers_tensorrt.dll"
             DESTINATION "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda")
         file(GLOB _ort_directml_dlls "${_ort_directml_extract}/runtimes/win-x64/native/*.dll")
         file(COPY ${_ort_directml_dlls}
@@ -128,6 +130,7 @@ if(NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
     message(FATAL_ERROR "The downloaded ONNX Runtime SDK is incomplete at ${GSM_ONNXRUNTIME_ROOT}")
 endif()
 if(WIN32 AND (NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda/onnxruntime.dll"
+              OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda/onnxruntime_providers_tensorrt.dll"
               OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/directml/onnxruntime.dll"))
     message(FATAL_ERROR "The downloaded Windows ONNX Runtime is incomplete at ${GSM_ONNXRUNTIME_ROOT}")
 elseif(APPLE AND NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cpu/libonnxruntime.dylib")

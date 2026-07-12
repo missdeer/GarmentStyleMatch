@@ -133,9 +133,9 @@ namespace
         QString firstError;
     };
 
-    [[nodiscard]] int recommendedParallelMatchThreadCount(const QString &inferenceEngine)
+    [[nodiscard]] int recommendedParallelMatchThreadCount()
     {
-        return inferenceEngine == QLatin1String("CUDA") ? 4 : inferenceEngine == QLatin1String("DirectML") ? 2 : 1;
+        return 1;
     }
 } // namespace
 
@@ -148,8 +148,7 @@ MatchController::MatchController(QObject *parent)
 {
     QSettings settings;
     settings.setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
-    m_parallelMatchThreadCount =
-        settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount(m_currentInferenceEngine)).toInt();
+    m_parallelMatchThreadCount = settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount()).toInt();
     m_parallelMatchThreadCount = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
 }
 

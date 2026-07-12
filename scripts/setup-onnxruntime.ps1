@@ -70,7 +70,8 @@ Copy-Item -Path (Join-Path $directmlExtract "build\native\include\*") -Destinati
 Copy-Item -LiteralPath `
     (Join-Path $cudaSource "lib\onnxruntime.dll"), `
     (Join-Path $cudaSource "lib\onnxruntime_providers_cuda.dll"), `
-    (Join-Path $cudaSource "lib\onnxruntime_providers_shared.dll") `
+    (Join-Path $cudaSource "lib\onnxruntime_providers_shared.dll"), `
+    (Join-Path $cudaSource "lib\onnxruntime_providers_tensorrt.dll") `
     -Destination (Join-Path $sdkRoot "runtime\cuda") -Force
 Copy-Item -Path (Join-Path $directmlExtract "runtimes\win-x64\native\*.dll") `
     -Destination (Join-Path $sdkRoot "runtime\directml") -Force
