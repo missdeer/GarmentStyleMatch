@@ -38,7 +38,7 @@ Rectangle {
             Layout.fillHeight: true
             currentIndex: categoryTabs.currentIndex
 
-            ConfirmBar {
+            MatchPanel {
                 busy: root.busy
                 batchAutoMatchInProgress: root.batchAutoMatchInProgress
                 previousAvailable: root.previousPhotoAvailable

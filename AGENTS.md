@@ -112,7 +112,7 @@ New C++ features almost always belong on `MatchController` as a `Q_PROPERTY` + s
 `Main.qml` is a `HeaderBar`, lazily loaded 3-column workspace, and bottom status bar:
 
 - Left: `CandidatePanel` with input/output tabs, directory pickers, filters, the photo list, and the classified output list.
-- Middle: `MainImageView`, an output-image thumbnail strip when applicable, and `ImagePropertiesPanel`. Its tabs are 操作 / 文件信息 / 图像信息 / IPTC / EXIF. The 操作 tab contains a vertical `ConfirmBar`: 自动匹配款号, a clearable 款号 field, and 确认款号.
+- Middle: `MainImageView`, an output-image thumbnail strip when applicable, and `ImagePropertiesPanel`. Its tabs are 操作 / 文件信息 / 图像信息 / IPTC / EXIF. The 操作 tab contains a vertical `MatchPanel`: 自动匹配款号, a clearable 款号 field, and 确认款号.
 - Right: `GalleryPanel` with PPT页面预览 and 款号小图库 tabs. Selected PPT pages are extracted in the background, then the gallery tab is selected.
 
 Application state binds through `controller.*` and the context-property models. QML signals dispatch actions back through named controller slots; small presentation-only behavior remains local to QML. Adding a new panel requires a QML file under `src/qml/components/` and an entry in `GSM_QML_FILES` in `src/CMakeLists.txt`.

@@ -42,7 +42,7 @@ set(GSM_QML_FILES
     qml/components/GalleryPanel.qml
     qml/components/PptPreviewPanel.qml
     qml/components/StyleGalleryPanel.qml
-    qml/components/ConfirmBar.qml
+    qml/components/MatchPanel.qml
     qml/components/ClearableTextField.qml
     qml/components/IconButton.qml
     qml/components/PathPickerRow.qml
