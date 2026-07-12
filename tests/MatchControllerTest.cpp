@@ -189,6 +189,17 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
+#ifdef Q_OS_WIN
+    if (!check(controller.availableInferenceEngines().contains(QStringLiteral("Windows ML · CPU")) &&
+                   controller.availableInferenceEngines().contains(QStringLiteral("Windows ML · DirectML")),
+               QStringLiteral("Windows 构建必须分别提供 Windows ML CPU 和 DirectML 推理引擎")) ||
+        !check(controller.setCurrentInferenceEngine(QStringLiteral("Windows ML · CPU")) &&
+                   QSettings().value(QStringLiteral("matching/provider")).toString() == QStringLiteral("windows ml · cpu"),
+               QStringLiteral("Windows ML CPU 推理引擎必须可选并持久化")))
+    {
+        return 1;
+    }
+#endif
     if (!check(controller.currentInferenceEngine() == activeInferenceEngine, QStringLiteral("推理引擎设置在重启前不得改变当前进程使用的引擎")))
     {
         return 1;

@@ -9,6 +9,7 @@ set(GSM_SOURCES
     core/ImageMetadata.cpp
     core/GarmentMatcher.cpp
     core/MatchResultStore.cpp
+    core/WindowsMlExecutionProvider.cpp
 )
 
 set(GSM_HEADERS
@@ -21,6 +22,7 @@ set(GSM_HEADERS
     core/ImageMetadata.h
     core/GarmentMatcher.h
     core/MatchResultStore.h
+    core/WindowsMlExecutionProvider.h
 )
 
 # Some localized MSVC installations emit /showIncludes output in a code page
@@ -91,6 +93,7 @@ target_link_libraries(GarmentStyleMatch PRIVATE
     gsm_onnxruntime_headers
     ${OpenCV_LIBS}
     gsm_sqlite
+    gsm_windowsml_api
     $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
 )
 
@@ -102,6 +105,12 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/directml"
                 "$<TARGET_FILE_DIR:GarmentStyleMatch>/onnxruntime/directml"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${GSM_WINDOWSML_RUNTIME_ROOT}"
+                "$<TARGET_FILE_DIR:GarmentStyleMatch>/onnxruntime/windowsml"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${GSM_WINDOWSML_RUNTIME_ROOT}/Microsoft.Windows.AI.MachineLearning.dll"
+                "$<TARGET_FILE_DIR:GarmentStyleMatch>"
         COMMENT "Copying ONNX Runtime binaries"
         VERBATIM
     )
@@ -151,6 +160,14 @@ endif()
 install(DIRECTORY "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/"
     DESTINATION "${_gsm_runtime_install_dir}/onnxruntime"
 )
+if(WIN32)
+    install(DIRECTORY "${GSM_WINDOWSML_RUNTIME_ROOT}/"
+        DESTINATION "${_gsm_runtime_install_dir}/onnxruntime/windowsml"
+    )
+    install(FILES "${GSM_WINDOWSML_RUNTIME_ROOT}/Microsoft.Windows.AI.MachineLearning.dll"
+        DESTINATION "${_gsm_runtime_install_dir}"
+    )
+endif()
 if(GSM_MODELS_AVAILABLE)
     install(DIRECTORY "${GSM_MODEL_ROOT}/"
         DESTINATION "${_gsm_models_install_dir}"

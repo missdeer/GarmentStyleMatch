@@ -128,6 +128,96 @@ Rectangle {
         }
     }
 
+    Dialog {
+        id: windowsMlEpDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(620, parent.width - 32)
+        height: Math.min(480, parent.height - 32)
+        modal: true
+        title: qsTr("Windows ML 执行提供程序")
+        standardButtons: Dialog.Close
+        closePolicy: Popup.CloseOnEscape
+
+        onOpened: controller.refreshWindowsMlExecutionProviders()
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("显示 Windows ML 在本机检测到的兼容 EP。下载由 Windows Update 完成；动态 EP 需要 Windows 11 24H2 或更高版本及兼容驱动。")
+                wrapMode: Text.Wrap
+            }
+
+            BusyIndicator {
+                Layout.alignment: Qt.AlignHCenter
+                running: controller.windowsMlEpOperationInProgress
+                visible: running
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                Column {
+                    width: windowsMlEpDialog.availableWidth
+                    spacing: 8
+
+                    Label {
+                        width: parent.width
+                        visible: controller.windowsMlExecutionProviders.length === 0
+                        text: qsTr("本机没有 Windows ML catalog 返回的兼容动态 EP。")
+                        wrapMode: Text.Wrap
+                        color: "#5f6b76"
+                    }
+
+                    Repeater {
+                        model: controller.windowsMlExecutionProviders
+
+                        delegate: Frame {
+                            required property var modelData
+                            width: parent.width
+
+                            RowLayout {
+                                width: parent.width
+                                spacing: 12
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    Label { text: modelData.name; font.bold: true }
+                                    Label {
+                                        text: qsTr("版本：%1　状态：%2").arg(modelData.version || qsTr("未知")).arg(modelData.state)
+                                        color: "#5f6b76"
+                                    }
+                                }
+
+                                Button {
+                                    Layout.preferredWidth: 128
+                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                    text: modelData.installed ? qsTr("设为推理引擎") : qsTr("下载")
+                                    enabled: !controller.windowsMlEpOperationInProgress
+                                    onClicked: {
+                                        if (modelData.installed) {
+                                            if (controller.useWindowsMlExecutionProvider(modelData.name)) {
+                                                root.pendingInferenceEngine = "Windows ML · " + modelData.name
+                                                inferenceEngineRestartDialog.open()
+                                            }
+                                        } else {
+                                            controller.installWindowsMlExecutionProvider(modelData.name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Menu {
         id: styleMenu
 
@@ -312,6 +402,22 @@ Rectangle {
                     if (!controller.busy)
                         parallelMatchThreadMenu.popup()
                 }
+            }
+        }
+
+        Label {
+            id: windowsMlEpLink
+            text: qsTr("Windows ML EP")
+            color: windowsMlEpMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            font.pixelSize: 13
+            font.underline: true
+
+            MouseArea {
+                id: windowsMlEpMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: windowsMlEpDialog.open()
             }
         }
 

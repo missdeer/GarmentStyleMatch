@@ -29,6 +29,25 @@ function(gsm_download_file url output sha256 description)
 endfunction()
 
 if(WIN32)
+    set(GSM_WINDOWSML_VERSION "2.1.71")
+    set(GSM_WINDOWSML_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/windowsml-${GSM_WINDOWSML_VERSION}" CACHE PATH
+        "Path to the unpacked Microsoft.Windows.AI.MachineLearning package")
+    if(NOT EXISTS "${GSM_WINDOWSML_ROOT}/runtimes/win-x64/native/onnxruntime.dll")
+        set(_windowsml_package "${_ort_package_root}/microsoft.windows.ai.machinelearning.${GSM_WINDOWSML_VERSION}.nupkg")
+        gsm_download_file(
+            "https://api.nuget.org/v3-flatcontainer/microsoft.windows.ai.machinelearning/${GSM_WINDOWSML_VERSION}/microsoft.windows.ai.machinelearning.${GSM_WINDOWSML_VERSION}.nupkg"
+            "${_windowsml_package}"
+            "826BA16DD9484AF562D806D3145E5CB4E24B75F28ADF03D718E12F599F004730"
+            "Windows ML ${GSM_WINDOWSML_VERSION} package")
+        file(REMOVE_RECURSE "${GSM_WINDOWSML_ROOT}")
+        file(MAKE_DIRECTORY "${GSM_WINDOWSML_ROOT}")
+        file(ARCHIVE_EXTRACT INPUT "${_windowsml_package}" DESTINATION "${GSM_WINDOWSML_ROOT}")
+    endif()
+
+    add_library(gsm_windowsml_api INTERFACE)
+    target_include_directories(gsm_windowsml_api INTERFACE "${GSM_WINDOWSML_ROOT}/include")
+    target_link_libraries(gsm_windowsml_api INTERFACE "${GSM_WINDOWSML_ROOT}/lib/native/x64/Microsoft.Windows.AI.MachineLearning.lib")
+
     if(NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h"
        OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda/onnxruntime.dll"
        OR NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/runtime/cuda/onnxruntime_providers_tensorrt.dll"
@@ -126,6 +145,10 @@ else()
     message(FATAL_ERROR "Unsupported platform for ONNX Runtime")
 endif()
 
+if(NOT WIN32)
+    add_library(gsm_windowsml_api INTERFACE)
+endif()
+
 if(NOT EXISTS "${GSM_ONNXRUNTIME_ROOT}/include/onnxruntime_cxx_api.h")
     message(FATAL_ERROR "The downloaded ONNX Runtime SDK is incomplete at ${GSM_ONNXRUNTIME_ROOT}")
 endif()
@@ -144,6 +167,9 @@ target_include_directories(gsm_onnxruntime_headers INTERFACE
     "${GSM_ONNXRUNTIME_ROOT}/include")
 
 set(GSM_ONNXRUNTIME_RUNTIME_ROOT "${GSM_ONNXRUNTIME_ROOT}/runtime" PARENT_SCOPE)
+if(WIN32)
+    set(GSM_WINDOWSML_RUNTIME_ROOT "${GSM_WINDOWSML_ROOT}/runtimes/win-x64/native" PARENT_SCOPE)
+endif()
 
 set(GSM_MODEL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/models" CACHE PATH
     "Path to local garment matching ONNX models")

@@ -26,6 +26,7 @@
 #include <QSettings>
 
 #include "GarmentMatcher.h"
+#include "WindowsMlExecutionProvider.h"
 
 // ONNX Runtime/OpenCV interop requires C function-pointer casts, raw image buffers, and model-defined tensor indices and dimensions.
 // The surrounding size and shape checks validate every indexed access.
@@ -70,6 +71,7 @@ namespace
         QString           preferredProvider;
         QString           version;
         AppendDmlFunction appendDml = nullptr;
+        QString           windowsMlEpName;
     };
 
     struct Runtime
@@ -173,6 +175,10 @@ namespace
     [[nodiscard]] QString runtimeLibraryPath(const QString &provider)
     {
 #ifdef Q_OS_WIN
+        if (provider == QStringLiteral("windowsml"))
+        {
+            return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("onnxruntime/windowsml/onnxruntime.dll"));
+        }
         const QString runtimeDirectory = provider == QStringLiteral("tensorrt") ? QStringLiteral("cuda") : provider.toLower();
         return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("onnxruntime/%1/onnxruntime.dll").arg(runtimeDirectory));
 #elif defined(Q_OS_MACOS)
@@ -229,14 +235,46 @@ namespace
         return QStringLiteral("ort-%1_trt-%2_cuda13_fp16").arg(loaded.version, tensorRtVersion());
     }
 
+    [[nodiscard]] QString configuredWindowsMlProvider(const QString &configured, bool windowsMlAvailable)
+    {
+        if (!windowsMlAvailable)
+        {
+            return {};
+        }
+        if (configured == QStringLiteral("windows ml") || configured == QStringLiteral("windows ml - cpu") ||
+            configured == QStringLiteral("windows ml · cpu"))
+        {
+            return QStringLiteral("windowsml-cpu");
+        }
+        if (configured == QStringLiteral("windows ml - directml") || configured == QStringLiteral("windows ml · directml"))
+        {
+            return QStringLiteral("windowsml-directml");
+        }
+        if (!configured.startsWith(QStringLiteral("windows ml · ")))
+        {
+            return {};
+        }
+
+        const QString requestedName = configured.sliced(QStringLiteral("windows ml · ").size());
+        for (const auto &ep : WindowsMlExecutionProvider::providers())
+        {
+            if (ep.readyState != WindowsMlExecutionProvider::ReadyState::NotPresent && ep.name.compare(requestedName, Qt::CaseInsensitive) == 0)
+            {
+                return QStringLiteral("windowsml:%1").arg(ep.name);
+            }
+        }
+        return {};
+    }
+
     [[nodiscard]] QString startupProvider()
     {
         static const QString provider = [] {
 #ifdef Q_OS_WIN
             const QString configured = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString().trimmed().toLower();
-            const bool    tensorRtAvailable = hasTensorRtRuntime();
-            const bool    cudaAvailable     = hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda")));
-            const bool    directMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml")));
+            const bool    tensorRtAvailable  = hasTensorRtRuntime();
+            const bool    cudaAvailable      = hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda")));
+            const bool    directMlAvailable  = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml")));
+            const bool    windowsMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("windowsml")));
             if (configured == QStringLiteral("tensorrt") && tensorRtAvailable)
             {
                 return QStringLiteral("tensorrt");
@@ -248,6 +286,11 @@ namespace
             if (configured == QStringLiteral("directml") && directMlAvailable)
             {
                 return QStringLiteral("directml");
+            }
+            QString windowsMlProvider = configuredWindowsMlProvider(configured, windowsMlAvailable);
+            if (!windowsMlProvider.isEmpty())
+            {
+                return windowsMlProvider;
             }
             if (configured == QStringLiteral("cpu"))
             {
@@ -279,7 +322,7 @@ namespace
             return QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))) ? QStringLiteral("directml") : QStringLiteral("cuda");
         }
 #endif
-        return provider;
+        return provider.startsWith(QStringLiteral("windowsml")) ? QStringLiteral("windowsml") : provider;
     }
 
     [[nodiscard]] std::unique_ptr<LoadedOrt> loadOrtLibrary()
@@ -313,7 +356,7 @@ namespace
         Ort::InitApi(api);
         loaded->version = QString::fromLatin1(getApiBase()->GetVersionString());
 
-        if (provider == QStringLiteral("directml"))
+        if (provider == QStringLiteral("directml") || provider == QStringLiteral("windowsml-directml"))
         {
             loaded->appendDml = reinterpret_cast<AppendDmlFunction>(loaded->library.resolve("OrtSessionOptionsAppendExecutionProvider_DML"));
             if (!loaded->appendDml)
@@ -321,11 +364,38 @@ namespace
                 throw std::runtime_error("DirectML ONNX Runtime 缺少 DML provider API");
             }
         }
-        loaded->preferredProvider = provider == QStringLiteral("tensorrt")
-                                        ? QStringLiteral("TensorRT")
-                                        : (provider == QStringLiteral("cuda")
-                                               ? QStringLiteral("CUDA")
-                                               : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU")));
+        if (provider.startsWith(QStringLiteral("windowsml:")))
+        {
+            loaded->windowsMlEpName = provider.sliced(QStringLiteral("windowsml:").size());
+        }
+        if (provider == QStringLiteral("tensorrt"))
+        {
+            loaded->preferredProvider = QStringLiteral("TensorRT");
+        }
+        else if (provider == QStringLiteral("cuda"))
+        {
+            loaded->preferredProvider = QStringLiteral("CUDA");
+        }
+        else if (provider == QStringLiteral("directml"))
+        {
+            loaded->preferredProvider = QStringLiteral("DirectML");
+        }
+        else if (provider == QStringLiteral("windowsml-cpu"))
+        {
+            loaded->preferredProvider = QStringLiteral("Windows ML · CPU");
+        }
+        else if (provider == QStringLiteral("windowsml-directml"))
+        {
+            loaded->preferredProvider = QStringLiteral("Windows ML · DirectML");
+        }
+        else if (provider.startsWith(QStringLiteral("windowsml:")))
+        {
+            loaded->preferredProvider = QStringLiteral("Windows ML · %1").arg(loaded->windowsMlEpName);
+        }
+        else
+        {
+            loaded->preferredProvider = QStringLiteral("CPU");
+        }
         return loaded;
     }
 
@@ -392,7 +462,10 @@ namespace
         return tensor;
     }
 
-    [[nodiscard]] Ort::SessionOptions sessionOptions(const QString &provider, const LoadedOrt &loaded, const QString &tensorRtEngineCachePath)
+    [[nodiscard]] Ort::SessionOptions sessionOptions(Ort::Env        &environment,
+                                                     const QString   &provider,
+                                                     const LoadedOrt &loaded,
+                                                     const QString   &tensorRtEngineCachePath)
     {
         Ort::SessionOptions options;
         options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
@@ -417,7 +490,24 @@ namespace
             options.AppendExecutionProvider_CUDA(cudaOptions);
         }
 #ifdef Q_OS_WIN
-        else if (provider == QStringLiteral("DirectML"))
+        else if (!loaded.windowsMlEpName.isEmpty())
+        {
+            std::vector<Ort::ConstEpDevice> devices;
+            const QString                   epName = provider.sliced(QStringLiteral("Windows ML · ").size());
+            for (const auto &device : environment.GetEpDevices())
+            {
+                if (QString::fromUtf8(device.EpName()).compare(epName, Qt::CaseInsensitive) == 0)
+                {
+                    devices.push_back(device);
+                }
+            }
+            if (devices.empty())
+            {
+                throw std::runtime_error(QStringLiteral("Windows ML EP %1 注册后未提供可用设备").arg(epName).toStdString());
+            }
+            options.AppendExecutionProvider_V2(environment, devices, std::unordered_map<std::string, std::string> {});
+        }
+        else if (provider == QStringLiteral("DirectML") || provider == QStringLiteral("Windows ML · DirectML"))
         {
             options.DisableMemPattern();
             options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
@@ -430,7 +520,7 @@ namespace
     [[nodiscard]] std::unique_ptr<Ort::Session> createSession(
         Ort::Env &environment, const QString &path, const QString &provider, const LoadedOrt &loaded, const QString &tensorRtEngineCachePath)
     {
-        const Ort::SessionOptions options = sessionOptions(provider, loaded, tensorRtEngineCachePath);
+        const Ort::SessionOptions options = sessionOptions(environment, provider, loaded, tensorRtEngineCachePath);
 #ifdef Q_OS_WIN
         const std::wstring nativePath = QDir::toNativeSeparators(path).toStdWString();
         return std::make_unique<Ort::Session>(environment, nativePath.c_str(), options);
@@ -444,6 +534,20 @@ namespace
     {
         Runtime       runtime(loadOrtLibrary());
         const QString preferredProvider = runtime.loaded->preferredProvider;
+        if (!runtime.loaded->windowsMlEpName.isEmpty())
+        {
+            QString error;
+            if (!WindowsMlExecutionProvider::ensureReady(runtime.loaded->windowsMlEpName, &error))
+            {
+                throw std::runtime_error(error.toStdString());
+            }
+            const QString libraryPath = WindowsMlExecutionProvider::libraryPath(runtime.loaded->windowsMlEpName, &error);
+            if (libraryPath.isEmpty())
+            {
+                throw std::runtime_error(error.toStdString());
+            }
+            runtime.environment.RegisterExecutionProviderLibrary(runtime.loaded->windowsMlEpName.toUtf8().constData(), libraryPath.toStdWString());
+        }
         const QString tensorRtEngineCacheRoot =
             QDir(QFileInfo(options.featureDatabasePath).absolutePath()).absoluteFilePath(QStringLiteral("tensorrt-engines"));
         const QString tensorRtEngineCachePath = preferredProvider == QStringLiteral("TensorRT")
@@ -929,6 +1033,18 @@ QStringList GarmentMatcher::availableProviders()
     {
         providers.push_back(QStringLiteral("DirectML"));
     }
+    if (QFileInfo::exists(runtimeLibraryPath(QStringLiteral("windowsml"))))
+    {
+        providers.push_back(QStringLiteral("Windows ML · DirectML"));
+        providers.push_back(QStringLiteral("Windows ML · CPU"));
+        for (const auto &ep : WindowsMlExecutionProvider::providers())
+        {
+            if (ep.readyState != WindowsMlExecutionProvider::ReadyState::NotPresent)
+            {
+                providers.push_back(QStringLiteral("Windows ML · %1").arg(ep.name));
+            }
+        }
+    }
 #endif
     providers.push_back(QStringLiteral("CPU"));
     return providers;
@@ -939,8 +1055,17 @@ QString GarmentMatcher::activeProvider()
     const QString provider = startupProvider();
     return provider == QStringLiteral("tensorrt")
                ? QStringLiteral("TensorRT")
-               : (provider == QStringLiteral("cuda") ? QStringLiteral("CUDA")
-                                                     : (provider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CPU")));
+               : (provider == QStringLiteral("cuda")
+                      ? QStringLiteral("CUDA")
+                      : (provider == QStringLiteral("directml")
+                             ? QStringLiteral("DirectML")
+                             : (provider == QStringLiteral("windowsml-cpu")
+                                    ? QStringLiteral("Windows ML · CPU")
+                                    : (provider == QStringLiteral("windowsml-directml")
+                                           ? QStringLiteral("Windows ML · DirectML")
+                                           : (provider.startsWith(QStringLiteral("windowsml:"))
+                                                  ? QStringLiteral("Windows ML · %1").arg(provider.sliced(QStringLiteral("windowsml:").size()))
+                                                  : QStringLiteral("CPU"))))));
 }
 
 QString GarmentMatcher::Result::joinedStyleIds() const

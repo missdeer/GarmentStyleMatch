@@ -49,8 +49,10 @@ class MatchController : public QObject
     Q_PROPERTY(bool inputTabActive READ inputTabActive WRITE activatePreview NOTIFY inputTabActiveChanged)
     Q_PROPERTY(QStringList availableUiStyles READ availableUiStyles CONSTANT)
     Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
-    Q_PROPERTY(QStringList availableInferenceEngines READ availableInferenceEngines CONSTANT)
+    Q_PROPERTY(QStringList availableInferenceEngines READ availableInferenceEngines NOTIFY availableInferenceEnginesChanged)
     Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine CONSTANT)
+    Q_PROPERTY(QVariantList windowsMlExecutionProviders READ windowsMlExecutionProviders NOTIFY windowsMlExecutionProvidersChanged)
+    Q_PROPERTY(bool windowsMlEpOperationInProgress READ windowsMlEpOperationInProgress NOTIFY windowsMlEpOperationInProgressChanged)
     Q_PROPERTY(int parallelMatchThreadCount READ parallelMatchThreadCount WRITE setParallelMatchThreadCount NOTIFY parallelMatchThreadCountChanged)
     Q_PROPERTY(QString modelDirectory READ modelDirectory CONSTANT)
     Q_PROPERTY(bool modelsAvailable READ modelsAvailable NOTIFY modelsAvailableChanged)
@@ -140,6 +142,14 @@ public:
     {
         return m_currentInferenceEngine;
     }
+    [[nodiscard]] QVariantList windowsMlExecutionProviders() const
+    {
+        return m_windowsMlExecutionProviders;
+    }
+    [[nodiscard]] bool windowsMlEpOperationInProgress() const
+    {
+        return m_windowsMlEpOperationInProgress;
+    }
     [[nodiscard]] int parallelMatchThreadCount() const
     {
         return m_parallelMatchThreadCount;
@@ -177,6 +187,9 @@ public:
 public slots:
     bool        setCurrentUiStyle(const QString &style);
     bool        setCurrentInferenceEngine(const QString &engine);
+    void        refreshWindowsMlExecutionProviders();
+    void        installWindowsMlExecutionProvider(const QString &name);
+    bool        useWindowsMlExecutionProvider(const QString &name);
     void        downloadModels();
     void        cancelModelDownload();
     static void openModelDirectory();
@@ -236,6 +249,9 @@ signals:
     void modelDownloadInProgressChanged();
     void batchAutoMatchInProgressChanged();
     void parallelMatchThreadCountChanged();
+    void availableInferenceEnginesChanged();
+    void windowsMlExecutionProvidersChanged();
+    void windowsMlEpOperationInProgressChanged();
     void modelDownloadRequired();
     void busyChanged();
 
@@ -286,7 +302,9 @@ private:
     QString                           m_currentUiStyle;
     QStringList                       m_availableInferenceEngines;
     QString                           m_currentInferenceEngine;
-    int                               m_parallelMatchThreadCount = 1;
+    QVariantList                      m_windowsMlExecutionProviders;
+    bool                              m_windowsMlEpOperationInProgress = false;
+    int                               m_parallelMatchThreadCount       = 1;
     QVariantList                      m_autoMatchedItems;
     StoredMatchResult                 m_autoMatchResult;
     QString                           m_autoMatchImagePath;

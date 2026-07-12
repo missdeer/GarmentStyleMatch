@@ -99,6 +99,8 @@ add_executable(MatchControllerTest
     ../src/core/PptStyleExtractor.h
     ../src/core/MatchResultStore.cpp
     ../src/core/MatchResultStore.h
+    ../src/core/WindowsMlExecutionProvider.cpp
+    ../src/core/WindowsMlExecutionProvider.h
 )
 
 target_include_directories(MatchControllerTest PRIVATE
@@ -116,6 +118,7 @@ target_link_libraries(MatchControllerTest PRIVATE
     gsm_onnxruntime_headers
     ${OpenCV_LIBS}
     gsm_sqlite
+    gsm_windowsml_api
     $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
 )
 
@@ -126,6 +129,8 @@ if(GSM_MODELS_AVAILABLE)
         GarmentMatcherRuntimeTest.cpp
         ../src/core/GarmentMatcher.cpp
         ../src/core/GarmentMatcher.h
+        ../src/core/WindowsMlExecutionProvider.cpp
+        ../src/core/WindowsMlExecutionProvider.h
     )
 
     target_include_directories(GarmentMatcherRuntimeTest PRIVATE
@@ -138,6 +143,7 @@ if(GSM_MODELS_AVAILABLE)
         gsm_onnxruntime_headers
         ${OpenCV_LIBS}
         gsm_sqlite
+        gsm_windowsml_api
     )
 
     add_custom_command(TARGET GarmentMatcherRuntimeTest POST_BUILD
@@ -155,6 +161,12 @@ if(GSM_MODELS_AVAILABLE)
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/directml"
                     "$<TARGET_FILE_DIR:GarmentMatcherRuntimeTest>/onnxruntime/directml"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${GSM_WINDOWSML_RUNTIME_ROOT}"
+                    "$<TARGET_FILE_DIR:GarmentMatcherRuntimeTest>/onnxruntime/windowsml"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${GSM_WINDOWSML_RUNTIME_ROOT}/Microsoft.Windows.AI.MachineLearning.dll"
+                    "$<TARGET_FILE_DIR:GarmentMatcherRuntimeTest>"
             COMMENT "Copying Windows ONNX Runtime binaries for runtime tests"
             VERBATIM
         )
@@ -171,6 +183,8 @@ if(GSM_MODELS_AVAILABLE)
     add_test(NAME GarmentMatcherRuntimeTest COMMAND GarmentMatcherRuntimeTest)
     if(WIN32)
         add_test(NAME GarmentMatcherDirectMLRuntimeTest COMMAND GarmentMatcherRuntimeTest directml)
+        add_test(NAME GarmentMatcherWindowsMLCpuRuntimeTest COMMAND GarmentMatcherRuntimeTest "windows ml · cpu")
+        add_test(NAME GarmentMatcherWindowsMLDirectMLRuntimeTest COMMAND GarmentMatcherRuntimeTest "windows ml · directml")
         find_file(GSM_TENSORRT_NVINFER_DLL nvinfer_10.dll HINTS "$ENV{TENSORRT_ROOT}/lib")
         find_file(GSM_TENSORRT_PARSER_DLL nvonnxparser_10.dll HINTS "$ENV{TENSORRT_ROOT}/lib")
         if(EXISTS "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/cuda/onnxruntime_providers_tensorrt.dll"

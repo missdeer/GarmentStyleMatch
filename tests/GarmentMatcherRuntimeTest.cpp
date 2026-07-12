@@ -90,7 +90,12 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         const QString requestedProviderName =
             requestedProvider == QStringLiteral("tensorrt")
                 ? QStringLiteral("TensorRT")
-                : (requestedProvider == QStringLiteral("directml") ? QStringLiteral("DirectML") : QStringLiteral("CUDA"));
+                : (requestedProvider == QStringLiteral("directml")
+                       ? QStringLiteral("DirectML")
+                       : (requestedProvider == QStringLiteral("windows ml · cpu")
+                              ? QStringLiteral("Windows ML · CPU")
+                              : (requestedProvider == QStringLiteral("windows ml · directml") ? QStringLiteral("Windows ML · DirectML")
+                                                                                              : QStringLiteral("CUDA"))));
         if (!check(expectedProvider == requestedProviderName,
                    QStringLiteral("请求的 %1 推理引擎不可用，实际选择 %2").arg(requestedProviderName, expectedProvider)))
         {

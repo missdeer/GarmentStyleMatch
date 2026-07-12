@@ -33,6 +33,7 @@
 #include "PhotoListModel.h"
 #include "PptPageListModel.h"
 #include "PptStyleExtractor.h"
+#include "WindowsMlExecutionProvider.h"
 
 #ifdef Q_OS_WIN
 #    include <QAxObject>
@@ -150,6 +151,7 @@ MatchController::MatchController(QObject *parent)
     settings.setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
     m_parallelMatchThreadCount = settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount()).toInt();
     m_parallelMatchThreadCount = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
+    refreshWindowsMlExecutionProviders();
 }
 
 QStringList MatchController::systemUiStyles()
@@ -280,6 +282,69 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
 
     emit logMessage(QStringLiteral("推理引擎 %1 已保存，重启应用后生效").arg(selectedEngine));
     return true;
+}
+
+void MatchController::refreshWindowsMlExecutionProviders()
+{
+    QVariantList items;
+    QString      error;
+    for (const auto &provider : WindowsMlExecutionProvider::providers(&error))
+    {
+        QVariantMap item;
+        item.insert(QStringLiteral("name"), provider.name);
+        item.insert(QStringLiteral("version"), provider.version);
+        item.insert(QStringLiteral("state"), WindowsMlExecutionProvider::readyStateText(provider.readyState));
+        item.insert(QStringLiteral("installed"), provider.readyState != WindowsMlExecutionProvider::ReadyState::NotPresent);
+        items.push_back(item);
+    }
+    if (items != m_windowsMlExecutionProviders)
+    {
+        m_windowsMlExecutionProviders = items;
+        emit windowsMlExecutionProvidersChanged();
+    }
+
+    const QStringList engines = GarmentMatcher::availableProviders();
+    if (engines != m_availableInferenceEngines)
+    {
+        m_availableInferenceEngines = engines;
+        emit availableInferenceEnginesChanged();
+    }
+    if (!error.isEmpty())
+    {
+        emit logMessage(error);
+    }
+}
+
+void MatchController::installWindowsMlExecutionProvider(const QString &name)
+{
+    if (m_windowsMlEpOperationInProgress || name.trimmed().isEmpty())
+    {
+        return;
+    }
+    m_windowsMlEpOperationInProgress = true;
+    emit windowsMlEpOperationInProgressChanged();
+    emit logMessage(QStringLiteral("正在通过 Windows Update 下载并准备 EP：%1").arg(name));
+
+    auto *watcher = new QFutureWatcher<QString>(this);
+    connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, name] {
+        const QString error = watcher->result();
+        watcher->deleteLater();
+        m_windowsMlEpOperationInProgress = false;
+        emit windowsMlEpOperationInProgressChanged();
+        refreshWindowsMlExecutionProviders();
+        emit logMessage(error.isEmpty() ? QStringLiteral("Windows ML EP %1 已准备完成，可选择使用").arg(name) : error);
+    });
+    watcher->setFuture(QtConcurrent::run([name] {
+        QString    error;
+        const bool ready = WindowsMlExecutionProvider::ensureReady(name, &error);
+        Q_UNUSED(ready)
+        return error;
+    }));
+}
+
+bool MatchController::useWindowsMlExecutionProvider(const QString &name)
+{
+    return setCurrentInferenceEngine(QStringLiteral("Windows ML · %1").arg(name));
 }
 
 void MatchController::setParallelMatchThreadCount(int count)
