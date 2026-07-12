@@ -510,7 +510,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
 
     controller.setCurrentPhotoIndex(0);
     controller.setCurrentPhotoIndex(1);
-    if (!check(controller.copyAdjacentStyleIds(-1, QStringLiteral("upper"), false), QStringLiteral("应能复制上一张的上衣款号")))
+    if (!check(controller.copyAdjacentStyleIds(-1, QStringLiteral("upper"), QStringLiteral("cancel")), QStringLiteral("应能复制上一张的上衣款号")))
     {
         return 1;
     }
@@ -534,7 +534,8 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    if (!check(!controller.copyAdjacentStyleIds(1, QStringLiteral("all"), false), QStringLiteral("未经确认不得覆盖当前图已确认的款号")))
+    if (!check(!controller.copyAdjacentStyleIds(1, QStringLiteral("all"), QStringLiteral("cancel")),
+               QStringLiteral("选择什么都不干时不得覆盖当前图已确认的款号")))
     {
         return 1;
     }
@@ -545,7 +546,19 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    if (!check(controller.copyAdjacentStyleIds(1, QStringLiteral("all"), true), QStringLiteral("应能复制下一张的全部款号")))
+    if (!check(controller.copyAdjacentStyleIds(1, QStringLiteral("all"), QStringLiteral("unconfirmedOnly")),
+               QStringLiteral("应能只覆盖当前图未确认的款号")))
+    {
+        return 1;
+    }
+    copiedResult = MatchResultStore::load(databasePath, photoModel.at(1)->imagePath, &matchStoreError);
+    if (!check(copiedResult && copiedResult->upper.styleId == QStringLiteral("NEXT-UPPER") && !copiedResult->upper.confirmed &&
+                   copiedResult->lower.styleId == QStringLiteral("CURRENT-LOWER") && copiedResult->lower.confirmed,
+               QStringLiteral("仅覆盖未确认项时必须替换待确认上衣并保留已确认裤裙")))
+    {
+        return 1;
+    }
+    if (!check(controller.copyAdjacentStyleIds(1, QStringLiteral("all"), QStringLiteral("overwriteAll")), QStringLiteral("应能复制下一张的全部款号")))
     {
         return 1;
     }
@@ -562,7 +575,8 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    if (!check(!controller.copyStyleIdsToAdjacent(-1, QStringLiteral("upper"), false), QStringLiteral("未经确认不得覆盖上一张已确认的上衣款号")))
+    if (!check(!controller.copyStyleIdsToAdjacent(-1, QStringLiteral("upper"), QStringLiteral("cancel")),
+               QStringLiteral("选择什么都不干时不得覆盖上一张已确认的上衣款号")))
     {
         return 1;
     }
@@ -572,7 +586,13 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    if (!check(controller.copyStyleIdsToAdjacent(-1, QStringLiteral("upper"), true), QStringLiteral("应能把当前上衣款号复制到上一张")))
+    if (!check(!controller.copyStyleIdsToAdjacent(-1, QStringLiteral("upper"), QStringLiteral("unconfirmedOnly")),
+               QStringLiteral("目标部位已确认时，仅覆盖未确认项不应修改记录")))
+    {
+        return 1;
+    }
+    if (!check(controller.copyStyleIdsToAdjacent(-1, QStringLiteral("upper"), QStringLiteral("overwriteAll")),
+               QStringLiteral("应能把当前上衣款号复制到上一张")))
     {
         return 1;
     }
@@ -589,11 +609,36 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    if (!check(!controller.copyStyleIdsToAdjacent(1, QStringLiteral("all"), false), QStringLiteral("未经确认不得覆盖下一张已确认款号")))
+    if (!check(!controller.copyStyleIdsToAdjacent(1, QStringLiteral("all"), QStringLiteral("cancel")),
+               QStringLiteral("选择什么都不干时不得覆盖下一张已确认款号")))
     {
         return 1;
     }
-    if (!check(controller.copyStyleIdsToAdjacent(1, QStringLiteral("all"), true), QStringLiteral("应能把当前全部款号复制到下一张")))
+    auto partiallyConfirmedTarget = MatchResultStore::load(databasePath, photoModel.at(2)->imagePath, &matchStoreError);
+    if (!check(partiallyConfirmedTarget.has_value(), QStringLiteral("应能读取下一张款号以准备仅覆盖未确认项测试")))
+    {
+        return 1;
+    }
+    partiallyConfirmedTarget->upper = {QStringLiteral("STALE-UPPER"), QStringLiteral("stale-upper.png"), false};
+    if (!check(MatchResultStore::save(databasePath, photoModel.at(2)->imagePath, *partiallyConfirmedTarget, &matchStoreError),
+               QStringLiteral("无法准备下一张的待确认上衣款号: %1").arg(matchStoreError)))
+    {
+        return 1;
+    }
+    if (!check(controller.copyStyleIdsToAdjacent(1, QStringLiteral("all"), QStringLiteral("unconfirmedOnly")),
+               QStringLiteral("应能只覆盖下一张未确认的款号")))
+    {
+        return 1;
+    }
+    targetResult = MatchResultStore::load(databasePath, photoModel.at(2)->imagePath, &matchStoreError);
+    if (!check(targetResult && targetResult->upper.styleId == QStringLiteral("NEXT-UPPER") && !targetResult->upper.confirmed &&
+                   targetResult->lower.styleId == QStringLiteral("NEXT-LOWER") && targetResult->lower.confirmed,
+               QStringLiteral("仅覆盖未确认项时必须替换目标待确认上衣并保留已确认裤裙")))
+    {
+        return 1;
+    }
+    if (!check(controller.copyStyleIdsToAdjacent(1, QStringLiteral("all"), QStringLiteral("overwriteAll")),
+               QStringLiteral("应能把当前全部款号复制到下一张")))
     {
         return 1;
     }
@@ -607,11 +652,13 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
 
     const auto beforeBoundaryCopy = MatchResultStore::load(databasePath, photoModel.at(0)->imagePath, &matchStoreError);
     controller.setCurrentPhotoIndex(0);
-    if (!check(!controller.copyAdjacentStyleIds(-1, QStringLiteral("all"), false), QStringLiteral("第一张实拍图不应允许复制上一张款号")))
+    if (!check(!controller.copyAdjacentStyleIds(-1, QStringLiteral("all"), QStringLiteral("cancel")),
+               QStringLiteral("第一张实拍图不应允许复制上一张款号")))
     {
         return 1;
     }
-    if (!check(!controller.copyStyleIdsToAdjacent(-1, QStringLiteral("all"), false), QStringLiteral("第一张实拍图不应允许把款号复制到上一张")))
+    if (!check(!controller.copyStyleIdsToAdjacent(-1, QStringLiteral("all"), QStringLiteral("cancel")),
+               QStringLiteral("第一张实拍图不应允许把款号复制到上一张")))
     {
         return 1;
     }

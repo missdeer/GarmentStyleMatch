@@ -41,9 +41,9 @@ ApplicationWindow {
     function requestStyleIdCopy(offset, part, toAdjacent) {
         if (!controller.copyWouldOverwriteConfirmedStyleIds(offset, part, toAdjacent)) {
             if (toAdjacent)
-                controller.copyStyleIdsToAdjacent(offset, part, false)
+                controller.copyStyleIdsToAdjacent(offset, part, "cancel")
             else
-                controller.copyAdjacentStyleIds(offset, part, false)
+                controller.copyAdjacentStyleIds(offset, part, "cancel")
             return
         }
         pendingCopyOffset = offset
@@ -52,11 +52,11 @@ ApplicationWindow {
         overwriteConfirmedStyleIdsDialog.open()
     }
 
-    function overwriteConfirmedStyleIds() {
+    function copyPendingStyleIds(confirmedPolicy) {
         if (pendingCopyToAdjacent)
-            controller.copyStyleIdsToAdjacent(pendingCopyOffset, pendingCopyPart, true)
+            controller.copyStyleIdsToAdjacent(pendingCopyOffset, pendingCopyPart, confirmedPolicy)
         else
-            controller.copyAdjacentStyleIds(pendingCopyOffset, pendingCopyPart, true)
+            controller.copyAdjacentStyleIds(pendingCopyOffset, pendingCopyPart, confirmedPolicy)
     }
 
     Connections {
@@ -71,12 +71,21 @@ ApplicationWindow {
         width: Math.min(440, parent.width - 32)
         modal: true
         title: qsTr("确认覆盖款号")
-        standardButtons: Dialog.Yes | Dialog.No
+        standardButtons: Dialog.Yes | Dialog.Apply | Dialog.Cancel
         closePolicy: Popup.CloseOnEscape
-        onAccepted: root.overwriteConfirmedStyleIds()
+        onOpened: {
+            standardButton(Dialog.Yes).text = qsTr("覆盖全部")
+            standardButton(Dialog.Apply).text = qsTr("仅覆盖未确认项")
+            standardButton(Dialog.Cancel).text = qsTr("取消")
+        }
+        onAccepted: root.copyPendingStyleIds("overwriteAll")
+        onApplied: {
+            root.copyPendingStyleIds("unconfirmedOnly")
+            close()
+        }
 
         contentItem: Label {
-            text: qsTr("目标实拍图已有被确认的款号，是否仍要复制并覆盖原有款号？")
+            text: qsTr("目标实拍图已有被确认的款号，请选择复制方式。")
             wrapMode: Text.Wrap
         }
     }
