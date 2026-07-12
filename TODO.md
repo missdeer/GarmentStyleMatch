@@ -1,4 +1,0 @@
-- 在中间面板实拍图显示区域左侧增加“上一张”和“下一张”预览小图，上下水平布局，类似右侧的匹配到款号小图预览
-- Add TensorRT backend.
-- Add Windows ML support. Ref. https://learn.microsoft.com/en-us/windows/ai/new-windows-ml/overview
-- Run & Fix clang-tidy warnings
