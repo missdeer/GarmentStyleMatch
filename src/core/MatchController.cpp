@@ -13,9 +13,6 @@
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QLibraryInfo>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QPointer>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -31,6 +28,7 @@
 #include "CandidateListModel.h"
 #include "GalleryListModel.h"
 #include "GarmentMatcher.h"
+#include "HttpDownloader.h"
 #include "PhotoListModel.h"
 #include "PptPageListModel.h"
 #include "PptStyleExtractor.h"
@@ -45,7 +43,6 @@
 namespace
 {
     constexpr qint64 kBytesPerKibibyte        = 1024;
-    constexpr qint64 kModelDownloadSize       = 512778784;
     constexpr int    kMaxParallelMatchThreads = 8;
 
     enum class ConfirmedStyleIdCopyPolicy : std::uint8_t
@@ -61,20 +58,19 @@ namespace
         QString    fileName;
         QUrl       url;
         QByteArray sha256;
-        qint64     size;
     };
 
     const std::array<ModelDownload, 2> &modelDownloads()
     {
         static const std::array<ModelDownload, 2> downloads = {
             ModelDownload {QStringLiteral("clothes_segformer_b2.onnx"),
-                           QUrl(QStringLiteral("https://huggingface.co/mattmdjaga/segformer_b2_clothes/resolve/main/onnx/model.onnx")),
-                           QByteArrayLiteral("a93a8dac171b5c1fcc53632a8bfc180bfd9759ea69a3e207451bb07f76add54f"),
-                           110039290},
+                           QUrl(QStringLiteral("https://huggingface.co/mattmdjaga/segformer_b2_clothes/resolve/"
+                                               "584abc1e1d260e23c0fc627c5217a09b2b461046/onnx/model.onnx")),
+                           QByteArrayLiteral("a93a8dac171b5c1fcc53632a8bfc180bfd9759ea69a3e207451bb07f76add54f")},
             ModelDownload {QStringLiteral("fashion_clip.onnx"),
-                           QUrl(QStringLiteral("https://huggingface.co/patrickjohncyh/fashion-clip/resolve/main/onnx/model.onnx")),
-                           QByteArrayLiteral("dc4c724479e49d1da9598969125353113a341bd4fd5a1dbc7d528d3f1545bba9"),
-                           402739494},
+                           QUrl(QStringLiteral("https://huggingface.co/patrickjohncyh/fashion-clip/resolve/"
+                                               "7e3ba62ce16b379a1ab479346b66f192e76f51b7/onnx/model.onnx")),
+                           QByteArrayLiteral("dc4c724479e49d1da9598969125353113a341bd4fd5a1dbc7d528d3f1545bba9")},
         };
         return downloads;
     }
@@ -461,8 +457,6 @@ void MatchController::downloadModels()
     m_modelDownloadInProgress            = true;
     m_modelDownloadCancellationRequested = false;
     m_modelDownloadIndex                 = 0;
-    m_modelDownloadBytesCompleted        = 0;
-    m_modelDownloadError.clear();
     emit modelDownloadInProgressChanged();
     emit logMessage(QStringLiteral("正在下载并校验模型，首次下载可能需要较长时间..."));
     startNextModelDownload();
@@ -477,9 +471,9 @@ void MatchController::cancelModelDownload()
 
     m_modelDownloadCancellationRequested = true;
     emit logMessage(QStringLiteral("正在停止模型下载..."));
-    if (m_modelDownloadReply)
+    if (m_httpDownloader && m_httpDownloader->isDownloading())
     {
-        m_modelDownloadReply->abort();
+        m_httpDownloader->cancel();
     }
     else if (m_modelDownloadProcess)
     {
@@ -502,7 +496,6 @@ void MatchController::startNextModelDownload() // NOLINT(readability-function-co
         {
             break;
         }
-        m_modelDownloadBytesCompleted += download.size;
         ++m_modelDownloadIndex;
     }
 
@@ -527,77 +520,45 @@ void MatchController::startNextModelDownload() // NOLINT(readability-function-co
 
     const ModelDownload &download = downloads.at(m_modelDownloadIndex);
     const QString        path     = packagesDir.absoluteFilePath(download.fileName);
-    QFile::remove(path);
-    auto *file = new QFile(path);
-    if (!file->open(QIODevice::WriteOnly))
+    if (!m_httpDownloader)
     {
-        const QString error = file->errorString();
-        delete file;
-        finishModelDownload(QStringLiteral("下载模型失败：%1").arg(error));
-        return;
+        m_httpDownloader = new HttpDownloader(this);
+        connect(m_httpDownloader, &HttpDownloader::progress, this, [this](qint64 received, qint64 total) {
+            const auto &downloads = modelDownloads();
+            if (m_modelDownloadIndex >= static_cast<int>(downloads.size()))
+            {
+                return;
+            }
+            if (total <= 0)
+            {
+                return;
+            }
+            const int percent = static_cast<int>(qBound<qint64>(qint64 {0}, received * 100 / total, qint64 {100}));
+            emit      logMessage(QStringLiteral("正在下载模型：%1 %2%").arg(downloads.at(m_modelDownloadIndex).fileName).arg(percent));
+        });
+        connect(m_httpDownloader, &HttpDownloader::finished, this, [this] {
+            const auto &downloads = modelDownloads();
+            if (!m_modelDownloadInProgress || m_modelDownloadIndex >= static_cast<int>(downloads.size()))
+            {
+                return;
+            }
+            const ModelDownload &completed = downloads.at(m_modelDownloadIndex);
+            const QString        path = QDir(QDir(modelSetupDir()).absoluteFilePath(QStringLiteral("packages"))).absoluteFilePath(completed.fileName);
+            if (!fileMatchesSha256(path, completed.sha256))
+            {
+                QFile::remove(path);
+                finishModelDownload(QStringLiteral("下载模型失败：%1 的 SHA-256 校验不匹配").arg(completed.fileName));
+                return;
+            }
+            ++m_modelDownloadIndex;
+            startNextModelDownload();
+        });
+        connect(m_httpDownloader, &HttpDownloader::failed, this, [this](const QString &error) {
+            finishModelDownload(QStringLiteral("下载模型失败：%1").arg(error));
+        });
+        connect(m_httpDownloader, &HttpDownloader::canceled, this, [this] { finishModelDownload(QStringLiteral("模型下载已停止")); });
     }
-
-    if (!m_modelDownloadNetworkManager)
-    {
-        m_modelDownloadNetworkManager = new QNetworkAccessManager(this);
-    }
-    QNetworkRequest request(download.url);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("GarmentStyleMatch/%1").arg(QCoreApplication::applicationVersion()));
-    auto *reply          = m_modelDownloadNetworkManager->get(request);
-    m_modelDownloadReply = reply;
-
-    connect(reply, &QNetworkReply::readyRead, this, [this, reply, file] {
-        const QByteArray data = reply->readAll();
-        if (file->write(data) != data.size() && m_modelDownloadError.isEmpty())
-        {
-            m_modelDownloadError = QStringLiteral("写入模型临时文件失败：%1").arg(file->errorString());
-            reply->abort();
-        }
-    });
-    connect(reply, &QNetworkReply::downloadProgress, this, [this, download](qint64 received, qint64) {
-        const qint64 totalReceived = m_modelDownloadBytesCompleted + received;
-        const int    percent       = static_cast<int>(qBound<qint64>(qint64 {0}, totalReceived * 100 / kModelDownloadSize, qint64 {100}));
-        emit         logMessage(QStringLiteral("正在下载模型：%1 %2%").arg(download.fileName).arg(percent));
-    });
-    connect(reply, &QNetworkReply::finished, this, [this, reply, file, path, download] {
-        const QByteArray remaining = reply->readAll();
-        if (!remaining.isEmpty() && file->write(remaining) != remaining.size() && m_modelDownloadError.isEmpty())
-        {
-            m_modelDownloadError = QStringLiteral("写入模型临时文件失败：%1").arg(file->errorString());
-        }
-        file->close();
-        m_modelDownloadReply = nullptr;
-        file->deleteLater();
-        const QNetworkReply::NetworkError networkError     = reply->error();
-        const QString                     networkErrorText = reply->errorString();
-        reply->deleteLater();
-
-        if (m_modelDownloadCancellationRequested)
-        {
-            QFile::remove(path);
-            finishModelDownload(QStringLiteral("模型下载已停止"));
-            return;
-        }
-        if (!m_modelDownloadError.isEmpty() || networkError != QNetworkReply::NoError)
-        {
-            QFile::remove(path);
-            finishModelDownload(m_modelDownloadError.isEmpty() ? QStringLiteral("下载模型失败：%1").arg(networkErrorText)
-                                                               : QStringLiteral("下载模型失败：%1").arg(m_modelDownloadError));
-            return;
-        }
-        if (!fileMatchesSha256(path, download.sha256))
-        {
-            QFile::remove(path);
-            finishModelDownload(QStringLiteral("下载模型失败：%1 的 SHA-256 校验不匹配").arg(download.fileName));
-            return;
-        }
-
-        m_modelDownloadBytesCompleted += download.size;
-        ++m_modelDownloadIndex;
-        m_modelDownloadError.clear();
-        startNextModelDownload();
-    });
+    m_httpDownloader->download(download.url, path);
 }
 
 void MatchController::startPythonDependencyInstall()

@@ -17,11 +17,10 @@
 
 class CandidateListModel;
 class GalleryListModel;
+class HttpDownloader;
 class PhotoListModel;
 class PptPageListModel;
 enum class PhotoMatchStatus : std::uint8_t;
-class QNetworkAccessManager;
-class QNetworkReply;
 class QProcess;
 
 class MatchController : public QObject
@@ -316,11 +315,8 @@ private:
     bool                              m_batchAutoMatchInProgress           = false;
     bool                              m_modelDownloadCancellationRequested = false;
     int                               m_modelDownloadIndex                 = 0;
-    qint64                            m_modelDownloadBytesCompleted        = 0;
-    QNetworkAccessManager            *m_modelDownloadNetworkManager        = nullptr;
-    QNetworkReply                    *m_modelDownloadReply                 = nullptr;
+    HttpDownloader                   *m_httpDownloader                     = nullptr;
     QProcess                         *m_modelDownloadProcess               = nullptr;
-    QString                           m_modelDownloadError;
     QString                           m_pythonExecutable;
     QString                           m_pythonPackagesDir;
     std::shared_ptr<std::atomic_bool> m_batchAutoMatchCancellation;

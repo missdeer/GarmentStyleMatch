@@ -81,10 +81,29 @@ target_link_libraries(MatchResultStoreTest PRIVATE
 
 add_test(NAME MatchResultStoreTest COMMAND MatchResultStoreTest)
 
+add_executable(HttpDownloaderTest
+    HttpDownloaderTest.cpp
+    ../src/core/HttpDownloader.cpp
+    ../src/core/HttpDownloader.h
+)
+
+target_include_directories(HttpDownloaderTest PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/core
+)
+
+target_link_libraries(HttpDownloaderTest PRIVATE
+    Qt6::Core
+    Qt6::Network
+)
+
+add_test(NAME HttpDownloaderTest COMMAND HttpDownloaderTest)
+
 add_executable(MatchControllerTest
     MatchControllerTest.cpp
     ../src/core/MatchController.cpp
     ../src/core/MatchController.h
+    ../src/core/HttpDownloader.cpp
+    ../src/core/HttpDownloader.h
     ../src/core/GarmentMatcher.cpp
     ../src/core/GarmentMatcher.h
     ../src/core/CandidateListModel.cpp
@@ -101,6 +120,15 @@ add_executable(MatchControllerTest
     ../src/core/MatchResultStore.h
     ../src/core/WindowsMlExecutionProvider.cpp
     ../src/core/WindowsMlExecutionProvider.h
+)
+
+# Keep the test object's MatchController layout synchronized even when localized
+# MSVC /showIncludes output prevents Ninja from discovering header dependencies.
+set_property(SOURCE MatchControllerTest.cpp APPEND PROPERTY
+    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/MatchController.h"
+)
+set_property(SOURCE ../src/core/MatchController.cpp APPEND PROPERTY
+    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/HttpDownloader.h"
 )
 
 target_include_directories(MatchControllerTest PRIVATE

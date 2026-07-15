@@ -1,6 +1,7 @@
 set(GSM_SOURCES
     main.cpp
     core/MatchController.cpp
+    core/HttpDownloader.cpp
     core/CandidateListModel.cpp
     core/GalleryListModel.cpp
     core/PhotoListModel.cpp
@@ -14,6 +15,7 @@ set(GSM_SOURCES
 
 set(GSM_HEADERS
     core/MatchController.h
+    core/HttpDownloader.h
     core/CandidateListModel.h
     core/GalleryListModel.h
     core/PhotoListModel.h
