@@ -416,6 +416,16 @@ QString MatchController::findAvailableModelDirectory(const QString &applicationM
     return hasRequiredModels(localModelsDir) ? localModelsDir : QString();
 }
 
+bool MatchController::modelFilesExistInDirectories(const QString &applicationModelsDir, const QString &localModelsDir)
+{
+    const auto containsModelFile = [](const QString &directory) {
+        const QDir models(directory);
+        return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile() ||
+               QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
+    };
+    return containsModelFile(applicationModelsDir) || containsModelFile(localModelsDir);
+}
+
 QString MatchController::availableModelDirectory()
 {
     return findAvailableModelDirectory(applicationModelDirectory(), modelDirectory());
@@ -426,6 +436,11 @@ bool MatchController::modelsAvailable()
     const QDir models(modelDirectory());
     return QFileInfo(models.absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"))).isFile() &&
            QFileInfo(models.absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"))).isFile();
+}
+
+bool MatchController::modelFilesExist()
+{
+    return modelFilesExistInDirectories(applicationModelDirectory(), modelDirectory());
 }
 
 void MatchController::downloadModels()

@@ -157,6 +157,7 @@ public:
     [[nodiscard]] static QString modelDirectory();
     [[nodiscard]] static QString applicationModelDirectory();
     [[nodiscard]] static QString findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir);
+    [[nodiscard]] static bool    modelFilesExistInDirectories(const QString &applicationModelsDir, const QString &localModelsDir);
     [[nodiscard]] static QString availableModelDirectory();
     [[nodiscard]] static bool    modelsAvailable();
     [[nodiscard]] bool           modelDownloadInProgress() const
@@ -185,14 +186,15 @@ public:
     void setParallelMatchThreadCount(int count);
 
 public slots:
-    bool        setCurrentUiStyle(const QString &style);
-    bool        setCurrentInferenceEngine(const QString &engine);
-    void        refreshWindowsMlExecutionProviders();
-    void        installWindowsMlExecutionProvider(const QString &name);
-    bool        useWindowsMlExecutionProvider(const QString &name);
-    void        downloadModels();
-    void        cancelModelDownload();
-    static void openModelDirectory();
+    bool                      setCurrentUiStyle(const QString &style);
+    bool                      setCurrentInferenceEngine(const QString &engine);
+    void                      refreshWindowsMlExecutionProviders();
+    void                      installWindowsMlExecutionProvider(const QString &name);
+    bool                      useWindowsMlExecutionProvider(const QString &name);
+    [[nodiscard]] static bool modelFilesExist();
+    void                      downloadModels();
+    void                      cancelModelDownload();
+    static void               openModelDirectory();
 
     void loadDemoData();
     void restorePersistentState();

@@ -95,6 +95,31 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     const QString applicationModelsDir = modelRoot.filePath(QStringLiteral("application-models"));
     const QString localModelsDir       = modelRoot.filePath(QStringLiteral("local-models"));
     if (!check(modelRoot.mkpath(QStringLiteral("application-models")) && modelRoot.mkpath(QStringLiteral("local-models")) &&
+                   createFile(QDir(applicationModelsDir).filePath(QStringLiteral("readme.txt"))),
+               QStringLiteral("无法创建模型文件检测测试目录")))
+    {
+        return 1;
+    }
+    if (!check(!MatchController::modelFilesExistInDirectories(applicationModelsDir, localModelsDir),
+               QStringLiteral("模型目录中的无关文件不得触发重新下载确认")))
+    {
+        return 1;
+    }
+    const QString applicationSegmentationModel = QDir(applicationModelsDir).filePath(QStringLiteral("clothes_segformer_b2.onnx"));
+    if (!check(createFile(applicationSegmentationModel) && MatchController::modelFilesExistInDirectories(applicationModelsDir, localModelsDir),
+               QStringLiteral("applicationDir/models 中存在任一模型文件时必须触发重新下载确认")))
+    {
+        return 1;
+    }
+    QFile::remove(applicationSegmentationModel);
+    const QString localEmbeddingModel = QDir(localModelsDir).filePath(QStringLiteral("fashion_clip_vision.onnx"));
+    if (!check(createFile(localEmbeddingModel) && MatchController::modelFilesExistInDirectories(applicationModelsDir, localModelsDir),
+               QStringLiteral("LocalAppData/models 中存在任一模型文件时必须触发重新下载确认")))
+    {
+        return 1;
+    }
+    QFile::remove(localEmbeddingModel);
+    if (!check(modelRoot.mkpath(QStringLiteral("application-models")) && modelRoot.mkpath(QStringLiteral("local-models")) &&
                    createFile(QDir(applicationModelsDir).filePath(QStringLiteral("clothes_segformer_b2.onnx"))) &&
                    createFile(QDir(applicationModelsDir).filePath(QStringLiteral("fashion_clip_vision.onnx"))) &&
                    createFile(QDir(localModelsDir).filePath(QStringLiteral("clothes_segformer_b2.onnx"))) &&

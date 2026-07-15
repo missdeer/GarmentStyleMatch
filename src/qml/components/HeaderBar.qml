@@ -59,6 +59,8 @@ Rectangle {
             onTriggered: {
                 if (controller.modelDownloadInProgress)
                     controller.cancelModelDownload()
+                else if (controller.modelFilesExist())
+                    overwriteModelsDialog.open()
                 else
                     controller.downloadModels()
             }
@@ -107,6 +109,27 @@ Rectangle {
 
         contentItem: Label {
             text: qsTr("未找到可用的服装匹配模型。请从顶部“下载模型”菜单触发下载。")
+            wrapMode: Text.Wrap
+        }
+    }
+
+    Dialog {
+        id: overwriteModelsDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(440, parent.width - 32)
+        modal: true
+        title: qsTr("确认重新下载模型")
+        standardButtons: Dialog.Yes | Dialog.Cancel
+        closePolicy: Popup.CloseOnEscape
+        onOpened: {
+            standardButton(Dialog.Yes).text = qsTr("重新下载并覆盖")
+            standardButton(Dialog.Cancel).text = qsTr("取消")
+        }
+        onAccepted: controller.downloadModels()
+
+        contentItem: Label {
+            text: qsTr("检测到已有模型文件。是否确认重新下载并覆盖原有的模型文件？")
             wrapMode: Text.Wrap
         }
     }
