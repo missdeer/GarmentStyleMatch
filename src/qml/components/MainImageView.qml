@@ -12,6 +12,10 @@ Rectangle {
     property bool showAdjacentPhotoPreviews: false
     property string previousPhotoPath: ""
     property string nextPhotoPath: ""
+    property int previousPhotoUpperMatchStatus: 0
+    property int previousPhotoLowerMatchStatus: 0
+    property int nextPhotoUpperMatchStatus: 0
+    property int nextPhotoLowerMatchStatus: 0
     property int    pageIndex: 0
     property int    pageCount: 0
     property bool   previousEnabled: pageIndex > 0
@@ -27,6 +31,23 @@ Rectangle {
     signal openOriginal()
     signal matchConfirmed(string part)
     signal matchRejected(string part)
+
+    function matchStatusMarker(status) {
+        return status === 2 ? "✓" : (status === 1 ? "-" : " ")
+    }
+
+    function matchStatusToolTip(garment, status) {
+        const state = status === 2 ? qsTr("已确认") : (status === 1 ? qsTr("已匹配未确认") : qsTr("未匹配"))
+        return qsTr("%1：%2").arg(garment).arg(state)
+    }
+
+    function matchStatusBackground(status) {
+        return status === 2 ? "#dff2e1" : (status === 1 ? "#fff0c2" : "#e3e8ed")
+    }
+
+    function matchStatusBorder(status) {
+        return status === 2 ? "#68a871" : (status === 1 ? "#c89a32" : "#9eabb6")
+    }
 
     color: "#ffffff"
     border.color: "#dee3e8"
@@ -55,8 +76,10 @@ Rectangle {
 
                     Repeater {
                         model: [
-                            { label: qsTr("上一张"), path: root.previousPhotoPath, offset: -1 },
-                            { label: qsTr("下一张"), path: root.nextPhotoPath, offset: 1 }
+                            { label: qsTr("上一张"), path: root.previousPhotoPath, offset: -1,
+                              upperStatus: root.previousPhotoUpperMatchStatus, lowerStatus: root.previousPhotoLowerMatchStatus },
+                            { label: qsTr("下一张"), path: root.nextPhotoPath, offset: 1,
+                              upperStatus: root.nextPhotoUpperMatchStatus, lowerStatus: root.nextPhotoLowerMatchStatus }
                         ]
 
                         delegate: Rectangle {
@@ -78,6 +101,38 @@ Rectangle {
                                 sourceSize.height: 384
                                 fillMode: Image.PreserveAspectFit
                                 asynchronous: true
+                            }
+
+                            Row {
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 5
+                                spacing: 4
+                                visible: adjacentCell.modelData.path !== ""
+                                z: 1
+
+                                Repeater {
+                                    model: [
+                                        { garment: qsTr("上衣"), status: adjacentCell.modelData.upperStatus },
+                                        { garment: qsTr("裤裙"), status: adjacentCell.modelData.lowerStatus }
+                                    ]
+
+                                    delegate: Button {
+                                        required property var modelData
+                                        width: 28
+                                        height: 28
+                                        text: root.matchStatusMarker(modelData.status)
+                                        font.pixelSize: 18
+                                        background: Rectangle {
+                                            color: root.matchStatusBackground(modelData.status)
+                                            border.color: root.matchStatusBorder(modelData.status)
+                                            radius: 2
+                                        }
+                                        ToolTip.visible: hovered
+                                        ToolTip.text: root.matchStatusToolTip(modelData.garment, modelData.status)
+                                        onClicked: adjacentCell.modelData.offset < 0 ? root.prev() : root.next()
+                                    }
+                                }
                             }
 
                             Label {

@@ -467,6 +467,17 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     });
     controller.setCurrentPhotoIndex(1);
     controller.setCurrentPhotoIndex(0);
+    controller.setCurrentPhotoIndex(2);
+    controller.setCurrentPhotoIndex(1);
+    if (!check(controller.previousPhotoUpperMatchStatus() == static_cast<int>(PhotoMatchStatus::Confirmed) &&
+                   controller.previousPhotoLowerMatchStatus() == static_cast<int>(PhotoMatchStatus::Confirmed) &&
+                   controller.nextPhotoUpperMatchStatus() == static_cast<int>(PhotoMatchStatus::Confirmed) &&
+                   controller.nextPhotoLowerMatchStatus() == static_cast<int>(PhotoMatchStatus::Confirmed),
+               QStringLiteral("相邻实拍预览必须暴露上一张和下一张的上衣、裤裙匹配状态")))
+    {
+        return 1;
+    }
+    controller.setCurrentPhotoIndex(0);
     if (!check(photoModel.data(photoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt() == static_cast<int>(PhotoMatchStatus::Confirmed) &&
                    photoModel.data(photoModel.index(0), PhotoListModel::LowerMatchStatusRole).toInt() ==
                        static_cast<int>(PhotoMatchStatus::Confirmed),
@@ -625,6 +636,12 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     if (!check(targetResult && targetResult->upper.styleId == QStringLiteral("NEXT-UPPER") && !targetResult->upper.confirmed &&
                    targetResult->lower.styleId == QStringLiteral("PREVIOUS-LOWER") && targetResult->lower.confirmed,
                QStringLiteral("只复制上衣到上一张时应保留目标裤裙记录")))
+    {
+        return 1;
+    }
+    if (!check(controller.previousPhotoUpperMatchStatus() == static_cast<int>(PhotoMatchStatus::Matched) &&
+                   controller.previousPhotoLowerMatchStatus() == static_cast<int>(PhotoMatchStatus::Confirmed),
+               QStringLiteral("相邻实拍图的款号状态变更后，预览标记必须立即更新")))
     {
         return 1;
     }

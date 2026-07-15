@@ -36,6 +36,10 @@ class MatchController : public QObject
     Q_PROPERTY(QString currentPhotoPath READ currentPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString previousPhotoPath READ previousPhotoPath NOTIFY currentPhotoPathChanged)
     Q_PROPERTY(QString nextPhotoPath READ nextPhotoPath NOTIFY currentPhotoPathChanged)
+    Q_PROPERTY(int previousPhotoUpperMatchStatus READ previousPhotoUpperMatchStatus NOTIFY adjacentPhotoMatchStatusesChanged)
+    Q_PROPERTY(int previousPhotoLowerMatchStatus READ previousPhotoLowerMatchStatus NOTIFY adjacentPhotoMatchStatusesChanged)
+    Q_PROPERTY(int nextPhotoUpperMatchStatus READ nextPhotoUpperMatchStatus NOTIFY adjacentPhotoMatchStatusesChanged)
+    Q_PROPERTY(int nextPhotoLowerMatchStatus READ nextPhotoLowerMatchStatus NOTIFY adjacentPhotoMatchStatusesChanged)
     Q_PROPERTY(QString currentStyleId READ currentStyleId NOTIFY currentStyleIdChanged)
     Q_PROPERTY(QVariantList autoMatchedItems READ autoMatchedItems NOTIFY autoMatchedItemsChanged)
     Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
@@ -88,6 +92,10 @@ public:
     [[nodiscard]] QString      currentPhotoPath() const;
     [[nodiscard]] QString      previousPhotoPath() const;
     [[nodiscard]] QString      nextPhotoPath() const;
+    [[nodiscard]] int          previousPhotoUpperMatchStatus() const;
+    [[nodiscard]] int          previousPhotoLowerMatchStatus() const;
+    [[nodiscard]] int          nextPhotoUpperMatchStatus() const;
+    [[nodiscard]] int          nextPhotoLowerMatchStatus() const;
     [[nodiscard]] QString      currentStyleId() const;
     [[nodiscard]] QVariantList autoMatchedItems() const
     {
@@ -236,6 +244,7 @@ signals:
     void currentImagePathChanged();
     void currentOutputImagePathsChanged();
     void currentPhotoPathChanged();
+    void adjacentPhotoMatchStatusesChanged();
     void currentStyleIdChanged();
     void autoMatchedItemsChanged();
     void categoryFilterChanged();
@@ -271,6 +280,7 @@ private:
     void                  rebuildAutoMatchedItems();
     void                  refreshPhotoMatchStatuses();
     void                  updatePhotoMatchStatuses(const QString &imagePath, const StoredMatchResult &result);
+    [[nodiscard]] int     adjacentPhotoMatchStatus(int offset, bool upper) const;
     void                  navigatePhoto(int direction, PhotoNavigationFilter filter);
     bool                  persistAutoMatchResult(QString *error = nullptr) const;
     [[nodiscard]] QString matchDatabasePath() const;

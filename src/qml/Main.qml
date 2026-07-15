@@ -152,6 +152,10 @@ ApplicationWindow {
                         showAdjacentPhotoPreviews: candidatePanel.inputTabActive
                         previousPhotoPath: controller.previousPhotoPath
                         nextPhotoPath:     controller.nextPhotoPath
+                        previousPhotoUpperMatchStatus: controller.previousPhotoUpperMatchStatus
+                        previousPhotoLowerMatchStatus: controller.previousPhotoLowerMatchStatus
+                        nextPhotoUpperMatchStatus: controller.nextPhotoUpperMatchStatus
+                        nextPhotoLowerMatchStatus: controller.nextPhotoLowerMatchStatus
                         pageIndex:       controller.currentImagePage
                         pageCount:       controller.currentImageCount
                         previousEnabled: candidatePanel.inputTabActive

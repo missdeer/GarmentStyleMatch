@@ -227,10 +227,16 @@ void MatchController::setGalleryModel(GalleryListModel *m)
 
 void MatchController::setPhotoModel(PhotoListModel *m)
 {
+    if (m_photoModel)
+    {
+        disconnect(m_photoModel, nullptr, this, nullptr);
+    }
     m_photoModel = m;
     if (m_photoModel)
     {
         m_photoModel->setFilterText(m_inputFilterText);
+        connect(m_photoModel, &PhotoListModel::dataChanged, this, &MatchController::adjacentPhotoMatchStatusesChanged);
+        connect(m_photoModel, &PhotoListModel::modelReset, this, &MatchController::adjacentPhotoMatchStatusesChanged);
     }
 }
 
@@ -803,6 +809,26 @@ QString MatchController::nextPhotoPath() const
     return photo ? photo->imagePath : QString();
 }
 
+int MatchController::previousPhotoUpperMatchStatus() const
+{
+    return adjacentPhotoMatchStatus(-1, true);
+}
+
+int MatchController::previousPhotoLowerMatchStatus() const
+{
+    return adjacentPhotoMatchStatus(-1, false);
+}
+
+int MatchController::nextPhotoUpperMatchStatus() const
+{
+    return adjacentPhotoMatchStatus(1, true);
+}
+
+int MatchController::nextPhotoLowerMatchStatus() const
+{
+    return adjacentPhotoMatchStatus(1, false);
+}
+
 QString MatchController::currentStyleId() const
 {
     if (m_previewSource == PreviewPhoto)
@@ -862,6 +888,7 @@ void MatchController::setCurrentPhotoIndex(int idx)
     settings.setValue(QStringLiteral("preview/inputTabActive"), true);
     emit currentPhotoIndexChanged();
     emit currentPhotoPathChanged();
+    emit adjacentPhotoMatchStatusesChanged();
     emitCurrentChanged();
     if (sourceChanged)
     {
@@ -2321,6 +2348,20 @@ void MatchController::updatePhotoMatchStatuses(const QString &imagePath, const S
         return;
     }
     m_photoModel->setMatchStatuses(imagePath, photoMatchStatus(result.upper), photoMatchStatus(result.lower));
+}
+
+int MatchController::adjacentPhotoMatchStatus(int offset, bool upper) const
+{
+    if (!m_photoModel)
+    {
+        return static_cast<int>(PhotoMatchStatus::Unmatched);
+    }
+    const PhotoItem *photo = m_photoModel->at(m_currentPhotoIndex + offset);
+    if (!photo)
+    {
+        return static_cast<int>(PhotoMatchStatus::Unmatched);
+    }
+    return static_cast<int>(upper ? photo->upperMatchStatus : photo->lowerMatchStatus);
 }
 
 bool MatchController::persistAutoMatchResult(QString *error) const
