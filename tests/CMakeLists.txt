@@ -68,6 +68,10 @@ add_executable(MatchResultStoreTest
     MatchResultStoreTest.cpp
     ../src/core/MatchResultStore.cpp
     ../src/core/MatchResultStore.h
+    ../src/core/SQLiteDB.cpp
+    ../src/core/SQLiteDB.h
+    ../src/core/SQLiteStatement.cpp
+    ../src/core/SQLiteStatement.h
 )
 
 target_include_directories(MatchResultStoreTest PRIVATE
@@ -118,6 +122,10 @@ add_executable(MatchControllerTest
     ../src/core/PptStyleExtractor.h
     ../src/core/MatchResultStore.cpp
     ../src/core/MatchResultStore.h
+    ../src/core/SQLiteDB.cpp
+    ../src/core/SQLiteDB.h
+    ../src/core/SQLiteStatement.cpp
+    ../src/core/SQLiteStatement.h
     ../src/core/WindowsMlExecutionProvider.cpp
     ../src/core/WindowsMlExecutionProvider.h
 )
@@ -157,6 +165,10 @@ if(GSM_MODELS_AVAILABLE)
         GarmentMatcherRuntimeTest.cpp
         ../src/core/GarmentMatcher.cpp
         ../src/core/GarmentMatcher.h
+        ../src/core/SQLiteDB.cpp
+        ../src/core/SQLiteDB.h
+        ../src/core/SQLiteStatement.cpp
+        ../src/core/SQLiteStatement.h
         ../src/core/WindowsMlExecutionProvider.cpp
         ../src/core/WindowsMlExecutionProvider.h
     )

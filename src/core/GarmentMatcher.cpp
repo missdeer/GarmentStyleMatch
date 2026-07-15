@@ -14,7 +14,6 @@
 #define ORT_API_MANUAL_INIT
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/imgproc.hpp>
-#include <sqlite3.h>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -26,6 +25,8 @@
 #include <QSettings>
 
 #include "GarmentMatcher.h"
+#include "SQLiteDB.h"
+#include "SQLiteStatement.h"
 #include "WindowsMlExecutionProvider.h"
 
 // ONNX Runtime/OpenCV interop requires C function-pointer casts, raw image buffers, and model-defined tensor indices and dimensions.
@@ -35,31 +36,6 @@ namespace
 {
 
     constexpr int kEmbeddingSize = 512;
-
-    struct SqliteDeleter
-    {
-        void operator()(sqlite3 *database) const
-        {
-            if (database)
-            {
-                sqlite3_close(database);
-            }
-        }
-    };
-
-    struct StatementDeleter
-    {
-        void operator()(sqlite3_stmt *statement) const
-        {
-            if (statement)
-            {
-                sqlite3_finalize(statement);
-            }
-        }
-    };
-
-    using Database  = std::unique_ptr<sqlite3, SqliteDeleter>;
-    using Statement = std::unique_ptr<sqlite3_stmt, StatementDeleter>;
 
     using OrtGetApiBaseFunction      = const OrtApiBase *(ORT_API_CALL *)();
     using AppendDmlFunction          = OrtStatus *(ORT_API_CALL *)(OrtSessionOptions *, int);
@@ -746,101 +722,67 @@ namespace
         return QStringLiteral("%1:%2").arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());
     }
 
-    void executeSql(sqlite3 *database, const char *sql)
+    void requireSqlite(bool success, const QString &error)
     {
-        char *error = nullptr;
-        if (sqlite3_exec(database, sql, nullptr, nullptr, &error) != SQLITE_OK)
+        if (!success)
         {
-            const QString message = QString::fromUtf8(error ? error : "SQLite error");
-            sqlite3_free(error);
-            throw std::runtime_error(message.toStdString());
+            throw std::runtime_error(error.toStdString());
         }
     }
 
-    [[nodiscard]] Database openDatabase(const QString &path)
+    [[nodiscard]] SQLiteDB openDatabase(const QString &path)
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
-        sqlite3         *rawDatabase = nullptr;
-        const QByteArray encodedPath = path.toUtf8();
-        if (sqlite3_open(encodedPath.constData(), &rawDatabase) != SQLITE_OK)
-        {
-            const QString message = rawDatabase ? QString::fromUtf8(sqlite3_errmsg(rawDatabase)) : QStringLiteral("无法创建 SQLite 特征库");
-            if (rawDatabase)
-            {
-                sqlite3_close(rawDatabase);
-            }
-            throw std::runtime_error(message.toStdString());
-        }
-        Database database(rawDatabase);
-        executeSql(database.get(),
-                   "CREATE TABLE IF NOT EXISTS image_embeddings("
-                   "path TEXT PRIMARY KEY, style_id TEXT NOT NULL, file_size INTEGER NOT NULL, "
-                   "modified_ms INTEGER NOT NULL, model_key TEXT NOT NULL, embedding BLOB NOT NULL)");
+        SQLiteDB database(path);
+        requireSqlite(static_cast<bool>(database), database.errorMessage());
+        requireSqlite(database.execute("CREATE TABLE IF NOT EXISTS image_embeddings("
+                                       "path TEXT PRIMARY KEY, style_id TEXT NOT NULL, file_size INTEGER NOT NULL, "
+                                       "modified_ms INTEGER NOT NULL, model_key TEXT NOT NULL, embedding BLOB NOT NULL)"),
+                      database.errorMessage());
         return database;
     }
 
-    [[nodiscard]] Statement prepare(sqlite3 *database, const char *sql)
+    [[nodiscard]] std::optional<std::vector<float>> cachedEmbedding(SQLiteDB &database, const GalleryItem &item, const QString &embeddingModelKey)
     {
-        sqlite3_stmt *rawStatement = nullptr;
-        if (sqlite3_prepare_v2(database, sql, -1, &rawStatement, nullptr) != SQLITE_OK)
-        {
-            throw std::runtime_error(sqlite3_errmsg(database));
-        }
-        return Statement(rawStatement);
-    }
-
-    [[nodiscard]] std::optional<std::vector<float>> cachedEmbedding(sqlite3 *database, const GalleryItem &item, const QString &embeddingModelKey)
-    {
-        const QFileInfo  info(item.imagePath);
-        Statement        statement = prepare(database,
-                                             "SELECT embedding FROM image_embeddings WHERE path=?1 AND style_id=?2 "
-                                             "AND file_size=?3 AND modified_ms=?4 AND model_key=?5");
-        const QByteArray path      = item.imagePath.toUtf8();
-        const QByteArray styleId   = item.styleId.toUtf8();
-        const QByteArray key       = embeddingModelKey.toUtf8();
-        sqlite3_bind_text(statement.get(), 1, path.constData(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(statement.get(), 2, styleId.constData(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(statement.get(), 3, info.size());
-        sqlite3_bind_int64(statement.get(), 4, info.lastModified().toMSecsSinceEpoch());
-        sqlite3_bind_text(statement.get(), 5, key.constData(), -1, SQLITE_TRANSIENT);
-        if (sqlite3_step(statement.get()) != SQLITE_ROW)
+        const QFileInfo info(item.imagePath);
+        SQLiteStatement statement = database.prepare("SELECT embedding FROM image_embeddings WHERE path=?1 AND style_id=?2 "
+                                                     "AND file_size=?3 AND modified_ms=?4 AND model_key=?5");
+        requireSqlite(static_cast<bool>(statement), database.errorMessage());
+        requireSqlite(statement.bindText(1, item.imagePath) && statement.bindText(2, item.styleId) && statement.bindInt64(3, info.size()) &&
+                          statement.bindInt64(4, info.lastModified().toMSecsSinceEpoch()) && statement.bindText(5, embeddingModelKey),
+                      statement.errorMessage());
+        const SQLiteStatement::StepResult stepResult = statement.step();
+        if (stepResult == SQLiteStatement::StepResult::Done)
         {
             return std::nullopt;
         }
-        const int bytes = sqlite3_column_bytes(statement.get(), 0);
+        requireSqlite(stepResult == SQLiteStatement::StepResult::Row, statement.errorMessage());
+        const int bytes = statement.columnBytes(0);
         if (bytes != kEmbeddingSize * static_cast<int>(sizeof(float)))
         {
             return std::nullopt;
         }
         std::vector<float> result(kEmbeddingSize);
-        std::memcpy(result.data(), sqlite3_column_blob(statement.get(), 0), static_cast<std::size_t>(bytes));
+        std::memcpy(result.data(), statement.columnBlob(0), static_cast<std::size_t>(bytes));
         return result;
     }
 
-    void storeEmbedding(sqlite3 *database, const GalleryItem &item, const QString &embeddingModelKey, const std::vector<float> &embedding)
+    void storeEmbedding(SQLiteDB &database, const GalleryItem &item, const QString &embeddingModelKey, const std::vector<float> &embedding)
     {
-        const QFileInfo  info(item.imagePath);
-        Statement        statement = prepare(database,
-                                             "INSERT OR REPLACE INTO image_embeddings"
-                                             "(path,style_id,file_size,modified_ms,model_key,embedding) VALUES(?1,?2,?3,?4,?5,?6)");
-        const QByteArray path      = item.imagePath.toUtf8();
-        const QByteArray styleId   = item.styleId.toUtf8();
-        const QByteArray key       = embeddingModelKey.toUtf8();
-        sqlite3_bind_text(statement.get(), 1, path.constData(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(statement.get(), 2, styleId.constData(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(statement.get(), 3, info.size());
-        sqlite3_bind_int64(statement.get(), 4, info.lastModified().toMSecsSinceEpoch());
-        sqlite3_bind_text(statement.get(), 5, key.constData(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_blob(statement.get(), 6, embedding.data(), static_cast<int>(embedding.size() * sizeof(float)), SQLITE_TRANSIENT);
-        if (sqlite3_step(statement.get()) != SQLITE_DONE)
-        {
-            throw std::runtime_error(sqlite3_errmsg(database));
-        }
+        const QFileInfo info(item.imagePath);
+        SQLiteStatement statement = database.prepare("INSERT OR REPLACE INTO image_embeddings"
+                                                     "(path,style_id,file_size,modified_ms,model_key,embedding) VALUES(?1,?2,?3,?4,?5,?6)");
+        requireSqlite(static_cast<bool>(statement), database.errorMessage());
+        requireSqlite(statement.bindText(1, item.imagePath) && statement.bindText(2, item.styleId) && statement.bindInt64(3, info.size()) &&
+                          statement.bindInt64(4, info.lastModified().toMSecsSinceEpoch()) && statement.bindText(5, embeddingModelKey) &&
+                          statement.bindBlob(6, embedding.data(), static_cast<int>(embedding.size() * sizeof(float))),
+                      statement.errorMessage());
+        requireSqlite(statement.step() == SQLiteStatement::StepResult::Done, statement.errorMessage());
     }
 
     [[nodiscard]] QVector<GalleryEmbedding> galleryEmbeddings(Ort::Session               &session,
                                                               const QVector<GalleryItem> &items,
-                                                              sqlite3                    *database,
+                                                              SQLiteDB                   &database,
                                                               const QString              &embeddingModelKey)
     {
         QVector<GalleryEmbedding> result;
@@ -900,10 +842,10 @@ namespace
                                                            const QVector<GalleryItem>    &galleryItems,
                                                            const GarmentMatcher::Options &options)
     {
-        Database      database          = openDatabase(options.featureDatabasePath);
+        SQLiteDB      database          = openDatabase(options.featureDatabasePath);
         const QString providerKey       = runtime.provider == QStringLiteral("TensorRT") ? QStringLiteral("TensorRT-FP16") : runtime.provider;
         const QString embeddingModelKey = QStringLiteral("%1:%2:%3").arg(modelKey(options.embeddingModelPath), runtime.loaded->version, providerKey);
-        QVector<GalleryEmbedding> gallery = galleryEmbeddings(*runtime.embedding, galleryItems, database.get(), embeddingModelKey);
+        QVector<GalleryEmbedding> gallery = galleryEmbeddings(*runtime.embedding, galleryItems, database, embeddingModelKey);
         if (gallery.isEmpty())
         {
             throw std::runtime_error("款号小图库中没有可读取的图片");

@@ -10,6 +10,8 @@ set(GSM_SOURCES
     core/ImageMetadata.cpp
     core/GarmentMatcher.cpp
     core/MatchResultStore.cpp
+    core/SQLiteDB.cpp
+    core/SQLiteStatement.cpp
     core/WindowsMlExecutionProvider.cpp
 )
 
@@ -24,6 +26,8 @@ set(GSM_HEADERS
     core/ImageMetadata.h
     core/GarmentMatcher.h
     core/MatchResultStore.h
+    core/SQLiteDB.h
+    core/SQLiteStatement.h
     core/WindowsMlExecutionProvider.h
 )
 
