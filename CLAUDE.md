@@ -78,7 +78,7 @@ Use C++20 and follow [C++ Core Guidelines](CppCoreGuideline.md). The repository 
 
 ## Automated checks
 
-`.claude/settings.json` enables the modern-CLI `PreToolUse` hook. It also registers clang-format, clang-tidy, and clazy `PostToolUse` hooks, but those scripts currently filter for the obsolete, absent `tools/crawler-webengine/` subtree and use its `cmake-build` directory. They do **not** check files under `src/`; do not report that static analysis passed unless it was run explicitly against `cmake-msvc-build/compile_commands.json`.
+`.claude/settings.json` enables the modern-CLI `PreToolUse` hook. It also registers clang-format, clang-tidy, and clazy `PostToolUse` hooks, but those scripts currently filter for the obsolete, absent `src/` subtree and use its `cmake-build` directory. Do not report that static analysis passed unless it was run explicitly against `cmake-msvc-build/compile_commands.json`.
 
 The authoritative automated regression suite is CTest. It currently contains `PptStyleExtractorTest`, `GalleryListModelTest`, `PptPageListModelTest`, `ImageMetadataTest`, and `MatchControllerTest`.
 
