@@ -1055,19 +1055,31 @@ QStringList GarmentMatcher::availableProviders()
 QString GarmentMatcher::activeProvider()
 {
     const QString provider = startupProvider();
-    return provider == QStringLiteral("tensorrt")
-               ? QStringLiteral("TensorRT")
-               : (provider == QStringLiteral("cuda")
-                      ? QStringLiteral("CUDA")
-                      : (provider == QStringLiteral("directml")
-                             ? QStringLiteral("DirectML")
-                             : (provider == QStringLiteral("windowsml-cpu")
-                                    ? QStringLiteral("Windows ML · CPU")
-                                    : (provider == QStringLiteral("windowsml-directml")
-                                           ? QStringLiteral("Windows ML · DirectML")
-                                           : (provider.startsWith(QStringLiteral("windowsml:"))
-                                                  ? QStringLiteral("Windows ML · %1").arg(provider.sliced(QStringLiteral("windowsml:").size()))
-                                                  : QStringLiteral("CPU"))))));
+    if (provider == QStringLiteral("tensorrt"))
+    {
+        return QStringLiteral("TensorRT");
+    }
+    if (provider == QStringLiteral("cuda"))
+    {
+        return QStringLiteral("CUDA");
+    }
+    if (provider == QStringLiteral("directml"))
+    {
+        return QStringLiteral("DirectML");
+    }
+    if (provider == QStringLiteral("windowsml-cpu"))
+    {
+        return QStringLiteral("Windows ML · CPU");
+    }
+    if (provider == QStringLiteral("windowsml-directml"))
+    {
+        return QStringLiteral("Windows ML · DirectML");
+    }
+    if (provider.startsWith(QStringLiteral("windowsml:")))
+    {
+        return QStringLiteral("Windows ML · %1").arg(provider.sliced(QStringLiteral("windowsml:").size()));
+    }
+    return QStringLiteral("CPU");
 }
 
 QString GarmentMatcher::Result::joinedStyleIds() const
