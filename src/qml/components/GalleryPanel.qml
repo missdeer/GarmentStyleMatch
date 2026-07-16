@@ -12,6 +12,7 @@ Rectangle {
     property string categoryText: qsTr("全部")
     property string searchText: ""
     property string pptPath: ""
+    property bool startupTabInitialized: false
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
@@ -19,6 +20,24 @@ Rectangle {
     signal pptSearchRequested()
     signal pptPageToggled(int row)
     signal extractRequested()
+
+    function initializeStartupTab(loadFinished) {
+        if (startupTabInitialized || !styleGalleryModel
+                || (!loadFinished && styleGalleryModel.count === 0))
+            return
+
+        tabBar.currentIndex = styleGalleryModel.count > 0 ? 1 : 0
+        startupTabInitialized = true
+    }
+
+    Component.onCompleted: initializeStartupTab(false)
+
+    Connections {
+        target: root.styleGalleryModel
+        function onCountChanged() {
+            root.initializeStartupTab(true)
+        }
+    }
 
     color: "#f5f7fa"
     border.color: "#dee3e8"
