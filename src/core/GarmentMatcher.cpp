@@ -24,6 +24,13 @@
 #include <QLibrary>
 #include <QSettings>
 
+#ifdef Q_OS_WIN
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
+#    include <Windows.h>
+#endif
+
 #include "GarmentMatcher.h"
 #include "SQLiteDB.h"
 #include "SQLiteStatement.h"
@@ -64,10 +71,23 @@ namespace
         QString                       provider;
     };
 
+    [[nodiscard]] bool libraryFileIsDiscoverable(const QString &baseName)
+    {
+#ifdef Q_OS_WIN
+        constexpr std::size_t                             kWindowsExtendedPathCapacity = 32768;
+        const std::wstring                                wideName                     = baseName.toStdWString();
+        std::array<wchar_t, kWindowsExtendedPathCapacity> path {};
+        const DWORD length = SearchPathW(nullptr, wideName.c_str(), L".dll", static_cast<DWORD>(path.size()), path.data(), nullptr);
+        return length > 0 && length < path.size();
+#else
+        Q_UNUSED(baseName)
+        return false;
+#endif
+    }
+
     [[nodiscard]] bool hasCudaDriver()
     {
-        QLibrary cudaDriver(QStringLiteral("nvcuda"));
-        return cudaDriver.load();
+        return libraryFileIsDiscoverable(QStringLiteral("nvcuda"));
     }
 
     void prepareCudaDllSearchPath()
@@ -116,8 +136,7 @@ namespace
         constexpr std::array<const char *, 4> dependencies {"cublas64_13", "cublasLt64_13", "cudnn64_9", "cufft64_12"};
         for (const char *dependency : dependencies)
         {
-            QLibrary library(QString::fromLatin1(dependency));
-            if (!library.load())
+            if (!libraryFileIsDiscoverable(QString::fromLatin1(dependency)))
             {
                 return false;
             }
@@ -177,9 +196,7 @@ namespace
             return false;
         }
         prepareTensorRtDllSearchPath();
-        QLibrary tensorRt(QStringLiteral("nvinfer_10"));
-        QLibrary parser(QStringLiteral("nvonnxparser_10"));
-        return tensorRt.load() && parser.load();
+        return libraryFileIsDiscoverable(QStringLiteral("nvinfer_10")) && libraryFileIsDiscoverable(QStringLiteral("nvonnxparser_10"));
 #else
         return false;
 #endif

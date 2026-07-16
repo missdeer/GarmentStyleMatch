@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
@@ -21,6 +22,12 @@ namespace
         }
         std::cerr << message.toStdString() << '\n';
         return false;
+    }
+
+    bool createPlaceholderLibrary(const QString &path)
+    {
+        QFile file(path);
+        return file.open(QIODevice::WriteOnly) && file.putChar('\0');
     }
 
     // Pixel coordinates and colors are intentional properties of this synthetic garment fixture.
@@ -72,7 +79,50 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     QSettings().clear();
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     const QString requestedProvider = argc > 1 ? QString::fromLocal8Bit(argv[1]).trimmed().toLower() : QString();
-    const bool    verifyRestartRule = requestedProvider == QStringLiteral("restart-rule");
+#ifdef Q_OS_WIN
+    if (requestedProvider.isEmpty())
+    {
+        const QString     probeDirectory       = QDir(temporary.path()).absoluteFilePath(QStringLiteral("provider-probe"));
+        const QStringList placeholderLibraries = {
+            QStringLiteral("nvcuda.dll"),
+            QStringLiteral("cublas64_13.dll"),
+            QStringLiteral("cublasLt64_13.dll"),
+            QStringLiteral("cudnn64_9.dll"),
+            QStringLiteral("cufft64_12.dll"),
+            QStringLiteral("nvinfer_10.dll"),
+            QStringLiteral("nvonnxparser_10.dll"),
+        };
+        bool placeholdersCreated = QDir().mkpath(probeDirectory);
+        for (const QString &library : placeholderLibraries)
+        {
+            placeholdersCreated = placeholdersCreated && createPlaceholderLibrary(QDir(probeDirectory).absoluteFilePath(library));
+        }
+        if (!check(placeholdersCreated, QStringLiteral("无法创建推理引擎探测占位 DLL")))
+        {
+            return 1;
+        }
+
+        const QByteArray savedPath         = qgetenv("PATH");
+        const QByteArray savedCudaPath     = qgetenv("CUDA_PATH");
+        const QByteArray savedCudnnLibrary = qgetenv("CUDNN_LIBRARY");
+        const QByteArray savedTensorRtRoot = qgetenv("TENSORRT_ROOT");
+        qputenv("PATH", QDir::toNativeSeparators(probeDirectory).toLocal8Bit());
+        qunsetenv("CUDA_PATH");
+        qunsetenv("CUDNN_LIBRARY");
+        qunsetenv("TENSORRT_ROOT");
+        const QStringList discoverableProviders = GarmentMatcher::availableProviders();
+        qputenv("PATH", savedPath);
+        qputenv("CUDA_PATH", savedCudaPath);
+        qputenv("CUDNN_LIBRARY", savedCudnnLibrary);
+        qputenv("TENSORRT_ROOT", savedTensorRtRoot);
+        if (!check(discoverableProviders.contains(QStringLiteral("CUDA")) && discoverableProviders.contains(QStringLiteral("TensorRT")),
+                   QStringLiteral("推理引擎枚举必须只检查 DLL 是否可发现，不得在主窗口显示前加载大型 GPU 运行时")))
+        {
+            return 1;
+        }
+    }
+#endif
+    const bool verifyRestartRule = requestedProvider == QStringLiteral("restart-rule");
 #ifdef Q_OS_WIN
     const QString initialProvider = verifyRestartRule             ? QStringLiteral("directml")
                                     : requestedProvider.isEmpty() ? QStringLiteral("cpu")
