@@ -38,6 +38,13 @@ ApplicationWindow {
     property string pendingCopyPart: ""
     property bool pendingCopyToAdjacent: false
 
+    component SplitterHandle: Rectangle {
+        implicitWidth: 5
+        implicitHeight: 5
+        color: SplitHandle.pressed ? "#8aa9c7"
+              : (SplitHandle.hovered ? "#b9cbdc" : "#d8e0e7")
+    }
+
     function requestStyleIdCopy(offset, part, toAdjacent) {
         if (!controller.copyWouldOverwriteConfirmedStyleIds(offset, part, toAdjacent)) {
             if (toAdjacent)
@@ -111,14 +118,15 @@ ApplicationWindow {
                 Qt.callLater(function() { controller.restorePersistentState() })
             })
 
-            sourceComponent: RowLayout {
+            sourceComponent: SplitView {
                 anchors.fill: parent
-                spacing: 0
+                orientation: Qt.Horizontal
+                handle: SplitterHandle {}
 
                 CandidatePanel {
                     id: candidatePanel
-                    Layout.preferredWidth: 320
-                    Layout.fillHeight: true
+                    SplitView.preferredWidth: 320
+                    SplitView.minimumWidth: 220
                     outputModel: candidateModel
                     inputModel:  photoModel
                     currentRow:      controller.currentIndex
@@ -137,60 +145,66 @@ ApplicationWindow {
                     onInputTabActiveEdited:      (active) => controller.activatePreview(active)
                 }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    spacing: 0
+                SplitView {
+                    SplitView.fillWidth: true
+                    SplitView.minimumWidth: 320
+                    orientation: Qt.Vertical
+                    handle: SplitterHandle {}
 
-                    MainImageView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        imagePath:       controller.currentImagePath
-                        styleId:         controller.currentStyleId
-                        matchedItems:     controller.autoMatchedItems
-                        inputTabActive: controller.inputTabActive
-                        showAdjacentPhotoPreviews: candidatePanel.inputTabActive
-                        previousPhotoPath: controller.previousPhotoPath
-                        nextPhotoPath:     controller.nextPhotoPath
-                        previousPhotoUpperMatchStatus: controller.previousPhotoUpperMatchStatus
-                        previousPhotoLowerMatchStatus: controller.previousPhotoLowerMatchStatus
-                        nextPhotoUpperMatchStatus: controller.nextPhotoUpperMatchStatus
-                        nextPhotoLowerMatchStatus: controller.nextPhotoLowerMatchStatus
-                        pageIndex:       controller.currentImagePage
-                        pageCount:       controller.currentImageCount
-                        previousEnabled: candidatePanel.inputTabActive
-                                         ? controller.currentPhotoIndex > 0
-                                         : controller.currentImagePage > 0
-                        nextEnabled:     candidatePanel.inputTabActive
-                                         ? controller.currentPhotoIndex >= 0
-                                           && controller.currentPhotoIndex + 1 < candidatePanel.inputItemCount
-                                         : controller.currentImagePage + 1 < controller.currentImageCount
-                        onPrev:          controller.previousImage(candidatePanel.inputTabActive)
-                        onNext:          controller.nextImage(candidatePanel.inputTabActive)
-                        onPreviousUnmatchedPhoto: controller.previousUnmatchedPhoto()
-                        onNextUnmatchedPhoto: controller.nextUnmatchedPhoto()
-                        onPreviousUnconfirmedPhoto: controller.previousUnconfirmedPhoto()
-                        onNextUnconfirmedPhoto: controller.nextUnconfirmedPhoto()
-                        onOpenOriginal:  controller.openCurrentImageExternally()
-                        onMatchConfirmed: (part) => controller.confirmAutoMatch(part)
-                        onMatchRejected:  (part) => controller.rejectAutoMatch(part)
-                    }
+                    ColumnLayout {
+                        SplitView.fillHeight: true
+                        SplitView.minimumHeight: 220
+                        spacing: 0
 
-                    OutputImagePreview {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: visible ? 88 : 0
-                        visible: !candidatePanel.inputTabActive
-                                 && controller.currentIndex >= 0
-                                 && controller.currentImageCount > 0
-                        imagePaths: controller.currentOutputImagePaths
-                        currentIndex: controller.currentImagePage
-                        onImageActivated: (index) => controller.currentImagePage = index
+                        MainImageView {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            imagePath:       controller.currentImagePath
+                            styleId:         controller.currentStyleId
+                            matchedItems:     controller.autoMatchedItems
+                            inputTabActive: controller.inputTabActive
+                            showAdjacentPhotoPreviews: candidatePanel.inputTabActive
+                            previousPhotoPath: controller.previousPhotoPath
+                            nextPhotoPath:     controller.nextPhotoPath
+                            previousPhotoUpperMatchStatus: controller.previousPhotoUpperMatchStatus
+                            previousPhotoLowerMatchStatus: controller.previousPhotoLowerMatchStatus
+                            nextPhotoUpperMatchStatus: controller.nextPhotoUpperMatchStatus
+                            nextPhotoLowerMatchStatus: controller.nextPhotoLowerMatchStatus
+                            pageIndex:       controller.currentImagePage
+                            pageCount:       controller.currentImageCount
+                            previousEnabled: candidatePanel.inputTabActive
+                                             ? controller.currentPhotoIndex > 0
+                                             : controller.currentImagePage > 0
+                            nextEnabled:     candidatePanel.inputTabActive
+                                             ? controller.currentPhotoIndex >= 0
+                                               && controller.currentPhotoIndex + 1 < candidatePanel.inputItemCount
+                                             : controller.currentImagePage + 1 < controller.currentImageCount
+                            onPrev:          controller.previousImage(candidatePanel.inputTabActive)
+                            onNext:          controller.nextImage(candidatePanel.inputTabActive)
+                            onPreviousUnmatchedPhoto: controller.previousUnmatchedPhoto()
+                            onNextUnmatchedPhoto: controller.nextUnmatchedPhoto()
+                            onPreviousUnconfirmedPhoto: controller.previousUnconfirmedPhoto()
+                            onNextUnconfirmedPhoto: controller.nextUnconfirmedPhoto()
+                            onOpenOriginal:  controller.openCurrentImageExternally()
+                            onMatchConfirmed: (part) => controller.confirmAutoMatch(part)
+                            onMatchRejected:  (part) => controller.rejectAutoMatch(part)
+                        }
+
+                        OutputImagePreview {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: visible ? 88 : 0
+                            visible: !candidatePanel.inputTabActive
+                                     && controller.currentIndex >= 0
+                                     && controller.currentImageCount > 0
+                            imagePaths: controller.currentOutputImagePaths
+                            currentIndex: controller.currentImagePage
+                            onImageActivated: (index) => controller.currentImagePage = index
+                        }
                     }
 
                     ImagePropertiesPanel {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 265
-                        Layout.minimumHeight: 170
+                        SplitView.preferredHeight: 265
+                        SplitView.minimumHeight: 170
                         busy: controller.busy
                         batchAutoMatchInProgress: controller.batchAutoMatchInProgress
                         previousPhotoAvailable: candidatePanel.inputTabActive
@@ -207,8 +221,8 @@ ApplicationWindow {
                 }
 
                 GalleryPanel {
-                    Layout.preferredWidth: 440
-                    Layout.fillHeight: true
+                    SplitView.preferredWidth: 440
+                    SplitView.minimumWidth: 280
                     styleGalleryModel: galleryModel
                     pagesModel:       pptPageModel
                     pptSelectedCount: pptPageModel.selectedCount
