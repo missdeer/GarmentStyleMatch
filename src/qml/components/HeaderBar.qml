@@ -430,6 +430,7 @@ Rectangle {
 
         Label {
             id: windowsMlEpLink
+            visible: Qt.platform.os === "windows"
             text: qsTr("Windows ML EP")
             color: windowsMlEpMouse.containsMouse ? "#ffffff" : "#b9d8f2"
             font.pixelSize: 13
