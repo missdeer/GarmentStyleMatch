@@ -416,7 +416,7 @@ Rectangle {
             font.underline: true
             ToolTip.visible: parallelMatchThreadMouse.containsMouse
             ToolTip.delay: 500
-            ToolTip.text: qsTr("仅批量匹配使用多线程；所有推理引擎默认 1 线程")
+            ToolTip.text: qsTr("推荐线程数：CPU 1，CoreML / DirectML 2，CUDA / TensorRT 4；Windows ML EP 参考对应引擎（CPU / DirectML / CUDA）")
 
             MouseArea {
                 id: parallelMatchThreadMouse
