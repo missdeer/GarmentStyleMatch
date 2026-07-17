@@ -49,7 +49,7 @@ jobs:
       - name: Install native dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install libarchive ninja opencv sqlite
+          brew install ninja
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
@@ -70,10 +70,8 @@ jobs:
         run: |
           cmake -S . -B build \
             -G "Ninja Multi-Config" \
-            -DLibArchive_ROOT="$(brew --prefix libarchive)" \
-            -DOpenCV_DIR="$(brew --prefix opencv)/lib/cmake/opencv4" \
-            -DSQLite3_INCLUDE_DIR="$(brew --prefix sqlite)/include" \
-            -DSQLite3_LIBRARY="$(brew --prefix sqlite)/lib/libsqlite3.dylib"
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=arm64-osx
 
       - name: Build
         run: cmake --build build --config Release
