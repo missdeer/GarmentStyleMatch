@@ -126,6 +126,30 @@ if(WIN32)
         COMMENT "Copying ONNX Runtime binaries"
         VERBATIM
     )
+elseif(APPLE)
+    file(GLOB _gsm_macos_ort_versioned_dylibs LIST_DIRECTORIES false
+        "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/cpu/libonnxruntime.[0-9]*.dylib")
+    list(LENGTH _gsm_macos_ort_versioned_dylibs _gsm_macos_ort_versioned_count)
+    if(NOT _gsm_macos_ort_versioned_count EQUAL 1)
+        message(FATAL_ERROR
+            "Expected exactly one versioned ONNX Runtime dylib under "
+            "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/cpu, found: ${_gsm_macos_ort_versioned_dylibs}")
+    endif()
+    list(GET _gsm_macos_ort_versioned_dylibs 0 _gsm_macos_ort_versioned_dylib)
+    get_filename_component(_gsm_macos_ort_versioned_name "${_gsm_macos_ort_versioned_dylib}" NAME)
+    set(_gsm_macos_ort_libs_dir "$<TARGET_BUNDLE_DIR:GarmentStyleMatch>/Contents/Libs")
+    add_custom_command(TARGET GarmentStyleMatch POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_gsm_macos_ort_libs_dir}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_gsm_macos_ort_versioned_dylib}"
+                "${_gsm_macos_ort_libs_dir}"
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${_gsm_macos_ort_libs_dir}/libonnxruntime.dylib"
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+                "${_gsm_macos_ort_versioned_name}"
+                "${_gsm_macos_ort_libs_dir}/libonnxruntime.dylib"
+        COMMENT "Staging ONNX Runtime dylib into bundle Contents/Libs"
+        VERBATIM
+    )
 else()
     add_custom_command(TARGET GarmentStyleMatch POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -176,9 +200,21 @@ else()
     set(_gsm_runtime_install_dir "bin")
     set(_gsm_models_install_dir "bin/models")
 endif()
-install(DIRECTORY "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/"
-    DESTINATION "${_gsm_runtime_install_dir}/onnxruntime"
-)
+if(APPLE)
+    set(_gsm_macos_ort_install_dir "bin/GarmentStyleMatch.app/Contents/Libs")
+    install(FILES "${_gsm_macos_ort_versioned_dylib}"
+        DESTINATION "${_gsm_macos_ort_install_dir}"
+    )
+    install(CODE "
+        set(_gsm_symlink \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${_gsm_macos_ort_install_dir}/libonnxruntime.dylib\")
+        file(REMOVE \"\${_gsm_symlink}\")
+        file(CREATE_LINK \"${_gsm_macos_ort_versioned_name}\" \"\${_gsm_symlink}\" SYMBOLIC)
+    ")
+else()
+    install(DIRECTORY "${GSM_ONNXRUNTIME_RUNTIME_ROOT}/"
+        DESTINATION "${_gsm_runtime_install_dir}/onnxruntime"
+    )
+endif()
 if(WIN32)
     install(DIRECTORY "${GSM_WINDOWSML_RUNTIME_ROOT}/"
         DESTINATION "${_gsm_runtime_install_dir}/onnxruntime/windowsml"

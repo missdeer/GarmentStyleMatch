@@ -182,7 +182,13 @@ namespace
         const QString runtimeDirectory = provider == QStringLiteral("tensorrt") ? QStringLiteral("cuda") : provider.toLower();
         return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("onnxruntime/%1/onnxruntime.dll").arg(runtimeDirectory));
 #elif defined(Q_OS_MACOS)
-        return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("onnxruntime/cpu/libonnxruntime.dylib"));
+        const QDir appDir(QCoreApplication::applicationDirPath());
+        QDir       bundleContents(appDir);
+        if (bundleContents.dirName() == QLatin1String("MacOS") && bundleContents.cdUp() && bundleContents.dirName() == QLatin1String("Contents"))
+        {
+            return bundleContents.absoluteFilePath(QStringLiteral("Libs/libonnxruntime.dylib"));
+        }
+        return appDir.absoluteFilePath(QStringLiteral("onnxruntime/cpu/libonnxruntime.dylib"));
 #else
         return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("onnxruntime/cpu/libonnxruntime.so"));
 #endif
