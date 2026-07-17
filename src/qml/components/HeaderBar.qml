@@ -416,7 +416,13 @@ Rectangle {
             font.underline: true
             ToolTip.visible: parallelMatchThreadMouse.containsMouse
             ToolTip.delay: 500
-            ToolTip.text: qsTr("推荐线程数：CPU 1，CoreML / DirectML 2，CUDA / TensorRT 4；Windows ML EP 参考对应引擎（CPU / DirectML / CUDA）")
+            ToolTip.text: {
+                if (Qt.platform.os === "windows")
+                    return qsTr("推荐线程数：CPU 1，DirectML 2，CUDA / TensorRT 4；Windows ML EP 参考对应引擎（CPU / DirectML / CUDA）")
+                if (Qt.platform.os === "osx")
+                    return qsTr("推荐线程数：CPU 1，CoreML 2")
+                return qsTr("推荐线程数：CPU 1")
+            }
 
             MouseArea {
                 id: parallelMatchThreadMouse
