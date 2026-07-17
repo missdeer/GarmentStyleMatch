@@ -15,6 +15,7 @@ Rectangle {
     property string searchText: ""
     property string pptPath: ""
     property bool startupTabInitialized: false
+    readonly property bool showPptTab: Qt.platform.os === "windows"
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
@@ -24,7 +25,16 @@ Rectangle {
     signal extractRequested()
 
     function initializeStartupTab(loadFinished) {
-        if (startupTabInitialized || !styleGalleryModel
+        if (startupTabInitialized)
+            return
+
+        if (!showPptTab) {
+            tabBar.currentIndex = 1
+            startupTabInitialized = true
+            return
+        }
+
+        if (!styleGalleryModel
                 || (!loadFinished && styleGalleryModel.count === 0))
             return
 
@@ -51,7 +61,11 @@ Rectangle {
         TabBar {
             id: tabBar
             Layout.fillWidth: true
-            TabButton { text: qsTr("PPT页面预览") }
+            TabButton {
+                text: qsTr("PPT页面预览")
+                visible: root.showPptTab
+                width: visible ? implicitWidth : 0
+            }
             TabButton { text: qsTr("款号小图库") }
         }
 
