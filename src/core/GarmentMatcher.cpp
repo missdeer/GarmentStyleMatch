@@ -30,6 +30,9 @@
 #    endif
 #    include <Windows.h>
 #endif
+#ifdef Q_OS_MACOS
+#    include <coreml_provider_factory.h>
+#endif
 
 #include "GarmentMatcher.h"
 #include "SQLiteDB.h"
@@ -46,15 +49,17 @@ namespace
 
     using OrtGetApiBaseFunction      = const OrtApiBase *(ORT_API_CALL *)();
     using AppendDmlFunction          = OrtStatus *(ORT_API_CALL *)(OrtSessionOptions *, int);
+    using AppendCoreMLFunction       = OrtStatus *(ORT_API_CALL *)(OrtSessionOptions *, uint32_t);
     using GetTensorRtVersionFunction = int (*)();
 
     struct LoadedOrt
     {
-        QLibrary          library;
-        QString           preferredProvider;
-        QString           version;
-        AppendDmlFunction appendDml = nullptr;
-        QString           windowsMlEpName;
+        QLibrary             library;
+        QString              preferredProvider;
+        QString              version;
+        AppendDmlFunction    appendDml    = nullptr;
+        AppendCoreMLFunction appendCoreML = nullptr;
+        QString              windowsMlEpName;
     };
 
     struct Runtime
@@ -301,6 +306,17 @@ namespace
             {
                 return QStringLiteral("directml");
             }
+#elif defined(Q_OS_MACOS)
+            const QString configured = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString().trimmed().toLower();
+            const bool    coreMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cpu")));
+            if (configured == QStringLiteral("cpu"))
+            {
+                return QStringLiteral("cpu");
+            }
+            if ((configured == QStringLiteral("coreml") || configured == QStringLiteral("auto")) && coreMlAvailable)
+            {
+                return QStringLiteral("coreml");
+            }
 #endif
             return QStringLiteral("cpu");
         }();
@@ -357,6 +373,14 @@ namespace
                 throw std::runtime_error("DirectML ONNX Runtime 缺少 DML provider API");
             }
         }
+        if (provider == QStringLiteral("coreml"))
+        {
+            loaded->appendCoreML = reinterpret_cast<AppendCoreMLFunction>(loaded->library.resolve("OrtSessionOptionsAppendExecutionProvider_CoreML"));
+            if (!loaded->appendCoreML)
+            {
+                throw std::runtime_error("macOS ONNX Runtime 缺少 CoreML provider API");
+            }
+        }
         if (provider.startsWith(QStringLiteral("windowsml:")))
         {
             loaded->windowsMlEpName = provider.sliced(QStringLiteral("windowsml:").size());
@@ -384,6 +408,10 @@ namespace
         else if (provider.startsWith(QStringLiteral("windowsml:")))
         {
             loaded->preferredProvider = QStringLiteral("Windows ML · %1").arg(loaded->windowsMlEpName);
+        }
+        else if (provider == QStringLiteral("coreml"))
+        {
+            loaded->preferredProvider = QStringLiteral("CoreML");
         }
         else
         {
@@ -505,6 +533,12 @@ namespace
             options.DisableMemPattern();
             options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
             Ort::ThrowOnError(loaded.appendDml(options, 0));
+        }
+#endif
+#ifdef Q_OS_MACOS
+        else if (provider == QStringLiteral("CoreML"))
+        {
+            Ort::ThrowOnError(loaded.appendCoreML(options, 0U));
         }
 #endif
         return options;
@@ -1006,6 +1040,11 @@ QStringList GarmentMatcher::availableProviders()
             }
         }
     }
+#elif defined(Q_OS_MACOS)
+    if (QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cpu"))))
+    {
+        providers.push_back(QStringLiteral("CoreML"));
+    }
 #endif
     providers.push_back(QStringLiteral("CPU"));
     return providers;
@@ -1037,6 +1076,10 @@ QString GarmentMatcher::activeProvider()
     if (provider.startsWith(QStringLiteral("windowsml:")))
     {
         return QStringLiteral("Windows ML · %1").arg(provider.sliced(QStringLiteral("windowsml:").size()));
+    }
+    if (provider == QStringLiteral("coreml"))
+    {
+        return QStringLiteral("CoreML");
     }
     return QStringLiteral("CPU");
 }

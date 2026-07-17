@@ -127,6 +127,8 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     const QString initialProvider = verifyRestartRule             ? QStringLiteral("directml")
                                     : requestedProvider.isEmpty() ? QStringLiteral("cpu")
                                                                   : requestedProvider;
+#elif defined(Q_OS_MACOS)
+    const QString initialProvider = requestedProvider.isEmpty() ? QStringLiteral("cpu") : requestedProvider;
 #else
     const QString initialProvider = requestedProvider;
 #endif
@@ -142,10 +144,12 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
                 ? QStringLiteral("TensorRT")
                 : (requestedProvider == QStringLiteral("directml")
                        ? QStringLiteral("DirectML")
-                       : (requestedProvider == QStringLiteral("windows ml · cpu")
-                              ? QStringLiteral("Windows ML · CPU")
-                              : (requestedProvider == QStringLiteral("windows ml · directml") ? QStringLiteral("Windows ML · DirectML")
-                                                                                              : QStringLiteral("CUDA"))));
+                       : (requestedProvider == QStringLiteral("coreml")
+                              ? QStringLiteral("CoreML")
+                              : (requestedProvider == QStringLiteral("windows ml · cpu")
+                                     ? QStringLiteral("Windows ML · CPU")
+                                     : (requestedProvider == QStringLiteral("windows ml · directml") ? QStringLiteral("Windows ML · DirectML")
+                                                                                                     : QStringLiteral("CUDA")))));
         if (!check(expectedProvider == requestedProviderName,
                    QStringLiteral("请求的 %1 推理引擎不可用，实际选择 %2").arg(requestedProviderName, expectedProvider)))
         {
