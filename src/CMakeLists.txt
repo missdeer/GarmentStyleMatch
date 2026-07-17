@@ -151,11 +151,17 @@ if(GSM_MODELS_AVAILABLE)
     )
 endif()
 
+string(TIMESTAMP GSM_BUILD_YEAR "%Y" UTC)
+
 set_target_properties(GarmentStyleMatch PROPERTIES
-    MACOSX_BUNDLE_GUI_IDENTIFIER  com.garmentstylematch.app
-    MACOSX_BUNDLE_BUNDLE_VERSION  ${PROJECT_VERSION}
+    MACOSX_BUNDLE_GUI_IDENTIFIER       com.garmentstylematch.app
+    MACOSX_BUNDLE_BUNDLE_NAME          "GarmentStyleMatch"
+    MACOSX_BUNDLE_BUNDLE_VERSION       ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    MACOSX_BUNDLE_ICON_FILE       GarmentStyleMatch.icns
+    MACOSX_BUNDLE_LONG_VERSION_STRING  ${PROJECT_VERSION}
+    MACOSX_BUNDLE_INFO_STRING          "${PROJECT_DESCRIPTION}"
+    MACOSX_BUNDLE_COPYRIGHT            "Copyright © ${GSM_BUILD_YEAR} GarmentStyleMatch"
+    MACOSX_BUNDLE_ICON_FILE            GarmentStyleMatch.icns
 )
 
 install(TARGETS GarmentStyleMatch
