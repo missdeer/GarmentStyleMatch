@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
 
@@ -16,8 +18,8 @@ Rectangle {
     signal copyStyleIdsRequested(int offset, string part)
     signal copyStyleIdsToAdjacentRequested(int offset, string part)
 
-    color: "#ffffff"
-    border.color: "#dee3e8"
+    color: Theme.surface
+    border.color: Theme.border
 
     ColumnLayout {
         anchors.fill: parent
@@ -63,8 +65,8 @@ Rectangle {
         Rectangle {
             anchors.fill: parent
             anchors.margins: 6
-            border.color: "#cfd6dd"
-            color: "#ffffff"
+            border.color: Theme.borderSoft
+            color: Theme.surface
 
             ColumnLayout {
                 anchors.fill: parent
@@ -73,8 +75,8 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 25
-                    color: "#eef1f4"
-                    border.color: "#cfd6dd"
+                    color: Theme.surfaceAlt
+                    border.color: Theme.borderSoft
 
                     RowLayout {
                         anchors.fill: parent
@@ -86,7 +88,7 @@ Rectangle {
                             font.bold: true
                             font.pixelSize: 12
                         }
-                        Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#cfd6dd" }
+                        Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: Theme.borderSoft }
                         Label {
                             Layout.fillWidth: true
                             Layout.leftMargin: 8
@@ -111,7 +113,7 @@ Rectangle {
                         required property var modelData
                         width: propertyView.width
                         height: 25
-                        color: index % 2 === 0 ? "#ffffff" : "#f7f8fa"
+                        color: index % 2 === 0 ? Theme.surface : Theme.rowAlt2
 
                         RowLayout {
                             anchors.fill: parent
@@ -120,17 +122,17 @@ Rectangle {
                                 Layout.preferredWidth: 145
                                 Layout.leftMargin: 8
                                 text: modelData.name
-                                color: "#1c2b3a"
+                                color: Theme.text
                                 font.pixelSize: 12
                                 elide: Label.ElideRight
                             }
-                            Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#e3e7eb" }
+                            Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: Theme.divider }
                             Label {
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 8
                                 Layout.rightMargin: 8
                                 text: modelData.value
-                                color: "#1c2b3a"
+                                color: Theme.text
                                 font.pixelSize: 12
                                 elide: Label.ElideRight
                             }
@@ -141,7 +143,7 @@ Rectangle {
                         anchors.centerIn: parent
                         visible: propertyView.count === 0
                         text: emptyText
-                        color: "#8fa1b0"
+                        color: Theme.textPlaceholder
                     }
                 }
             }

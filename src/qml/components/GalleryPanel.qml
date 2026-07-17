@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
 
@@ -39,8 +41,8 @@ Rectangle {
         }
     }
 
-    color: "#f5f7fa"
-    border.color: "#dee3e8"
+    color: Theme.background
+    border.color: Theme.border
 
     ColumnLayout {
         anchors.fill: parent

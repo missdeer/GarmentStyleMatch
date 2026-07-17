@@ -1,7 +1,11 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.Material
+import QtQuick.Controls.Universal
 import QtQuick.Layouts
 import QtQuick.Window
+
+import GarmentStyleMatch
 
 import "components"
 
@@ -13,6 +17,12 @@ ApplicationWindow {
     minimumHeight: 640
     visibility: Window.Maximized
     title: controller.title
+
+    // When the user picks the Material or Universal QQC2 style, follow the
+    // system's color scheme. FluentWinUI3 and Fusion already do this natively;
+    // the two attached-property lines below are no-ops under those styles.
+    Material.theme: Material.System
+    Universal.theme: Universal.System
 
     font.family: {
         switch (Qt.platform.os) {
@@ -41,8 +51,8 @@ ApplicationWindow {
     component SplitterHandle: Rectangle {
         implicitWidth: 5
         implicitHeight: 5
-        color: SplitHandle.pressed ? "#8aa9c7"
-              : (SplitHandle.hovered ? "#b9cbdc" : "#d8e0e7")
+        color: SplitHandle.pressed ? Theme.splitterPressed
+              : (SplitHandle.hovered ? Theme.splitterHover : Theme.splitterIdle)
     }
 
     function requestStyleIdCopy(offset, part, toAdjacent) {
@@ -242,8 +252,8 @@ ApplicationWindow {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 26
-            color: "#e9edf1"
-            border.color: "#dee3e8"
+            color: Theme.statusBg
+            border.color: Theme.statusBorder
 
             RowLayout {
                 anchors.fill: parent
@@ -259,14 +269,14 @@ ApplicationWindow {
                 }
                 Label {
                     text: root.statusText
-                    color: "#3a4a5a"
+                    color: Theme.statusText
                     font.pixelSize: 12
                     elide: Label.ElideRight
                     Layout.fillWidth: true
                 }
                 Label {
                     text: controller.busy ? qsTr("处理中…") : qsTr("空闲")
-                    color: controller.busy ? "#2f5aa8" : "#6b7a89"
+                    color: controller.busy ? Theme.statusBusy : Theme.statusIdle
                     font.pixelSize: 12
                 }
             }

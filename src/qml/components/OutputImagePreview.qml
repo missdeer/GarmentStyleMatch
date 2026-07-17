@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
 
@@ -9,8 +11,8 @@ Rectangle {
 
     signal imageActivated(int index)
 
-    color: "#eef3f6"
-    border.color: "#cfd8df"
+    color: Theme.surfaceAlt2
+    border.color: Theme.borderStrong
 
     ToolButton {
         id: leftButton
@@ -81,9 +83,9 @@ Rectangle {
 
             width: 72
             height: previewList.height
-            color: "#ffffff"
+            color: Theme.surface
             border.width: index === previewList.currentIndex ? 2 : 1
-            border.color: index === previewList.currentIndex ? "#2f73b7" : "#aeb9c2"
+            border.color: index === previewList.currentIndex ? Theme.accentThumbBorder : Theme.thumbBorder
 
             Image {
                 anchors.fill: parent

@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
     property bool busy: false
@@ -16,8 +18,8 @@ Rectangle {
     signal copyStyleIdsToAdjacentRequested(int offset, string part)
 
     implicitHeight: layout.implicitHeight + 20
-    color: "#eef1f4"
-    border.color: "#dee3e8"
+    color: Theme.surfaceAlt
+    border.color: Theme.border
 
     ColumnLayout {
         id: layout
@@ -65,7 +67,7 @@ Rectangle {
             Label {
                 text: qsTr("复制范围")
                 font.bold: true
-                color: "#3a4a5a"
+                color: Theme.textSecondary
             }
 
             RowLayout {
@@ -92,7 +94,7 @@ Rectangle {
             Label {
                 text: qsTr("从相邻图片复制到当前")
                 font.bold: true
-                color: "#3a4a5a"
+                color: Theme.textSecondary
             }
 
             RowLayout {
@@ -116,7 +118,7 @@ Rectangle {
             Label {
                 text: qsTr("将当前复制到相邻图片")
                 font.bold: true
-                color: "#3a4a5a"
+                color: Theme.textSecondary
             }
 
             RowLayout {

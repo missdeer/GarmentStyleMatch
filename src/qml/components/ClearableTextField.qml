@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 
+import GarmentStyleMatch
+
 TextField {
     id: root
 
@@ -26,12 +28,12 @@ TextField {
         width: 16
         height: 16
         radius: width / 2
-        color: clearArea.containsMouse ? "#8a99a8" : "#b0bcc7"
+        color: clearArea.containsMouse ? Theme.clearHover : Theme.clearIdle
 
         Label {
             anchors.centerIn: parent
             text: "×"
-            color: "white"
+            color: Theme.clearText
             font.pixelSize: 12
             font.bold: true
         }

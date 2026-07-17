@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
     property string titleText: ""
@@ -9,7 +11,7 @@ Rectangle {
     property string pendingInferenceEngine: ""
 
     implicitHeight: 56
-    color: "#1f2c3a"
+    color: Theme.headerBg
 
     ButtonGroup {
         id: styleButtonGroup
@@ -192,7 +194,7 @@ Rectangle {
                         visible: controller.windowsMlExecutionProviders.length === 0
                         text: qsTr("本机没有 Windows ML catalog 返回的兼容动态 EP。")
                         wrapMode: Text.Wrap
-                        color: "#5f6b76"
+                        color: Theme.textMuted
                     }
 
                     Repeater {
@@ -213,7 +215,7 @@ Rectangle {
                                     Label { text: modelData.name; font.bold: true }
                                     Label {
                                         text: qsTr("版本：%1　状态：%2").arg(modelData.version || qsTr("未知")).arg(modelData.state)
-                                        color: "#5f6b76"
+                                        color: Theme.textMuted
                                     }
                                 }
 
@@ -319,7 +321,7 @@ Rectangle {
                 text: qsTr("服装模特图与手绘图匹配分类工具")
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-                color: "#5f6b76"
+                color: Theme.textMuted
             }
 
             GridLayout {
@@ -383,7 +385,7 @@ Rectangle {
 
         Label {
             text: root.titleText
-            color: "white"
+            color: Theme.headerText
             font.pixelSize: 20
             font.bold: true
         }
@@ -393,7 +395,7 @@ Rectangle {
         Label {
             id: inferenceEngineLink
             text: qsTr("推理引擎：%1").arg(controller.currentInferenceEngine)
-            color: inferenceEngineMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            color: inferenceEngineMouse.containsMouse ? Theme.headerLinkHover : Theme.headerLink
             font.pixelSize: 13
             font.underline: true
 
@@ -409,7 +411,7 @@ Rectangle {
         Label {
             id: parallelMatchThreadLink
             text: qsTr("匹配线程：%1").arg(controller.parallelMatchThreadCount)
-            color: parallelMatchThreadMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            color: parallelMatchThreadMouse.containsMouse ? Theme.headerLinkHover : Theme.headerLink
             font.pixelSize: 13
             font.underline: true
             ToolTip.visible: parallelMatchThreadMouse.containsMouse
@@ -432,7 +434,7 @@ Rectangle {
             id: windowsMlEpLink
             visible: Qt.platform.os === "windows"
             text: qsTr("Windows ML EP")
-            color: windowsMlEpMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            color: windowsMlEpMouse.containsMouse ? Theme.headerLinkHover : Theme.headerLink
             font.pixelSize: 13
             font.underline: true
 
@@ -448,7 +450,7 @@ Rectangle {
         Label {
             id: downloadModelsLink
             text: controller.modelDownloadInProgress ? qsTr("模型下载中...") : qsTr("下载模型")
-            color: downloadModelsMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            color: downloadModelsMouse.containsMouse ? Theme.headerLinkHover : Theme.headerLink
             font.pixelSize: 13
             font.underline: true
 
@@ -464,7 +466,7 @@ Rectangle {
         Label {
             id: styleLink
             text: qsTr("风格")
-            color: styleMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            color: styleMouse.containsMouse ? Theme.headerLinkHover : Theme.headerLink
             font.pixelSize: 13
             font.underline: true
 
@@ -480,7 +482,7 @@ Rectangle {
         Label {
             id: aboutLink
             text: qsTr("关于")
-            color: aboutMouse.containsMouse ? "#ffffff" : "#b9d8f2"
+            color: aboutMouse.containsMouse ? Theme.headerLinkHover : Theme.headerLink
             font.pixelSize: 13
             font.underline: true
 

@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
 
@@ -12,7 +14,7 @@ Rectangle {
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
 
-    color: "#f5f7fa"
+    color: Theme.background
 
     ColumnLayout {
         anchors.fill: parent
@@ -21,7 +23,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 44
-            color: "#f5f7fa"
+            color: Theme.background
 
             RowLayout {
                 anchors.fill: parent
@@ -75,8 +77,8 @@ Rectangle {
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: 4
-                    color: cell.selected ? "#f3f7ff" : "white"
-                    border.color: cell.selected ? "#2f5aa8" : "#dee3e8"
+                    color: cell.selected ? Theme.accentLightBg : Theme.surface
+                    border.color: cell.selected ? Theme.accent : Theme.border
                     border.width: cell.selected ? 2 : 1
 
                     ColumnLayout {
@@ -90,12 +92,12 @@ Rectangle {
 
                             Rectangle {
                                 anchors.fill: parent
-                                color: "#eef1f4"
+                                color: Theme.surfaceAlt
                                 visible: thumb.status !== Image.Ready
                                 Label {
                                     anchors.centerIn: parent
                                     text: "sketch"
-                                    color: "#8fa1b0"
+                                    color: Theme.textPlaceholder
                                 }
                             }
                             Image {
@@ -114,12 +116,12 @@ Rectangle {
                                 width: 22
                                 height: 22
                                 radius: 11
-                                color: "#2f5aa8"
+                                color: Theme.accent
 
                                 Label {
                                     anchors.centerIn: parent
                                     text: "✓"
-                                    color: "white"
+                                    color: Theme.accentText
                                     font.bold: true
                                 }
                             }
@@ -135,8 +137,8 @@ Rectangle {
                                 Layout.fillWidth: true
                             }
                             Rectangle {
-                                color: "#e6f0ff"
-                                border.color: "#a8c4f0"
+                                color: Theme.accentTagBg
+                                border.color: Theme.accentTagBorder
                                 radius: 3
                                 implicitWidth: tagLabel.implicitWidth + 8
                                 implicitHeight: tagLabel.implicitHeight + 4
@@ -145,7 +147,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     text: cell.tag
                                     font.pixelSize: 10
-                                    color: "#2f5aa8"
+                                    color: Theme.accent
                                 }
                             }
                         }

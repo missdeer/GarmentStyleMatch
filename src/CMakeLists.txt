@@ -43,6 +43,7 @@ set_property(SOURCE ${GSM_SOURCES} APPEND PROPERTY
 
 set(GSM_QML_FILES
     qml/Main.qml
+    qml/Theme.qml
     qml/components/HeaderBar.qml
     qml/components/CandidatePanel.qml
     qml/components/MainImageView.qml
@@ -55,6 +56,10 @@ set(GSM_QML_FILES
     qml/components/IconButton.qml
     qml/components/PathPickerRow.qml
     qml/components/ImagePropertiesPanel.qml
+)
+
+set_source_files_properties(qml/Theme.qml PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
 )
 
 set(GSM_IMAGE_FILES

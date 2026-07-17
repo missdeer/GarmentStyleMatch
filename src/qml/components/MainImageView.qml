@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
     property string imagePath: ""
@@ -42,15 +44,15 @@ Rectangle {
     }
 
     function matchStatusBackground(status) {
-        return status === 2 ? "#dff2e1" : (status === 1 ? "#fff0c2" : "#e3e8ed")
+        return status === 2 ? Theme.statusOkBg : (status === 1 ? Theme.statusWarnBg : Theme.statusNoneBg)
     }
 
     function matchStatusBorder(status) {
-        return status === 2 ? "#68a871" : (status === 1 ? "#c89a32" : "#9eabb6")
+        return status === 2 ? Theme.statusOkBorder : (status === 1 ? Theme.statusWarnBorder : Theme.statusNoneBorder)
     }
 
-    color: "#ffffff"
-    border.color: "#dee3e8"
+    color: Theme.surface
+    border.color: Theme.border
 
     ColumnLayout {
         anchors.fill: parent
@@ -66,8 +68,8 @@ Rectangle {
                 Layout.fillHeight: true
                 Layout.preferredWidth: visible ? Math.min(180, Math.max(120, imageArea.width * 0.2)) : 0
                 visible: root.showAdjacentPhotoPreviews
-                color: "#f5f7fa"
-                border.color: "#cfd8df"
+                color: Theme.background
+                border.color: Theme.borderStrong
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -89,8 +91,8 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             Layout.preferredHeight: 1
-                            color: modelData.path !== "" ? "#ffffff" : "#eef1f4"
-                            border.color: "#dee3e8"
+                            color: modelData.path !== "" ? Theme.surface : Theme.surfaceAlt
+                            border.color: Theme.border
 
                             Image {
                                 anchors.fill: parent
@@ -145,7 +147,7 @@ Rectangle {
                                 horizontalAlignment: Text.AlignHCenter
                                 font.pixelSize: 11
                                 font.bold: true
-                                color: adjacentCell.modelData.path !== "" ? "#3a4a5a" : "#9aa7b2"
+                                color: adjacentCell.modelData.path !== "" ? Theme.textSecondary : Theme.textDisabled
                             }
 
                             MouseArea {
@@ -171,12 +173,12 @@ Rectangle {
 
                 Rectangle {
                     anchors.fill: parent
-                    color: "#f5f7fa"
+                    color: Theme.background
                     visible: preview.status !== Image.Ready
                     Label {
                         anchors.centerIn: parent
                         text: qsTr("暂无实拍图 / No image")
-                        color: "#8fa1b0"
+                        color: Theme.textPlaceholder
                     }
                 }
             }
@@ -185,8 +187,8 @@ Rectangle {
                 Layout.fillHeight: true
                 Layout.preferredWidth: visible ? Math.min(220, Math.max(140, imageArea.width * 0.24)) : 0
                 visible: root.matchedItems.length > 0
-                color: "#f5f7fa"
-                border.color: "#cfd8df"
+                color: Theme.background
+                border.color: Theme.borderStrong
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -203,8 +205,8 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             Layout.preferredHeight: 1
-                            color: "#ffffff"
-                            border.color: "#dee3e8"
+                            color: Theme.surface
+                            border.color: Theme.border
 
                             Image {
                                 anchors.fill: parent
@@ -254,7 +256,7 @@ Rectangle {
                                 elide: Label.ElideRight
                                 font.pixelSize: 11
                                 font.bold: true
-                                color: "#3a4a5a"
+                                color: Theme.textSecondary
                             }
                         }
                     }
@@ -265,8 +267,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 40
-            color: "#f5f7fa"
-            border.color: "#dee3e8"
+            color: Theme.background
+            border.color: Theme.border
 
             RowLayout {
                 anchors.fill: parent
@@ -310,12 +312,12 @@ Rectangle {
                 Label {
                     text: qsTr("第 %1 / %2 张").arg(root.pageCount === 0 ? 0 : root.pageIndex + 1).arg(root.pageCount)
                     Layout.leftMargin: 12
-                    color: "#3a4a5a"
+                    color: Theme.textSecondary
                 }
                 Item { Layout.fillWidth: true }
                 Label {
                     text: root.styleId
-                    color: "#3a4a5a"
+                    color: Theme.textSecondary
                     font.pixelSize: 12
                 }
             }

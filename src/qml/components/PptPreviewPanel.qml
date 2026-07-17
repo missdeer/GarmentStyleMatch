@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
 
@@ -15,7 +17,7 @@ Rectangle {
     signal pageToggled(int row)
     signal extractRequested()
 
-    color: "#f5f7fa"
+    color: Theme.background
 
     ColumnLayout {
         anchors.fill: parent
@@ -24,8 +26,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: pptBox.implicitHeight + 20
-            color: "#e9edf1"
-            border.color: "#dee3e8"
+            color: Theme.subtleBg
+            border.color: Theme.border
 
             PathPickerRow {
                 id: pptBox
@@ -53,7 +55,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 44
-            color: "#f5f7fa"
+            color: Theme.background
 
             RowLayout {
                 anchors.fill: parent
@@ -68,7 +70,7 @@ Rectangle {
                 }
                 Label {
                     text: qsTr("(已选 %1 页)").arg(root.selectedCount)
-                    color: "#6b7a89"
+                    color: Theme.textMuted2
                     Layout.fillWidth: true
                     elide: Label.ElideRight
                 }
@@ -87,7 +89,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 40
-            color: "#f5f7fa"
+            color: Theme.background
 
             RowLayout {
                 anchors.fill: parent
@@ -97,7 +99,7 @@ Rectangle {
 
                 Label {
                     text: qsTr("选中页号:")
-                    color: "#3a4a5a"
+                    color: Theme.textSecondary
                 }
                 ClearableTextField {
                     id: pagesEdit
@@ -148,8 +150,8 @@ Rectangle {
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: 4
-                    color: "white"
-                    border.color: cell.selected ? "#2f5aa8" : "#dee3e8"
+                    color: Theme.surface
+                    border.color: cell.selected ? Theme.accent : Theme.border
                     border.width: cell.selected ? 2 : 1
 
                     ColumnLayout {
@@ -163,7 +165,7 @@ Rectangle {
 
                             Rectangle {
                                 anchors.fill: parent
-                                color: "#eef1f4"
+                                color: Theme.surfaceAlt
                                 visible: pageThumb.status !== Image.Ready
                                 ColumnLayout {
                                     anchors.centerIn: parent
@@ -171,18 +173,18 @@ Rectangle {
                                     spacing: 2
                                     Label {
                                         text: qsTr("第 %1 页").arg(cell.pageIndex)
-                                        color: "#8fa1b0"
+                                        color: Theme.textPlaceholder
                                         Layout.alignment: Qt.AlignHCenter
                                     }
                                     Label {
                                         text: "status=" + pageThumb.status
-                                        color: "#c04a4a"
+                                        color: Theme.danger
                                         font.pixelSize: 10
                                         Layout.alignment: Qt.AlignHCenter
                                     }
                                     Label {
                                         text: cell.imagePath
-                                        color: "#3a4a5a"
+                                        color: Theme.textSecondary
                                         font.pixelSize: 9
                                         wrapMode: Text.WrapAnywhere
                                         Layout.fillWidth: true
@@ -210,12 +212,12 @@ Rectangle {
                                 anchors.margins: 4
                                 width: 20; height: 20
                                 radius: 3
-                                color: cell.selected ? "#2f5aa8" : "#ffffffcc"
-                                border.color: "#2f5aa8"
+                                color: cell.selected ? Theme.accent : Theme.overlayBadge
+                                border.color: Theme.accent
                                 Label {
                                     anchors.centerIn: parent
                                     text: cell.selected ? "✓" : ""
-                                    color: "white"
+                                    color: Theme.accentText
                                     font.bold: true
                                 }
                             }

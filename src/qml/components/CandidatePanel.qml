@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import GarmentStyleMatch
+
 Rectangle {
     id: root
 
@@ -34,8 +36,8 @@ Rectangle {
         text: "[✓]"
     }
 
-    color: "#f5f7fa"
-    border.color: "#dee3e8"
+    color: Theme.background
+    border.color: Theme.border
 
     ColumnLayout {
         anchors.fill: parent
@@ -70,8 +72,8 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: inputPickerColumn.implicitHeight + 16
-                    color: "#e9edf1"
-                    border.color: "#dee3e8"
+                    color: Theme.subtleBg
+                    border.color: Theme.border
 
                     ColumnLayout {
                         id: inputPickerColumn
@@ -104,7 +106,7 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 26
-                    color: "#dfe5eb"
+                    color: Theme.captionBg
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
@@ -112,7 +114,7 @@ Rectangle {
                         text: qsTr("实拍图片列表 (%1)").arg(photoView.count)
                         font.pixelSize: 12
                         font.bold: true
-                        color: "#1c2b3a"
+                        color: Theme.text
                     }
                 }
 
@@ -137,8 +139,8 @@ Rectangle {
                         width: photoView.width
                         height: 26
                         readonly property bool selected: index === photoView.currentIndex
-                        color: selected ? "#3a6ea5"
-                               : (index % 2 === 0 ? "#ffffff" : "#f0f3f6")
+                        color: selected ? Theme.selectionBg
+                               : (index % 2 === 0 ? Theme.surface : Theme.rowAlt)
 
                         Row {
                             anchors.fill: parent
@@ -157,7 +159,7 @@ Rectangle {
                                         required property int modelData
                                         width: Math.ceil(matchStatusMetrics.advanceWidth)
                                         text: root.matchStatusMarker(modelData)
-                                        color: photoCell.selected ? "white" : "#3a6ea5"
+                                        color: photoCell.selected ? Theme.selectionText : Theme.listIndicator
                                         font.pixelSize: 12
                                         horizontalAlignment: Text.AlignHCenter
                                     }
@@ -165,7 +167,7 @@ Rectangle {
                             }
                             Label {
                                 text: photoCell.displayLine
-                                color: photoCell.selected ? "white" : "#1c2b3a"
+                                color: photoCell.selected ? Theme.selectionText : Theme.text
                                 font.pixelSize: 12
                                 elide: Label.ElideRight
                                 anchors.verticalCenter: parent.verticalCenter
@@ -187,8 +189,8 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: outputPickerColumn.implicitHeight + 16
-                    color: "#e9edf1"
-                    border.color: "#dee3e8"
+                    color: Theme.subtleBg
+                    border.color: Theme.border
 
                     ColumnLayout {
                         id: outputPickerColumn
@@ -221,7 +223,7 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 26
-                    color: "#dfe5eb"
+                    color: Theme.captionBg
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
@@ -229,7 +231,7 @@ Rectangle {
                         text: qsTr("归类列表 (%1)").arg(outputView.count)
                         font.pixelSize: 12
                         font.bold: true
-                        color: "#1c2b3a"
+                        color: Theme.text
                     }
                 }
 
@@ -252,8 +254,8 @@ Rectangle {
                         width: outputView.width
                         height: 26
                         readonly property bool selected: index === outputView.currentIndex
-                        color: selected ? "#3a6ea5"
-                               : (index % 2 === 0 ? "#ffffff" : "#f0f3f6")
+                        color: selected ? Theme.selectionBg
+                               : (index % 2 === 0 ? Theme.surface : Theme.rowAlt)
 
                         Row {
                             anchors.fill: parent
@@ -263,13 +265,13 @@ Rectangle {
 
                             Label {
                                 text: outCell.confirmed ? "[✓]" : "[ ]"
-                                color: outCell.selected ? "white" : "#3a6ea5"
+                                color: outCell.selected ? Theme.selectionText : Theme.listIndicator
                                 font.pixelSize: 12
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                             Label {
                                 text: outCell.displayLine
-                                color: outCell.selected ? "white" : "#1c2b3a"
+                                color: outCell.selected ? Theme.selectionText : Theme.text
                                 font.pixelSize: 12
                                 elide: Label.ElideRight
                                 anchors.verticalCenter: parent.verticalCenter
@@ -286,8 +288,8 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 32
-                    color: "#e9edf1"
-                    border.color: "#dee3e8"
+                    color: Theme.subtleBg
+                    border.color: Theme.border
 
                     RowLayout {
                         anchors.fill: parent
