@@ -1505,28 +1505,6 @@ void MatchController::emitCurrentChanged()
     emit currentStyleIdChanged();
 }
 
-void MatchController::loadDemoData()
-{
-    if (m_galleryModel)
-    {
-        QVector<GalleryItem> items;
-        const QStringList    ids = {
-            QStringLiteral("T0JE26B38A008"),
-            QStringLiteral("T0YC26B38A110B"),
-            QStringLiteral("T0LB26B38A160A"),
-            QStringLiteral("T0JE26B38A005"),
-        };
-        for (const QString &id : ids)
-        {
-            GalleryItem it;
-            it.styleId = id;
-            it.tag     = QStringLiteral("baby");
-            items.push_back(it);
-        }
-        m_galleryModel->setItems(std::move(items));
-    }
-}
-
 void MatchController::restorePersistentState()
 {
     const QSettings settings;

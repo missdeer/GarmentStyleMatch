@@ -114,8 +114,7 @@ ApplicationWindow {
             asynchronous: true
 
             onLoaded: Qt.callLater(function() {
-                controller.loadDemoData()
-                Qt.callLater(function() { controller.restorePersistentState() })
+                controller.restorePersistentState()
             })
 
             sourceComponent: SplitView {

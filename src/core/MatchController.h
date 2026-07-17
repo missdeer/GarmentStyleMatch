@@ -203,7 +203,6 @@ public slots:
     void                      cancelModelDownload();
     static void               openModelDirectory();
 
-    void loadDemoData();
     void restorePersistentState();
     void activatePreview(bool inputTabActive);
 
