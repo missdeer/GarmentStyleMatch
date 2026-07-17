@@ -68,6 +68,19 @@ cmake --install cmake-msvc-build --prefix install
 
 Do not create a second `build/` tree. A running `GarmentStyleMatch.exe` locks the output binary on Windows and causes linker error `LNK1168`; close it before rebuilding.
 
+On macOS use `cmake-macos-build/` instead (never share the Windows tree). Configure with the vcpkg toolchain and a Qt prefix, e.g.:
+
+```bash
+cmake -S . -B cmake-macos-build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+  -DCMAKE_PREFIX_PATH=$HOME/Qt/6.10.0/macos/lib/cmake
+cmake --build cmake-macos-build
+ctest --test-dir cmake-macos-build --output-on-failure
+```
+
+The `cmake-msvc-build/` / `cmake-macos-build/` split is the sanctioned exception to the "no second build tree" rule — one per platform is fine, a nameless `build/` is not.
+
 ## qt.conf trick (development runtime)
 
 `src/CMakeLists.txt` writes `qt.conf` next to the exe with `Prefix = <detected Qt install>`. This is intentional and works around a `windeployqt 6.11` bug where `qt_add_qml_module` projects miss the top-level `QtQuick.Controls` `qmldir`. When editing that CMake block, keep the qt.conf output — do not replace with `windeployqt`.
@@ -124,5 +137,5 @@ Every new `.cpp`/`.h` must be added to `GSM_SOURCES` / `GSM_HEADERS` in `src/CMa
 # Generated and placeholder directories
 
 - `3rdparty/` is currently a placeholder. The root CMake file automatically adds it only when `3rdparty/CMakeLists.txt` exists.
-- `cmake-msvc-build/`, root `compile_commands.json`, and populated `install/` contents are generated artifacts; do not hand-edit them.
+- `cmake-msvc-build/`, `cmake-macos-build/`, root `compile_commands.json`, and populated `install/` contents are generated artifacts; do not hand-edit them.
 - `install/` currently contains only a local `.gitkeep` placeholder and is the default local packaging destination.

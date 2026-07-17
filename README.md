@@ -48,7 +48,7 @@ Windows 提供完整功能；PPT 页面预览依赖本机安装的 Microsoft Pow
 └── install/                默认本地安装输出目录
 ```
 
-`cmake-msvc-build/`、根目录的 `compile_commands.json`、`tmp/` 和填充后的 `install/` 都是生成内容，不应手工编辑。
+`cmake-msvc-build/`、`cmake-macos-build/`、根目录的 `compile_commands.json`、`tmp/` 和填充后的 `install/` 都是生成内容，不应手工编辑。
 
 ## Windows 开发构建
 
@@ -83,6 +83,38 @@ ctest --test-dir cmake-msvc-build -N
 ```
 
 如果应用正在运行，Windows 会锁定输出文件并导致链接器报 `LNK1168`；重新构建前需先关闭应用。
+
+## macOS 开发构建
+
+macOS 上使用独立的 `cmake-macos-build/` 目录，避免与 Windows 的 `cmake-msvc-build/` 混淆。前置条件：
+
+- Xcode Command Line Tools（`xcode-select --install`）
+- Qt 6.10+，通过官方 online installer 或 `aqt` 安装
+- vcpkg，例如安装在 `$HOME/vcpkg`（`git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg && $HOME/vcpkg/bootstrap-vcpkg.sh -disableMetrics`）
+
+首次配置会通过 vcpkg 编译 LibArchive、OpenCV（core/imgcodecs/imgproc）和 SQLite，用时较久：
+
+```bash
+cmake -S . -B cmake-macos-build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+  -DCMAKE_PREFIX_PATH=$HOME/Qt/6.10.0/macos/lib/cmake
+```
+
+构建与测试：
+
+```bash
+cmake --build cmake-macos-build
+ctest --test-dir cmake-macos-build --output-on-failure
+```
+
+运行：
+
+```bash
+./cmake-macos-build/bin/GarmentStyleMatch.app/Contents/MacOS/GarmentStyleMatch
+```
+
+macOS 使用 CPU 推理，且不支持 PPT 页面预览。ONNX Runtime 1.24.4 没有官方 macOS x64 发布资产，Intel Mac 需在配置时通过 `-DGSM_ONNXRUNTIME_ROOT=<path>` 手动指定。
 
 开发目录中的 `qt.conf` 会让应用直接使用检测到的 Qt 安装。生成包含 Qt QML 模块、插件、推理运行时和可用模型的本地可分发目录：
 

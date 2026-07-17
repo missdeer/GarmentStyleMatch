@@ -67,6 +67,12 @@ set_source_files_properties(${GSM_IMAGE_FILES} PROPERTIES
 set(GSM_PLATFORM_SOURCES)
 if(WIN32)
     list(APPEND GSM_PLATFORM_SOURCES GarmentStyleMatch.rc)
+elseif(APPLE)
+    set(GSM_MACOS_ICON "${CMAKE_SOURCE_DIR}/GarmentStyleMatch.icns")
+    set_source_files_properties("${GSM_MACOS_ICON}" PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
+    list(APPEND GSM_PLATFORM_SOURCES "${GSM_MACOS_ICON}")
 endif()
 
 qt_add_executable(GarmentStyleMatch WIN32 MACOSX_BUNDLE
@@ -149,6 +155,7 @@ set_target_properties(GarmentStyleMatch PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER  com.garmentstylematch.app
     MACOSX_BUNDLE_BUNDLE_VERSION  ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+    MACOSX_BUNDLE_ICON_FILE       GarmentStyleMatch.icns
 )
 
 install(TARGETS GarmentStyleMatch
