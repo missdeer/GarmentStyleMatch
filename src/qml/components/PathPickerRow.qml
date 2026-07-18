@@ -13,7 +13,7 @@ Item {
     property var    nameFilters: ["All files (*)"]
     property string pickLabel:   isFile ? qsTr("选择文件") : qsTr("选择目录")
     property string searchLabel: qsTr("搜索")
-    property string pickIconName: "folder-open"
+    property url    pickIconSource: "qrc:/qt/qml/GarmentStyleMatch/images/folder-open.svg"
     property string searchIconName: "edit-find"
     property string uiStyle: ""
     property bool showSearchButton: true
@@ -41,7 +41,7 @@ Item {
             id: pickButton
             Layout.preferredWidth: field.implicitHeight
             Layout.preferredHeight: field.implicitHeight
-            iconName: root.pickIconName
+            iconSource: root.pickIconSource
             toolTipText: root.pickLabel
             uiStyle: root.uiStyle
             onClicked: root.isFile ? fileDlg.open() : folderDlg.open()

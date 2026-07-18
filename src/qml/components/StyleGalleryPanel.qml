@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 import GarmentStyleMatch
@@ -10,15 +11,81 @@ Rectangle {
     property alias model: grid.model
     property string categoryText: qsTr("全部")
     property string searchText: ""
+    property string uiStyle: ""
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
 
     color: Theme.background
 
+    function urlToLocalPath(u) {
+        var s = u.toString().replace(/^file:\/\//, "")
+        if (/^\/[A-Za-z]:/.test(s)) s = s.substring(1)
+        return s
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 44
+            color: Theme.background
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 6
+
+                ClearableTextField {
+                    id: pathField
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("从文件夹或压缩文件中加载款号小图库")
+                }
+
+                IconButton {
+                    id: loadFromFolderButton
+                    Layout.preferredWidth: pathField.implicitHeight
+                    Layout.preferredHeight: pathField.implicitHeight
+                    iconSource: "qrc:/qt/qml/GarmentStyleMatch/images/folder-open.svg"
+                    toolTipText: qsTr("从文件夹加载款号小图库")
+                    uiStyle: root.uiStyle
+                    onClicked: folderDlg.open()
+                }
+
+                IconButton {
+                    id: loadFromArchiveButton
+                    Layout.preferredWidth: pathField.implicitHeight
+                    Layout.preferredHeight: pathField.implicitHeight
+                    iconSource: "qrc:/qt/qml/GarmentStyleMatch/images/archive.svg"
+                    toolTipText: qsTr("从压缩文件加载款号小图库")
+                    uiStyle: root.uiStyle
+                    onClicked: archiveDlg.open()
+                }
+            }
+
+            FolderDialog {
+                id: folderDlg
+                title: qsTr("选择款号小图库文件夹")
+                onAccepted: {
+                    pathField.text = root.urlToLocalPath(selectedFolder)
+                }
+            }
+
+            FileDialog {
+                id: archiveDlg
+                title: qsTr("选择款号小图库压缩文件")
+                nameFilters: [
+                    qsTr("压缩文件 (*.zip *.7z *.rar *.tar *.tar.gz *.tgz *.tar.bz2 *.tbz2 *.tar.xz *.txz)"),
+                    qsTr("所有文件 (*)")
+                ]
+                onAccepted: {
+                    pathField.text = root.urlToLocalPath(selectedFile)
+                }
+            }
+        }
 
         Rectangle {
             Layout.fillWidth: true

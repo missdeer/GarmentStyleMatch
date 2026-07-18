@@ -5,6 +5,7 @@ Button {
     id: root
 
     property string iconName: ""
+    property url iconSource: ""
     property string toolTipText: ""
     property string uiStyle: ""
     readonly property bool useCompactIconPadding: {
@@ -25,6 +26,7 @@ Button {
 
     display: AbstractButton.IconOnly
     icon.name: iconName
+    icon.source: iconSource
     icon.width: iconExtent
     icon.height: iconExtent
     ToolTip.visible: hovered

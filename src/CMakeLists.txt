@@ -71,9 +71,17 @@ set_source_files_properties(qml/Theme.qml PROPERTIES
 
 set(GSM_IMAGE_FILES
     "${CMAKE_SOURCE_DIR}/GarmentStyleMatch.png"
+    "${CMAKE_SOURCE_DIR}/resources/icons/folder-open.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/archive.svg"
 )
-set_source_files_properties(${GSM_IMAGE_FILES} PROPERTIES
+set_source_files_properties("${CMAKE_SOURCE_DIR}/GarmentStyleMatch.png" PROPERTIES
     QT_RESOURCE_ALIAS "images/GarmentStyleMatch.png"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/folder-open.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/folder-open.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/archive.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/archive.svg"
 )
 
 set(GSM_PLATFORM_SOURCES)

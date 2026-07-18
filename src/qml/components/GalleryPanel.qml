@@ -92,6 +92,7 @@ Rectangle {
                 model:         root.styleGalleryModel
                 categoryText:  root.categoryText
                 searchText:    root.searchText
+                uiStyle:       controller.currentUiStyle
                 onSearchTextEdited: (t) => root.searchTextEdited(t)
                 onCategoryEdited:   (t) => root.categoryEdited(t)
             }
