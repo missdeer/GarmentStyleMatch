@@ -70,6 +70,13 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     CandidateListModel model;
     MatchController    controller;
     controller.setCandidateModel(&model);
+
+    QEventLoop deferredStartupLoop;
+    QObject::connect(&controller, &MatchController::deferredStartupCompleted, &deferredStartupLoop, &QEventLoop::quit);
+    QTimer::singleShot(kAsyncTimeoutMs, &deferredStartupLoop, &QEventLoop::quit);
+    controller.completeDeferredStartup();
+    deferredStartupLoop.exec();
+
     controller.setOutputDir(temporary.path());
 
     const QString expectedModelDirectory =

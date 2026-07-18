@@ -1,19 +1,21 @@
-add_executable(PptStyleExtractorTest
-    PptStyleExtractorTest.cpp
-    ../src/core/PptStyleExtractor.cpp
-    ../src/core/PptStyleExtractor.h
-)
+if(WIN32)
+    add_executable(PptStyleExtractorTest
+        PptStyleExtractorTest.cpp
+        ../src/core/PptStyleExtractor.cpp
+        ../src/core/PptStyleExtractor.h
+    )
 
-target_include_directories(PptStyleExtractorTest PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/core
-)
+    target_include_directories(PptStyleExtractorTest PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/core
+    )
 
-target_link_libraries(PptStyleExtractorTest PRIVATE
-    Qt6::Core
-    LibArchive::LibArchive
-)
+    target_link_libraries(PptStyleExtractorTest PRIVATE
+        Qt6::Core
+        LibArchive::LibArchive
+    )
 
-add_test(NAME PptStyleExtractorTest COMMAND PptStyleExtractorTest)
+    add_test(NAME PptStyleExtractorTest COMMAND PptStyleExtractorTest)
+endif()
 
 add_executable(GalleryListModelTest
     GalleryListModelTest.cpp
@@ -31,21 +33,23 @@ target_link_libraries(GalleryListModelTest PRIVATE
 
 add_test(NAME GalleryListModelTest COMMAND GalleryListModelTest)
 
-add_executable(PptPageListModelTest
-    PptPageListModelTest.cpp
-    ../src/core/PptPageListModel.cpp
-    ../src/core/PptPageListModel.h
-)
+if(WIN32)
+    add_executable(PptPageListModelTest
+        PptPageListModelTest.cpp
+        ../src/core/PptPageListModel.cpp
+        ../src/core/PptPageListModel.h
+    )
 
-target_include_directories(PptPageListModelTest PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/core
-)
+    target_include_directories(PptPageListModelTest PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/core
+    )
 
-target_link_libraries(PptPageListModelTest PRIVATE
-    Qt6::Core
-)
+    target_link_libraries(PptPageListModelTest PRIVATE
+        Qt6::Core
+    )
 
-add_test(NAME PptPageListModelTest COMMAND PptPageListModelTest)
+    add_test(NAME PptPageListModelTest COMMAND PptPageListModelTest)
+endif()
 
 add_executable(ImageMetadataTest
     ImageMetadataTest.cpp
@@ -102,7 +106,7 @@ target_link_libraries(HttpDownloaderTest PRIVATE
 
 add_test(NAME HttpDownloaderTest COMMAND HttpDownloaderTest)
 
-add_executable(MatchControllerTest
+set(_gsm_match_controller_test_sources
     MatchControllerTest.cpp
     ../src/core/MatchController.cpp
     ../src/core/MatchController.h
@@ -116,19 +120,24 @@ add_executable(MatchControllerTest
     ../src/core/GalleryListModel.h
     ../src/core/PhotoListModel.cpp
     ../src/core/PhotoListModel.h
-    ../src/core/PptPageListModel.cpp
-    ../src/core/PptPageListModel.h
-    ../src/core/PptStyleExtractor.cpp
-    ../src/core/PptStyleExtractor.h
     ../src/core/MatchResultStore.cpp
     ../src/core/MatchResultStore.h
     ../src/core/SQLiteDB.cpp
     ../src/core/SQLiteDB.h
     ../src/core/SQLiteStatement.cpp
     ../src/core/SQLiteStatement.h
-    ../src/core/WindowsMlExecutionProvider.cpp
-    ../src/core/WindowsMlExecutionProvider.h
 )
+if(WIN32)
+    list(APPEND _gsm_match_controller_test_sources
+        ../src/core/PptPageListModel.cpp
+        ../src/core/PptPageListModel.h
+        ../src/core/PptStyleExtractor.cpp
+        ../src/core/PptStyleExtractor.h
+        ../src/core/WindowsMlExecutionProvider.cpp
+        ../src/core/WindowsMlExecutionProvider.h
+    )
+endif()
+add_executable(MatchControllerTest ${_gsm_match_controller_test_sources})
 
 # Keep the test object's MatchController layout synchronized even when localized
 # MSVC /showIncludes output prevents Ninja from discovering header dependencies.
@@ -161,7 +170,7 @@ target_link_libraries(MatchControllerTest PRIVATE
 add_test(NAME MatchControllerTest COMMAND MatchControllerTest)
 
 if(GSM_MODELS_AVAILABLE)
-    add_executable(GarmentMatcherRuntimeTest
+    set(_gsm_runtime_test_sources
         GarmentMatcherRuntimeTest.cpp
         ../src/core/GarmentMatcher.cpp
         ../src/core/GarmentMatcher.h
@@ -169,9 +178,14 @@ if(GSM_MODELS_AVAILABLE)
         ../src/core/SQLiteDB.h
         ../src/core/SQLiteStatement.cpp
         ../src/core/SQLiteStatement.h
-        ../src/core/WindowsMlExecutionProvider.cpp
-        ../src/core/WindowsMlExecutionProvider.h
     )
+    if(WIN32)
+        list(APPEND _gsm_runtime_test_sources
+            ../src/core/WindowsMlExecutionProvider.cpp
+            ../src/core/WindowsMlExecutionProvider.h
+        )
+    endif()
+    add_executable(GarmentMatcherRuntimeTest ${_gsm_runtime_test_sources})
 
     target_include_directories(GarmentMatcherRuntimeTest PRIVATE
         ${CMAKE_SOURCE_DIR}/src/core

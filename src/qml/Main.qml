@@ -41,6 +41,7 @@ ApplicationWindow {
             return
         firstFramePresented = true
         workspaceLoader.active = true
+        Qt.callLater(function() { controller.completeDeferredStartup() })
     }
 
     property string statusText: qsTr("就绪")

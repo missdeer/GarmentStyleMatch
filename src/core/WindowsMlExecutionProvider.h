@@ -24,4 +24,5 @@ public:
     [[nodiscard]] static bool          ensureReady(const QString &name, QString *error = nullptr);
     [[nodiscard]] static QString       libraryPath(const QString &name, QString *error = nullptr);
     [[nodiscard]] static QString       readyStateText(ReadyState state);
+    static void                        invalidateCache();
 };

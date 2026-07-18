@@ -37,7 +37,9 @@
 #include "GarmentMatcher.h"
 #include "SQLiteDB.h"
 #include "SQLiteStatement.h"
-#include "WindowsMlExecutionProvider.h"
+#ifdef Q_OS_WIN
+#    include "WindowsMlExecutionProvider.h"
+#endif
 
 // ONNX Runtime/OpenCV interop requires C function-pointer casts, raw image buffers, and model-defined tensor indices and dimensions.
 // The surrounding size and shape checks validate every indexed access.
@@ -239,6 +241,7 @@ namespace
         return QStringLiteral("ort-%1_trt-%2_cuda13_fp16").arg(loaded.version, tensorRtVersion());
     }
 
+#ifdef Q_OS_WIN
     [[nodiscard]] QString configuredWindowsMlProvider(const QString &configured, bool windowsMlAvailable)
     {
         if (!windowsMlAvailable)
@@ -269,52 +272,58 @@ namespace
         }
         return {};
     }
+#endif
 
     [[nodiscard]] QString startupProvider()
     {
         static const QString provider = [] {
-#ifdef Q_OS_WIN
             const QString configured = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString().trimmed().toLower();
-            const bool    tensorRtAvailable  = hasTensorRtRuntime();
-            const bool    cudaAvailable      = hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda")));
-            const bool    directMlAvailable  = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml")));
-            const bool    windowsMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("windowsml")));
-            if (configured == QStringLiteral("tensorrt") && tensorRtAvailable)
-            {
-                return QStringLiteral("tensorrt");
-            }
-            if (configured == QStringLiteral("cuda") && cudaAvailable)
-            {
-                return QStringLiteral("cuda");
-            }
-            if (configured == QStringLiteral("directml") && directMlAvailable)
-            {
-                return QStringLiteral("directml");
-            }
-            QString windowsMlProvider = configuredWindowsMlProvider(configured, windowsMlAvailable);
-            if (!windowsMlProvider.isEmpty())
-            {
-                return windowsMlProvider;
-            }
+#ifdef Q_OS_WIN
             if (configured == QStringLiteral("cpu"))
             {
                 return QStringLiteral("cpu");
             }
-            if (tensorRtAvailable)
+            if (configured == QStringLiteral("tensorrt") && hasTensorRtRuntime())
             {
                 return QStringLiteral("tensorrt");
             }
-            if (cudaAvailable)
+            if (configured == QStringLiteral("cuda") && hasCudaRuntime()
+                && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
             {
                 return QStringLiteral("cuda");
             }
-            if (directMlAvailable)
+            if (configured == QStringLiteral("directml")
+                && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))))
+            {
+                return QStringLiteral("directml");
+            }
+            if (configured.startsWith(QStringLiteral("windows ml")))
+            {
+                const bool windowsMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("windowsml")));
+                QString    windowsMlProvider  = configuredWindowsMlProvider(configured, windowsMlAvailable);
+                if (!windowsMlProvider.isEmpty())
+                {
+                    return windowsMlProvider;
+                }
+            }
+            if (configured != QStringLiteral("auto"))
+            {
+                return QStringLiteral("cpu");
+            }
+            if (hasTensorRtRuntime())
+            {
+                return QStringLiteral("tensorrt");
+            }
+            if (hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
+            {
+                return QStringLiteral("cuda");
+            }
+            if (QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))))
             {
                 return QStringLiteral("directml");
             }
 #elif defined(Q_OS_MACOS)
-            const QString configured = QSettings().value(QStringLiteral("matching/provider"), QStringLiteral("auto")).toString().trimmed().toLower();
-            const bool    coreMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cpu")));
+            const bool coreMlAvailable = QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cpu")));
             if (configured == QStringLiteral("cpu"))
             {
                 return QStringLiteral("cpu");
@@ -323,6 +332,8 @@ namespace
             {
                 return QStringLiteral("coreml");
             }
+#else
+            Q_UNUSED(configured)
 #endif
             return QStringLiteral("cpu");
         }();

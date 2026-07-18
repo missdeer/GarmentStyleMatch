@@ -1,14 +1,27 @@
 #include "WindowsMlExecutionProvider.h"
 
-#ifdef Q_OS_WIN
-#    include <Windows.h>
+#include <mutex>
+#include <optional>
 
-#    include <WinMLEpCatalog.h>
-#endif
+#include <Windows.h>
+
+#include <WinMLEpCatalog.h>
 
 namespace
 {
-#ifdef Q_OS_WIN
+    struct ProvidersCache
+    {
+        std::mutex                                               mutex;
+        std::optional<QVector<WindowsMlExecutionProvider::Info>> items;
+        QString                                                  error;
+    };
+
+    ProvidersCache &providersCache()
+    {
+        static ProvidersCache cache;
+        return cache;
+    }
+
     constexpr int kHresultWidth = 8;
     constexpr int kHexRadix     = 16;
 
@@ -82,15 +95,25 @@ namespace
         }
         return nullptr;
     }
-#endif
 } // namespace
 
 QVector<WindowsMlExecutionProvider::Info> WindowsMlExecutionProvider::providers(QString *error)
 {
-#ifdef Q_OS_WIN
+    ProvidersCache        &cache = providersCache();
+    const std::scoped_lock lock(cache.mutex);
+    if (cache.items.has_value())
+    {
+        if (error)
+        {
+            *error = cache.error;
+        }
+        return *cache.items;
+    }
+
     Catalog catalog;
     if (!catalog.valid())
     {
+        // Transient failure — surface the error but do not cache, so the next call retries.
         if (error)
         {
             *error = QStringLiteral("无法打开 Windows ML EP catalog：%1").arg(hresultText(catalog.result()));
@@ -99,23 +122,34 @@ QVector<WindowsMlExecutionProvider::Info> WindowsMlExecutionProvider::providers(
     }
     QVector<Info> items;
     const HRESULT result = WinMLEpCatalogEnumProviders(catalog.handle(), collectProvider, &items);
-    if (FAILED(result) && error)
+    if (FAILED(result))
     {
-        *error = QStringLiteral("无法枚举 Windows ML EP：%1").arg(hresultText(result));
+        // Transient failure — do not cache.
+        if (error)
+        {
+            *error = QStringLiteral("无法枚举 Windows ML EP：%1").arg(hresultText(result));
+        }
+        return items;
     }
-    return items;
-#else
+    cache.error.clear();
+    cache.items = std::move(items);
     if (error)
     {
-        *error = QStringLiteral("Windows ML EP 仅支持 Windows");
+        *error = cache.error;
     }
-    return {};
-#endif
+    return *cache.items;
+}
+
+void WindowsMlExecutionProvider::invalidateCache()
+{
+    ProvidersCache        &cache = providersCache();
+    const std::scoped_lock lock(cache.mutex);
+    cache.items.reset();
+    cache.error.clear();
 }
 
 bool WindowsMlExecutionProvider::ensureReady(const QString &name, QString *error)
 {
-#ifdef Q_OS_WIN
     Catalog catalog;
     if (!catalog.valid())
     {
@@ -132,19 +166,10 @@ bool WindowsMlExecutionProvider::ensureReady(const QString &name, QString *error
         *error = QStringLiteral("准备 Windows ML EP %1 失败：%2").arg(name, hresultText(result));
     }
     return SUCCEEDED(result);
-#else
-    Q_UNUSED(name)
-    if (error)
-    {
-        *error = QStringLiteral("Windows ML EP 仅支持 Windows");
-    }
-    return false;
-#endif
 }
 
 QString WindowsMlExecutionProvider::libraryPath(const QString &name, QString *error)
 {
-#ifdef Q_OS_WIN
     Catalog catalog;
     if (!catalog.valid())
     {
@@ -175,14 +200,6 @@ QString WindowsMlExecutionProvider::libraryPath(const QString &name, QString *er
         return {};
     }
     return QString::fromUtf8(path.constData());
-#else
-    Q_UNUSED(name)
-    if (error)
-    {
-        *error = QStringLiteral("Windows ML EP 仅支持 Windows");
-    }
-    return {};
-#endif
 }
 
 QString WindowsMlExecutionProvider::readyStateText(ReadyState state)

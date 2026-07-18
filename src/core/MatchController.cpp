@@ -30,12 +30,13 @@
 #include "GarmentMatcher.h"
 #include "HttpDownloader.h"
 #include "PhotoListModel.h"
-#include "PptPageListModel.h"
-#include "PptStyleExtractor.h"
-#include "WindowsMlExecutionProvider.h"
 
 #ifdef Q_OS_WIN
 #    include <QAxObject>
+
+#    include "PptPageListModel.h"
+#    include "PptStyleExtractor.h"
+#    include "WindowsMlExecutionProvider.h"
 #endif
 
 // Short iterator and model names are conventional within this Qt controller implementation.
@@ -167,15 +168,56 @@ namespace
 MatchController::MatchController(QObject *parent)
     : QObject(parent),
       m_availableUiStyles(systemUiStyles()),
-      m_currentUiStyle(QQuickStyle::name()),
-      m_availableInferenceEngines(GarmentMatcher::availableProviders()),
-      m_currentInferenceEngine(GarmentMatcher::activeProvider())
+      m_currentUiStyle(QQuickStyle::name())
 {
-    QSettings settings;
-    settings.setValue(QStringLiteral("matching/provider"), m_currentInferenceEngine.toLower());
-    m_parallelMatchThreadCount = settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount()).toInt();
-    m_parallelMatchThreadCount = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
-    refreshWindowsMlExecutionProviders();
+    const QSettings settings;
+    const QString   cachedEngine = settings.value(QStringLiteral("matching/lastActiveEngine")).toString();
+    m_currentInferenceEngine     = cachedEngine.isEmpty() ? QStringLiteral("CPU") : cachedEngine;
+    const QStringList cachedList = settings.value(QStringLiteral("matching/lastAvailableEngines")).toStringList();
+    m_availableInferenceEngines  = cachedList.isEmpty() ? QStringList {QStringLiteral("CPU")} : cachedList;
+    m_parallelMatchThreadCount   = settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount()).toInt();
+    m_parallelMatchThreadCount   = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
+}
+
+void MatchController::completeDeferredStartup()
+{
+    if (m_deferredStartupCompleted)
+    {
+        return;
+    }
+    m_deferredStartupCompleted = true;
+
+    auto *watcher = new QFutureWatcher<std::pair<QString, QStringList>>(this);
+    connect(watcher, &QFutureWatcher<std::pair<QString, QStringList>>::finished, this, [this, watcher] {
+        const auto result = watcher->result();
+        watcher->deleteLater();
+
+        const QString     &engine = result.first;
+        const QStringList &list   = result.second;
+
+        QSettings settings;
+        settings.setValue(QStringLiteral("matching/lastActiveEngine"), engine);
+        settings.setValue(QStringLiteral("matching/lastAvailableEngines"), list);
+
+        if (engine != m_currentInferenceEngine)
+        {
+            m_currentInferenceEngine = engine;
+            emit currentInferenceEngineChanged();
+        }
+        if (list != m_availableInferenceEngines)
+        {
+            m_availableInferenceEngines = list;
+            emit availableInferenceEnginesChanged();
+        }
+        refreshWindowsMlExecutionProviders();
+        emit deferredStartupCompleted();
+    });
+    watcher->setFuture(QtConcurrent::run([] {
+#ifdef Q_OS_WIN
+        (void) WindowsMlExecutionProvider::providers();
+#endif
+        return std::make_pair(GarmentMatcher::activeProvider(), GarmentMatcher::availableProviders());
+    }));
 }
 
 QStringList MatchController::systemUiStyles()
@@ -242,6 +284,7 @@ void MatchController::setPhotoModel(PhotoListModel *m)
 
 void MatchController::setPptPageModel(PptPageListModel *m)
 {
+#ifdef Q_OS_WIN
     if (m_pptPageModel)
     {
         disconnect(m_pptPageModel, nullptr, this, nullptr);
@@ -251,6 +294,9 @@ void MatchController::setPptPageModel(PptPageListModel *m)
     {
         connect(m_pptPageModel, &PptPageListModel::selectedPagesTextChanged, this, &MatchController::persistSelectedPptPages);
     }
+#else
+    Q_UNUSED(m)
+#endif
 }
 
 bool MatchController::setCurrentUiStyle(const QString &style)
@@ -316,6 +362,7 @@ bool MatchController::setCurrentInferenceEngine(const QString &engine)
 
 void MatchController::refreshWindowsMlExecutionProviders()
 {
+#ifdef Q_OS_WIN
     QVariantList items;
     QString      error;
     for (const auto &provider : WindowsMlExecutionProvider::providers(&error))
@@ -343,10 +390,12 @@ void MatchController::refreshWindowsMlExecutionProviders()
     {
         emit logMessage(error);
     }
+#endif
 }
 
 void MatchController::installWindowsMlExecutionProvider(const QString &name)
 {
+#ifdef Q_OS_WIN
     if (m_windowsMlEpOperationInProgress || name.trimmed().isEmpty())
     {
         return;
@@ -361,6 +410,7 @@ void MatchController::installWindowsMlExecutionProvider(const QString &name)
         watcher->deleteLater();
         m_windowsMlEpOperationInProgress = false;
         emit windowsMlEpOperationInProgressChanged();
+        WindowsMlExecutionProvider::invalidateCache();
         refreshWindowsMlExecutionProviders();
         emit logMessage(error.isEmpty() ? QStringLiteral("Windows ML EP %1 已准备完成，可选择使用").arg(name) : error);
     });
@@ -370,6 +420,9 @@ void MatchController::installWindowsMlExecutionProvider(const QString &name)
         Q_UNUSED(ready)
         return error;
     }));
+#else
+    Q_UNUSED(name)
+#endif
 }
 
 bool MatchController::useWindowsMlExecutionProvider(const QString &name)
@@ -1007,12 +1060,14 @@ void MatchController::setPptPath(const QString &v)
         emit logMessage(QStringLiteral("pptPath=%1").arg(v));
     }
 
+#ifdef Q_OS_WIN
     const bool wasRestoring = m_restoringPptState;
     m_restoringPptState     = true;
     auto restoreGuard       = qScopeGuard([this, wasRestoring] { m_restoringPptState = wasRestoring; });
     loadPptPreviewsFromCache();
     restoreSelectedPptPages();
     loadPptStylesFromCache();
+#endif
 }
 
 QString MatchController::pptCacheDir(const QString &pptFilePath)
@@ -1041,6 +1096,7 @@ QString MatchController::pptPagesSettingsKey(const QString &pptFilePath)
 
 void MatchController::persistSelectedPptPages()
 {
+#ifdef Q_OS_WIN
     if (m_restoringPptState || !m_pptPageModel || m_pptPath.isEmpty())
     {
         return;
@@ -1048,10 +1104,12 @@ void MatchController::persistSelectedPptPages()
     QSettings settings;
     settings.setValue(pptPagesSettingsKey(m_pptPath), m_pptPageModel->selectedPagesText());
     settings.sync();
+#endif
 }
 
 void MatchController::restoreSelectedPptPages()
 {
+#ifdef Q_OS_WIN
     if (!m_pptPageModel || m_pptPath.isEmpty())
     {
         return;
@@ -1061,10 +1119,12 @@ void MatchController::restoreSelectedPptPages()
     m_restoringPptState        = true;
     m_pptPageModel->setSelectedPagesText(pages);
     m_restoringPptState = wasRestoring;
+#endif
 }
 
 bool MatchController::loadPptPreviewsFromCache()
 {
+#ifdef Q_OS_WIN
     if (!m_pptPageModel)
     {
         return false;
@@ -1100,10 +1160,14 @@ bool MatchController::loadPptPreviewsFromCache()
     }
     emit logMessage(QStringLiteral("从缓存加载 %1 页预览: %2").arg(files.size()).arg(dir));
     return true;
+#else
+    return false;
+#endif
 }
 
 bool MatchController::loadPptStylesFromCache()
 {
+#ifdef Q_OS_WIN
     if (!m_galleryModel)
     {
         return false;
@@ -1119,6 +1183,9 @@ bool MatchController::loadPptStylesFromCache()
         emit logMessage(QStringLiteral("已从缓存载入 %1 张手绘图: %2").arg(count).arg(stylesDir));
     }
     return count > 0;
+#else
+    return false;
+#endif
 }
 
 void MatchController::scanPhotoDir()
@@ -1236,6 +1303,7 @@ void MatchController::setBatchAutoMatchInProgress(bool inProgress)
 
 void MatchController::reloadPpt()
 {
+#ifdef Q_OS_WIN
     emit logMessage(QStringLiteral("reloadPpt=%1").arg(m_pptPath));
     if (!m_pptPageModel)
     {
@@ -1265,7 +1333,6 @@ void MatchController::reloadPpt()
         return;
     }
 
-#ifdef Q_OS_WIN
     const QString cacheDir = pptCacheDir(m_pptPath);
     if (cacheDir.isEmpty())
     {
@@ -1354,21 +1421,24 @@ void MatchController::reloadPpt()
     ppApp.dynamicCall("Quit()");
 
     emit logMessage(QStringLiteral("PPT 预览导出完成,共 %1 页").arg(count));
-#else
-    emit logMessage(QStringLiteral("当前平台不支持 PPT 预览提取(仅 Windows)"));
 #endif
 }
 
 void MatchController::togglePptPageSelected(int row)
 {
+#ifdef Q_OS_WIN
     if (m_pptPageModel)
     {
         m_pptPageModel->toggleSelected(row);
     }
+#else
+    Q_UNUSED(row)
+#endif
 }
 
 void MatchController::extractFromSelectedPages() // NOLINT(readability-function-cognitive-complexity)
 {
+#ifdef Q_OS_WIN
     if (!m_pptPageModel || !m_galleryModel)
     {
         emit logMessage(QStringLiteral("extractFromSelectedPages: missing model"));
@@ -1493,6 +1563,7 @@ void MatchController::extractFromSelectedPages() // NOLINT(readability-function-
     setBusy(true);
     emit logMessage(QStringLiteral("提取进度 0/%1｜正在启动后台提取任务...").arg(pages.size()));
     watcher->setFuture(QtConcurrent::run([opts] { return PptStyleExtractor::extract(opts); }));
+#endif
 }
 
 void MatchController::emitCurrentChanged()

@@ -53,7 +53,7 @@ class MatchController : public QObject
     Q_PROPERTY(QStringList availableUiStyles READ availableUiStyles CONSTANT)
     Q_PROPERTY(QString currentUiStyle READ currentUiStyle CONSTANT)
     Q_PROPERTY(QStringList availableInferenceEngines READ availableInferenceEngines NOTIFY availableInferenceEnginesChanged)
-    Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine CONSTANT)
+    Q_PROPERTY(QString currentInferenceEngine READ currentInferenceEngine NOTIFY currentInferenceEngineChanged)
     Q_PROPERTY(QVariantList windowsMlExecutionProviders READ windowsMlExecutionProviders NOTIFY windowsMlExecutionProvidersChanged)
     Q_PROPERTY(bool windowsMlEpOperationInProgress READ windowsMlEpOperationInProgress NOTIFY windowsMlEpOperationInProgressChanged)
     Q_PROPERTY(int parallelMatchThreadCount READ parallelMatchThreadCount WRITE setParallelMatchThreadCount NOTIFY parallelMatchThreadCountChanged)
@@ -204,6 +204,7 @@ public slots:
     static void               openModelDirectory();
 
     void restorePersistentState();
+    void completeDeferredStartup();
     void activatePreview(bool inputTabActive);
 
     void previousImage(bool inputTabActive = false);
@@ -259,8 +260,10 @@ signals:
     void batchAutoMatchInProgressChanged();
     void parallelMatchThreadCountChanged();
     void availableInferenceEnginesChanged();
+    void currentInferenceEngineChanged();
     void windowsMlExecutionProvidersChanged();
     void windowsMlEpOperationInProgressChanged();
+    void deferredStartupCompleted();
     void modelDownloadRequired();
     void busyChanged();
 
@@ -329,6 +332,7 @@ private:
     QString                           m_pythonExecutable;
     QString                           m_pythonPackagesDir;
     std::shared_ptr<std::atomic_bool> m_batchAutoMatchCancellation;
+    bool                              m_deferredStartupCompleted = false;
 
     void                         setBusy(bool on);
     void                         setBatchAutoMatchInProgress(bool inProgress);

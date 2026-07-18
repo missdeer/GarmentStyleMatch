@@ -5,14 +5,11 @@ set(GSM_SOURCES
     core/CandidateListModel.cpp
     core/GalleryListModel.cpp
     core/PhotoListModel.cpp
-    core/PptPageListModel.cpp
-    core/PptStyleExtractor.cpp
     core/ImageMetadata.cpp
     core/GarmentMatcher.cpp
     core/MatchResultStore.cpp
     core/SQLiteDB.cpp
     core/SQLiteStatement.cpp
-    core/WindowsMlExecutionProvider.cpp
 )
 
 set(GSM_HEADERS
@@ -21,15 +18,25 @@ set(GSM_HEADERS
     core/CandidateListModel.h
     core/GalleryListModel.h
     core/PhotoListModel.h
-    core/PptPageListModel.h
-    core/PptStyleExtractor.h
     core/ImageMetadata.h
     core/GarmentMatcher.h
     core/MatchResultStore.h
     core/SQLiteDB.h
     core/SQLiteStatement.h
-    core/WindowsMlExecutionProvider.h
 )
+
+if(WIN32)
+    list(APPEND GSM_SOURCES
+        core/PptPageListModel.cpp
+        core/PptStyleExtractor.cpp
+        core/WindowsMlExecutionProvider.cpp
+    )
+    list(APPEND GSM_HEADERS
+        core/PptPageListModel.h
+        core/PptStyleExtractor.h
+        core/WindowsMlExecutionProvider.h
+    )
+endif()
 
 # Some localized MSVC installations emit /showIncludes output in a code page
 # that Ninja cannot parse reliably.  Keep project-header dependencies explicit

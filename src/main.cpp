@@ -9,7 +9,9 @@
 #include "core/ImageMetadata.h"
 #include "core/MatchController.h"
 #include "core/PhotoListModel.h"
-#include "core/PptPageListModel.h"
+#ifdef Q_OS_WIN
+#    include "core/PptPageListModel.h"
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -35,13 +37,17 @@ int main(int argc, char *argv[])
     CandidateListModel candidateModel;
     GalleryListModel   galleryModel;
     PhotoListModel     photoModel;
-    PptPageListModel   pptPageModel;
-    ImageMetadata      imageMetadata;
-    MatchController    controller;
+#ifdef Q_OS_WIN
+    PptPageListModel pptPageModel;
+#endif
+    ImageMetadata   imageMetadata;
+    MatchController controller;
     controller.setCandidateModel(&candidateModel);
     controller.setGalleryModel(&galleryModel);
     controller.setPhotoModel(&photoModel);
+#ifdef Q_OS_WIN
     controller.setPptPageModel(&pptPageModel);
+#endif
 
     const auto refreshImageMetadata = [&controller, &imageMetadata] { imageMetadata.setImagePath(controller.currentPhotoPath()); };
     QObject::connect(&controller, &MatchController::currentPhotoPathChanged, &imageMetadata, refreshImageMetadata);
@@ -51,7 +57,11 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("candidateModel"), &candidateModel);
     engine.rootContext()->setContextProperty(QStringLiteral("galleryModel"), &galleryModel);
     engine.rootContext()->setContextProperty(QStringLiteral("photoModel"), &photoModel);
+#ifdef Q_OS_WIN
     engine.rootContext()->setContextProperty(QStringLiteral("pptPageModel"), &pptPageModel);
+#else
+    engine.rootContext()->setContextProperty(QStringLiteral("pptPageModel"), QVariant());
+#endif
     engine.rootContext()->setContextProperty(QStringLiteral("imageMetadata"), &imageMetadata);
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
