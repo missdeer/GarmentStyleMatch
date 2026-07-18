@@ -31,11 +31,6 @@ Rectangle {
                 anchors.rightMargin: 8
                 spacing: 6
 
-                Label {
-                    text: qsTr("款号小图库 (%1)").arg(root.model ? root.model.count : 0)
-                    font.pixelSize: 13
-                    font.bold: true
-                }
                 ComboBox {
                     id: catBox
                     model: [qsTr("全部"), qsTr("baby"), qsTr("kids"), qsTr("adult")]
