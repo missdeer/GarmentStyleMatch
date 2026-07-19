@@ -150,6 +150,15 @@ Rectangle {
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {}
+            readonly property real wheelScrollMultiplier: 3.0
+
+            function scrollBy(distance) {
+                const minimumContentY = originY
+                const maximumContentY = Math.max(minimumContentY,
+                                                  originY + contentHeight - height)
+                contentY = Math.max(minimumContentY,
+                                    Math.min(maximumContentY, contentY + distance))
+            }
 
             delegate: Item {
                 id: cell
@@ -367,6 +376,20 @@ Rectangle {
                         }
                     }
 
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.NoButton
+                z: 2
+
+                onWheel: (wheel) => {
+                    let delta = wheel.pixelDelta.y
+                    if (delta === 0)
+                        delta = wheel.angleDelta.y
+                    grid.scrollBy(-delta * grid.wheelScrollMultiplier)
+                    wheel.accepted = true
                 }
             }
         }
