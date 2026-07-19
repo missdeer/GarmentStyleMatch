@@ -1,12 +1,15 @@
+#include <functional>
 #include <iostream>
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QTimer>
 
 #include "MatchController.h"
@@ -33,6 +36,18 @@ namespace
     {
         QFile file(path);
         return file.open(QIODevice::WriteOnly) && file.write("test") == 4;
+    }
+
+    bool waitFor(const std::function<bool()> &condition)
+    {
+        QElapsedTimer timer;
+        timer.start();
+        while (!condition() && timer.elapsed() < kAsyncTimeoutMs)
+        {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+            QThread::msleep(10);
+        }
+        return condition();
     }
 
 } // namespace
@@ -267,6 +282,17 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         return 1;
     }
     if (!check(controller.currentOutputImagePaths().size() == 2, QStringLiteral("控制器应暴露选中目录中的全部图片")))
+    {
+        return 1;
+    }
+    const QString watchedOutputImage = root.filePath(QStringLiteral("Alpha/03.jpeg"));
+    if (!check(createFile(watchedOutputImage) && waitFor([&model] { return model.at(0) && model.at(0)->candidateCount == 3; }),
+               QStringLiteral("输出款号目录新增图片后，FileSystemWatcher 必须及时刷新归类列表")))
+    {
+        return 1;
+    }
+    if (!check(QFile::remove(watchedOutputImage) && waitFor([&model] { return model.at(0) && model.at(0)->candidateCount == 2; }),
+               QStringLiteral("输出款号目录删除图片后，FileSystemWatcher 必须及时刷新归类列表")))
     {
         return 1;
     }
@@ -555,6 +581,17 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     const QString nestedPhotoDisplay = photoModel.data(photoModel.index(2), PhotoListModel::DisplayLineRole).toString();
     if (!check(nestedPhotoDisplay == QDir::toNativeSeparators(QStringLiteral("z/third.jpg")),
                QStringLiteral("实拍图片列表应显示相对于实拍图片目录的路径，实际为: %1").arg(nestedPhotoDisplay)))
+    {
+        return 1;
+    }
+    const QString watchedPhoto = root.filePath(QStringLiteral("photos/z/watched.jpeg"));
+    if (!check(createFile(watchedPhoto) && waitFor([&photoModel] { return photoModel.rowCount() == 4; }),
+               QStringLiteral("实拍图片子目录新增图片后，FileSystemWatcher 必须及时刷新输入列表")))
+    {
+        return 1;
+    }
+    if (!check(QFile::remove(watchedPhoto) && waitFor([&photoModel] { return photoModel.rowCount() == 3; }),
+               QStringLiteral("实拍图片子目录删除图片后，FileSystemWatcher 必须及时刷新输入列表")))
     {
         return 1;
     }

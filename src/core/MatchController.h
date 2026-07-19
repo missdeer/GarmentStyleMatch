@@ -5,6 +5,7 @@
 #include <memory>
 
 #include <QDate>
+#include <QFileSystemWatcher>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -280,6 +281,10 @@ private:
     };
 
     void                  emitCurrentChanged();
+    void                  handleWatchedDirectoryChanged(const QString &path);
+    void                  updateWatchedDirectories();
+    void                  scanPhotoDir(bool skipIfEntriesUnchanged);
+    void                  scanOutputDir(bool skipIfEntriesUnchanged);
     void                  clearAutoMatchResult();
     void                  restoreAutoMatchResult();
     void                  rebuildAutoMatchedItems();
@@ -313,6 +318,9 @@ private:
     QString                           m_outputFilterText;
     QString                           m_photoDir;
     QString                           m_outputDir;
+    QFileSystemWatcher                m_directoryWatcher;
+    QStringList                       m_photoEntrySnapshot;
+    QStringList                       m_outputEntrySnapshot;
     QString                           m_pptPath;
     QStringList                       m_availableUiStyles;
     QString                           m_currentUiStyle;

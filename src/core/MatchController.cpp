@@ -11,6 +11,7 @@
 #include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QFutureWatcher>
 #include <QLibraryInfo>
 #include <QPointer>
@@ -45,6 +46,11 @@ namespace
 {
     constexpr qint64 kBytesPerKibibyte        = 1024;
     constexpr int    kMaxParallelMatchThreads = 8;
+#ifdef Q_OS_WIN
+    constexpr auto kPathCaseSensitivity = Qt::CaseInsensitive;
+#else
+    constexpr auto kPathCaseSensitivity = Qt::CaseSensitive;
+#endif
 
     enum class ConfirmedStyleIdCopyPolicy : std::uint8_t
     {
@@ -163,10 +169,33 @@ namespace
     {
         return 1;
     }
+
+    bool directoryContainsPath(const QString &directory, const QString &path)
+    {
+        if (directory.isEmpty())
+        {
+            return false;
+        }
+
+        QString       directoryPrefix = QDir::fromNativeSeparators(QDir(directory).absolutePath());
+        const QString cleanPath       = QDir::fromNativeSeparators(QDir(path).absolutePath());
+        if (cleanPath.compare(directoryPrefix, kPathCaseSensitivity) == 0)
+        {
+            return true;
+        }
+        if (!directoryPrefix.endsWith(QLatin1Char('/')))
+        {
+            directoryPrefix += QLatin1Char('/');
+        }
+        return cleanPath.startsWith(directoryPrefix, kPathCaseSensitivity);
+    }
 } // namespace
 
-MatchController::MatchController(QObject *parent) : QObject(parent), m_availableUiStyles(systemUiStyles()), m_currentUiStyle(QQuickStyle::name())
+MatchController::MatchController(QObject *parent)
+    : QObject(parent), m_directoryWatcher(this), m_availableUiStyles(systemUiStyles()), m_currentUiStyle(QQuickStyle::name())
 {
+    connect(&m_directoryWatcher, &QFileSystemWatcher::directoryChanged, this, &MatchController::handleWatchedDirectoryChanged);
+
     const QSettings settings;
     const QString   cachedEngine = settings.value(QStringLiteral("matching/lastActiveEngine")).toString();
     m_currentInferenceEngine     = cachedEngine.isEmpty() ? QStringLiteral("CPU") : cachedEngine;
@@ -1192,6 +1221,12 @@ bool MatchController::loadPptStylesFromCache()
 
 void MatchController::scanPhotoDir()
 {
+    scanPhotoDir(false);
+}
+
+void MatchController::scanPhotoDir(bool skipIfEntriesUnchanged)
+{
+    updateWatchedDirectories();
     if (!m_photoModel)
     {
         emit logMessage(QStringLiteral("scanPhotoDir: no photoModel"));
@@ -1220,6 +1255,17 @@ void MatchController::scanPhotoDir()
         }
         std::sort(items.begin(), items.end(), [](const PhotoItem &a, const PhotoItem &b) { return a.imagePath < b.imagePath; });
     }
+    QStringList entrySnapshot;
+    entrySnapshot.reserve(items.size());
+    for (const PhotoItem &item : std::as_const(items))
+    {
+        entrySnapshot.push_back(item.imagePath);
+    }
+    if (skipIfEntriesUnchanged && entrySnapshot == m_photoEntrySnapshot)
+    {
+        return;
+    }
+    m_photoEntrySnapshot = std::move(entrySnapshot);
     m_photoModel->setItems(std::move(items));
     refreshPhotoMatchStatuses();
     const int  nextPhotoIndex   = m_photoModel->rowCount() > 0 ? 0 : -1;
@@ -1235,12 +1281,19 @@ void MatchController::scanPhotoDir()
 
 void MatchController::scanOutputDir()
 {
+    scanOutputDir(false);
+}
+
+void MatchController::scanOutputDir(bool skipIfEntriesUnchanged)
+{
+    updateWatchedDirectories();
     if (!m_candidateModel)
     {
         return;
     }
 
     QVector<CandidateItem> items;
+    QStringList            entrySnapshot;
     if (!m_outputDir.isEmpty())
     {
         static const QStringList imgFilter = {
@@ -1255,6 +1308,7 @@ void MatchController::scanOutputDir()
         items.reserve(directories.size());
         for (const QFileInfo &directory : directories)
         {
+            entrySnapshot.push_back(directory.absoluteFilePath());
             const QDir    styleDir(directory.absoluteFilePath());
             const auto    images = styleDir.entryInfoList(imgFilter, QDir::Files | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
             CandidateItem it;
@@ -1263,6 +1317,7 @@ void MatchController::scanOutputDir()
             for (const QFileInfo &image : images)
             {
                 it.imagePaths.push_back(image.absoluteFilePath());
+                entrySnapshot.push_back(image.absoluteFilePath());
             }
             it.imagePath      = it.imagePaths.isEmpty() ? QString() : it.imagePaths.constFirst();
             it.candidateCount = static_cast<int>(it.imagePaths.size());
@@ -1271,6 +1326,11 @@ void MatchController::scanOutputDir()
             items.push_back(it);
         }
     }
+    if (skipIfEntriesUnchanged && entrySnapshot == m_outputEntrySnapshot)
+    {
+        return;
+    }
+    m_outputEntrySnapshot = std::move(entrySnapshot);
     m_candidateModel->setItems(std::move(items));
     const int  nextIndex        = m_candidateModel->rowCount() > 0 ? 0 : -1;
     const bool selectionChanges = nextIndex != m_currentIndex || m_previewSource != PreviewOutput;
@@ -1281,6 +1341,82 @@ void MatchController::scanOutputDir()
         restoreAutoMatchResult();
     }
     emit logMessage(QStringLiteral("scanOutputDir=%1 (%2 directories)").arg(m_outputDir).arg(m_candidateModel->rowCount()));
+}
+
+void MatchController::handleWatchedDirectoryChanged(const QString &path)
+{
+    const bool photoDirectoryChanged  = directoryContainsPath(m_photoDir, path);
+    const bool outputDirectoryChanged = directoryContainsPath(m_outputDir, path);
+    if (photoDirectoryChanged)
+    {
+        scanPhotoDir(true);
+    }
+    if (outputDirectoryChanged)
+    {
+        scanOutputDir(true);
+    }
+}
+
+void MatchController::updateWatchedDirectories()
+{
+    QStringList desiredDirectories;
+    const auto  appendDirectory = [&desiredDirectories](const QString &path) {
+        const QDir    directory(path);
+        const QString absolutePath = directory.absolutePath();
+        if (directory.exists() && !desiredDirectories.contains(absolutePath, kPathCaseSensitivity))
+        {
+            desiredDirectories.push_back(absolutePath);
+        }
+    };
+
+    if (!m_photoDir.isEmpty())
+    {
+        appendDirectory(m_photoDir);
+        QDirIterator iterator(m_photoDir, QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while (iterator.hasNext())
+        {
+            appendDirectory(iterator.next());
+        }
+    }
+    if (!m_outputDir.isEmpty())
+    {
+        appendDirectory(m_outputDir);
+        const QFileInfoList styleDirectories = QDir(m_outputDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo &styleDirectory : styleDirectories)
+        {
+            appendDirectory(styleDirectory.absoluteFilePath());
+        }
+    }
+    const QStringList watchedDirectories = m_directoryWatcher.directories();
+    QStringList       staleDirectories;
+    for (const QString &watchedDirectory : watchedDirectories)
+    {
+        if (!desiredDirectories.contains(watchedDirectory, kPathCaseSensitivity))
+        {
+            staleDirectories.push_back(watchedDirectory);
+        }
+    }
+    if (!staleDirectories.isEmpty())
+    {
+        m_directoryWatcher.removePaths(staleDirectories);
+    }
+
+    QStringList newDirectories;
+    for (const QString &desiredDirectory : desiredDirectories)
+    {
+        if (!watchedDirectories.contains(desiredDirectory, kPathCaseSensitivity))
+        {
+            newDirectories.push_back(desiredDirectory);
+        }
+    }
+    if (!newDirectories.isEmpty())
+    {
+        const QStringList failedDirectories = m_directoryWatcher.addPaths(newDirectories);
+        if (!failedDirectories.isEmpty())
+        {
+            emit logMessage(QStringLiteral("无法监听目录: %1").arg(failedDirectories.join(QStringLiteral(", "))));
+        }
+    }
 }
 
 void MatchController::setBusy(bool on)
