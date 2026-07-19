@@ -62,8 +62,17 @@ namespace SplashScreen
             return;
         }
 
-        NSScreen    *screen      = [NSScreen mainScreen];
-        const NSRect screenFrame = [screen frame];
+        NSScreen       *screen        = [NSScreen mainScreen];
+        const NSPoint  mouseLocation  = [NSEvent mouseLocation];
+        for (NSScreen *candidate in [NSScreen screens])
+        {
+            if (NSPointInRect(mouseLocation, [candidate frame]))
+            {
+                screen = candidate;
+                break;
+            }
+        }
+        const NSRect screenFrame = [screen visibleFrame];
         const NSRect winRect     = NSMakeRect(NSMidX(screenFrame) - imgSize.width / 2.0,
                                               NSMidY(screenFrame) - imgSize.height / 2.0,
                                               imgSize.width, imgSize.height);

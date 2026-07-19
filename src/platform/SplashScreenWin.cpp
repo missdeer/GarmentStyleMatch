@@ -6,6 +6,7 @@
 #include <windows.h>
 
 #include <objidl.h>
+#include <shellscalingapi.h>
 // clang-format off
 #include <gdiplus.h>
 // clang-format on
@@ -132,12 +133,20 @@ namespace SplashScreen
             return;
         }
 
-        // Scale the splash to the primary monitor's DPI so it appears at the
-        // intended physical size on any display scale factor. Requires that we
-        // already flipped the process to a DPI-aware context above; otherwise
-        // GetDpiForSystem always returns 96.
-        HMONITOR    mon   = MonitorFromPoint(POINT {0, 0}, MONITOR_DEFAULTTOPRIMARY);
-        const float scale = static_cast<float>(GetDpiForSystem()) / 96.0F;
+        // Match Qt's automatic placement for a parentless top-level window:
+        // use the monitor containing the mouse cursor, falling back to the
+        // primary monitor.
+        POINT cursorPos {};
+        GetCursorPos(&cursorPos);
+        HMONITOR mon = MonitorFromPoint(cursorPos, MONITOR_DEFAULTTOPRIMARY);
+
+        UINT dpiX = USER_DEFAULT_SCREEN_DPI;
+        UINT dpiY = USER_DEFAULT_SCREEN_DPI;
+        if (GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &dpiX, &dpiY) != S_OK)
+        {
+            dpiX = GetDpiForSystem();
+        }
+        const float scale = static_cast<float>(dpiX) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
         const UINT  w     = static_cast<UINT>(static_cast<float>(srcW) * scale + 0.5F);
         const UINT  h     = static_cast<UINT>(static_cast<float>(srcH) * scale + 0.5F);
 
@@ -196,8 +205,8 @@ namespace SplashScreen
         MONITORINFO mi {};
         mi.cbSize = sizeof(mi);
         GetMonitorInfoW(mon, &mi);
-        const LONG cx = mi.rcMonitor.left + (mi.rcMonitor.right - mi.rcMonitor.left - static_cast<LONG>(w)) / 2;
-        const LONG cy = mi.rcMonitor.top + (mi.rcMonitor.bottom - mi.rcMonitor.top - static_cast<LONG>(h)) / 2;
+        const LONG cx = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - static_cast<LONG>(w)) / 2;
+        const LONG cy = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - static_cast<LONG>(h)) / 2;
 
         g_hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
                                  kClassName,

@@ -175,6 +175,7 @@ target_link_libraries(GarmentStyleMatch PRIVATE
     gsm_windowsml_api
     $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
     $<$<PLATFORM_ID:Windows>:gdiplus>
+    $<$<PLATFORM_ID:Windows>:shcore>
 )
 
 if(APPLE)
