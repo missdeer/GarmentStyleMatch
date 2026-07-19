@@ -6,10 +6,12 @@
 #include <vector>
 
 #include <QCoreApplication>
+#include <QDeadlineTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QPointer>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
@@ -20,6 +22,7 @@
 namespace
 {
     constexpr int       kTimeoutMs            = 5000;
+    constexpr int       kDrainSliceMs         = 10;
     constexpr int       kSlowChunkDelayMs     = 5;
     constexpr qsizetype kSlowChunkSize        = 1024;
     constexpr qsizetype kTestPayloadSize      = 512 * 1024;
@@ -43,6 +46,8 @@ namespace
             connect(&m_server, &QTcpServer::newConnection, this, [this] {
                 while (QTcpSocket *socket = m_server.nextPendingConnection())
                 {
+                    m_activeSockets.insert(socket);
+                    connect(socket, &QObject::destroyed, this, [this, socket] { m_activeSockets.remove(socket); });
                     auto request = std::make_shared<QByteArray>();
                     connect(socket, &QTcpSocket::readyRead, this, [this, socket, request] {
                         request->append(socket->readAll());
@@ -86,6 +91,16 @@ namespace
         void clearRanges()
         {
             m_ranges.clear();
+        }
+
+        bool drainConnections(int timeoutMs)
+        {
+            QDeadlineTimer deadline(timeoutMs);
+            while (!m_activeSockets.isEmpty() && !deadline.hasExpired())
+            {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, kDrainSliceMs);
+            }
+            return m_activeSockets.isEmpty();
         }
 
         [[nodiscard]] const std::vector<std::pair<qint64, qint64>> &ranges() const
@@ -192,6 +207,7 @@ namespace
         QTcpServer                             m_server;
         QByteArray                             m_payload;
         std::vector<std::pair<qint64, qint64>> m_ranges;
+        QSet<QTcpSocket *>                     m_activeSockets;
         bool                                   m_slow             = false;
         bool                                   m_rangeSupported   = true;
         bool                                   m_redirectEnabled  = false;
@@ -251,6 +267,10 @@ int main(int argc, char *argv[])
     }
 
     server.setSlow(false);
+    if (!check(server.drainConnections(kTimeoutMs), QStringLiteral("首次下载的服务器分片连接必须在续传前排空")))
+    {
+        return 1;
+    }
     server.clearRanges();
     QEventLoop finishLoop;
     bool       finished = false;
