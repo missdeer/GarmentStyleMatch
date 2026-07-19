@@ -287,13 +287,11 @@ namespace
             {
                 return QStringLiteral("tensorrt");
             }
-            if (configured == QStringLiteral("cuda") && hasCudaRuntime()
-                && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
+            if (configured == QStringLiteral("cuda") && hasCudaRuntime() && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("cuda"))))
             {
                 return QStringLiteral("cuda");
             }
-            if (configured == QStringLiteral("directml")
-                && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))))
+            if (configured == QStringLiteral("directml") && QFileInfo::exists(runtimeLibraryPath(QStringLiteral("directml"))))
             {
                 return QStringLiteral("directml");
             }

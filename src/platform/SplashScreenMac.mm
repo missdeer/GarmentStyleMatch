@@ -9,7 +9,10 @@
 
 namespace
 {
-    constexpr long long kMinDisplayMs = 1500;
+    constexpr long long      kMinDisplayMs         = 1500;
+    // ~3 refresh cycles at 60 Hz — enough for AppKit to commit the CATransaction
+    // and for the compositor to present the first frame before we return.
+    constexpr NSTimeInterval kInitialPresentPumpSec = 0.05;
 
     NSWindow                             *g_window        = nil;
     std::chrono::steady_clock::time_point g_showTime      = {};
@@ -24,7 +27,7 @@ namespace
         [g_window orderOut:nil];
         g_window = nil;
     }
-}
+} // namespace
 
 namespace SplashScreen
 {
@@ -91,7 +94,7 @@ namespace SplashScreen
         // long enough for the compositor to present at least one frame.
         [[g_window contentView] setNeedsDisplay:YES];
         [g_window displayIfNeeded];
-        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:kInitialPresentPumpSec]];
 
         // Start the min-display clock after the splash is actually on screen,
         // not from when we merely asked AppKit to show it.
@@ -120,4 +123,4 @@ namespace SplashScreen
             destroy();
         }
     }
-}
+} // namespace SplashScreen

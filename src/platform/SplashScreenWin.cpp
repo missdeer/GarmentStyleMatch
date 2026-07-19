@@ -1,6 +1,6 @@
-#include "SplashScreen.h"
-
 #include <cstring>
+
+#include "SplashScreen.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -84,7 +84,7 @@ namespace
         }
         return stream;
     }
-}
+} // namespace
 
 namespace SplashScreen
 {
@@ -199,8 +199,18 @@ namespace SplashScreen
         const LONG cx = mi.rcMonitor.left + (mi.rcMonitor.right - mi.rcMonitor.left - static_cast<LONG>(w)) / 2;
         const LONG cy = mi.rcMonitor.top + (mi.rcMonitor.bottom - mi.rcMonitor.top - static_cast<LONG>(h)) / 2;
 
-        g_hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST, kClassName, L"GarmentStyleMatch", WS_POPUP, cx, cy,
-                                 static_cast<int>(w), static_cast<int>(h), nullptr, nullptr, hInst, nullptr);
+        g_hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+                                 kClassName,
+                                 L"GarmentStyleMatch",
+                                 WS_POPUP,
+                                 cx,
+                                 cy,
+                                 static_cast<int>(w),
+                                 static_cast<int>(h),
+                                 nullptr,
+                                 nullptr,
+                                 hInst,
+                                 nullptr);
         if (g_hwnd == nullptr)
         {
             DeleteObject(g_hbm);
@@ -247,4 +257,4 @@ namespace SplashScreen
             destroy();
         }
     }
-}
+} // namespace SplashScreen

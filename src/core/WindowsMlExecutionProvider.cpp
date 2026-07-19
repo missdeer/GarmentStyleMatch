@@ -1,11 +1,10 @@
-#include "WindowsMlExecutionProvider.h"
+#include <Windows.h>
 
 #include <mutex>
 #include <optional>
-
-#include <Windows.h>
-
 #include <WinMLEpCatalog.h>
+
+#include "WindowsMlExecutionProvider.h"
 
 namespace
 {

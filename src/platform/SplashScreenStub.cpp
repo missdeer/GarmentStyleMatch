@@ -4,4 +4,4 @@ namespace SplashScreen
 {
     void show() {}
     void hide() {}
-}
+} // namespace SplashScreen

@@ -165,10 +165,7 @@ namespace
     }
 } // namespace
 
-MatchController::MatchController(QObject *parent)
-    : QObject(parent),
-      m_availableUiStyles(systemUiStyles()),
-      m_currentUiStyle(QQuickStyle::name())
+MatchController::MatchController(QObject *parent) : QObject(parent), m_availableUiStyles(systemUiStyles()), m_currentUiStyle(QQuickStyle::name())
 {
     const QSettings settings;
     const QString   cachedEngine = settings.value(QStringLiteral("matching/lastActiveEngine")).toString();
@@ -219,7 +216,7 @@ void MatchController::completeDeferredStartup()
     });
     watcher->setFuture(QtConcurrent::run([] {
 #ifdef Q_OS_WIN
-        (void) WindowsMlExecutionProvider::providers();
+        (void)WindowsMlExecutionProvider::providers();
 #endif
         return std::make_pair(GarmentMatcher::activeProvider(), GarmentMatcher::availableProviders());
     }));

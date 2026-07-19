@@ -10,4 +10,4 @@ namespace SplashScreen
     // Requires a QCoreApplication instance when called with time remaining.
     // Safe to call multiple times.
     void hide();
-}
+} // namespace SplashScreen
