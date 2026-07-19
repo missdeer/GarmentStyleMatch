@@ -11,6 +11,7 @@ Rectangle {
     property string styleId:   ""
     property var matchedItems: []
     property bool inputTabActive: false
+    property string uiStyle: ""
     property bool showAdjacentPhotoPreviews: false
     property string previousPhotoPath: ""
     property string nextPhotoPath: ""
@@ -181,6 +182,57 @@ Rectangle {
                         color: Theme.textPlaceholder
                     }
                 }
+
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: root.imagePath !== ""
+                    onDoubleClicked: root.openOriginal()
+                }
+
+                Column {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 5
+                    spacing: 4
+                    visible: root.inputTabActive
+                    z: 1
+
+                    IconButton {
+                        width: 32
+                        height: 32
+                        iconSource: "qrc:/qt/qml/GarmentStyleMatch/images/navigate-unmatched-up.svg"
+                        toolTipText: qsTr("上一张未匹配")
+                        uiStyle: root.uiStyle
+                        onClicked: root.previousUnmatchedPhoto()
+                    }
+
+                    IconButton {
+                        width: 32
+                        height: 32
+                        iconSource: "qrc:/qt/qml/GarmentStyleMatch/images/navigate-unmatched-down.svg"
+                        toolTipText: qsTr("下一张未匹配")
+                        uiStyle: root.uiStyle
+                        onClicked: root.nextUnmatchedPhoto()
+                    }
+
+                    IconButton {
+                        width: 32
+                        height: 32
+                        iconSource: "qrc:/qt/qml/GarmentStyleMatch/images/navigate-unconfirmed-up.svg"
+                        toolTipText: qsTr("上一张未确认")
+                        uiStyle: root.uiStyle
+                        onClicked: root.previousUnconfirmedPhoto()
+                    }
+
+                    IconButton {
+                        width: 32
+                        height: 32
+                        iconSource: "qrc:/qt/qml/GarmentStyleMatch/images/navigate-unconfirmed-down.svg"
+                        toolTipText: qsTr("下一张未确认")
+                        uiStyle: root.uiStyle
+                        onClicked: root.nextUnconfirmedPhoto()
+                    }
+                }
             }
 
             Rectangle {
@@ -275,40 +327,6 @@ Rectangle {
                 anchors.margins: 6
                 spacing: 8
 
-                Button {
-                    text: qsTr("上一张")
-                    enabled: root.previousEnabled
-                    onClicked: root.prev()
-                }
-                Button {
-                    text: qsTr("下一张")
-                    enabled: root.nextEnabled
-                    onClicked: root.next()
-                }
-                Button {
-                    text: qsTr("查看原图")
-                    onClicked: root.openOriginal()
-                }
-                Button {
-                    text: qsTr("上一张未匹配")
-                    enabled: root.inputTabActive
-                    onClicked: root.previousUnmatchedPhoto()
-                }
-                Button {
-                    text: qsTr("下一张未匹配")
-                    enabled: root.inputTabActive
-                    onClicked: root.nextUnmatchedPhoto()
-                }
-                Button {
-                    text: qsTr("上一张未确认")
-                    enabled: root.inputTabActive
-                    onClicked: root.previousUnconfirmedPhoto()
-                }
-                Button {
-                    text: qsTr("下一张未确认")
-                    enabled: root.inputTabActive
-                    onClicked: root.nextUnconfirmedPhoto()
-                }
                 Label {
                     text: qsTr("第 %1 / %2 张").arg(root.pageCount === 0 ? 0 : root.pageIndex + 1).arg(root.pageCount)
                     Layout.leftMargin: 12

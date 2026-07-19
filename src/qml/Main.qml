@@ -174,6 +174,7 @@ ApplicationWindow {
                             styleId:         controller.currentStyleId
                             matchedItems:     controller.autoMatchedItems
                             inputTabActive: controller.inputTabActive
+                            uiStyle: controller.currentUiStyle
                             showAdjacentPhotoPreviews: candidatePanel.inputTabActive
                             previousPhotoPath: controller.previousPhotoPath
                             nextPhotoPath:     controller.nextPhotoPath

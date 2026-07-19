@@ -82,6 +82,10 @@ set(GSM_IMAGE_FILES
     "${CMAKE_SOURCE_DIR}/GarmentStyleMatch.png"
     "${CMAKE_SOURCE_DIR}/resources/icons/folder-open.svg"
     "${CMAKE_SOURCE_DIR}/resources/icons/archive.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/navigate-unmatched-up.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/navigate-unmatched-down.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconfirmed-up.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconfirmed-down.svg"
 )
 set_source_files_properties("${CMAKE_SOURCE_DIR}/GarmentStyleMatch.png" PROPERTIES
     QT_RESOURCE_ALIAS "images/GarmentStyleMatch.png"
@@ -91,6 +95,18 @@ set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/folder-open.svg
 )
 set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/archive.svg" PROPERTIES
     QT_RESOURCE_ALIAS "images/archive.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/navigate-unmatched-up.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/navigate-unmatched-up.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/navigate-unmatched-down.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/navigate-unmatched-down.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconfirmed-up.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/navigate-unconfirmed-up.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconfirmed-down.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/navigate-unconfirmed-down.svg"
 )
 
 set(GSM_PLATFORM_SOURCES)
