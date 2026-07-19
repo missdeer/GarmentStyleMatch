@@ -34,8 +34,6 @@ QVariant GalleryListModel::data(const QModelIndex &index, int role) const
         return item.tag;
     case IndexLabelRole:
         return index.row() + 1;
-    case SelectedRole:
-        return index.row() == m_selectedIndex;
     default:
         return {};
     }
@@ -48,23 +46,16 @@ QHash<int, QByteArray> GalleryListModel::roleNames() const
         {ImagePathRole, "imagePath"},
         {TagRole, "tag"},
         {IndexLabelRole, "indexLabel"},
-        {SelectedRole, "selected"},
     };
 }
 
 void GalleryListModel::setItems(QVector<GalleryItem> items)
 {
-    const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
     m_allItems.swap(items);
     rebuildFilteredItems();
-    m_selectedIndex = -1;
     endResetModel();
     emit countChanged();
-    if (hadSelection)
-    {
-        emit selectedIndexChanged();
-    }
 }
 
 void GalleryListModel::setFilterText(const QString &text)
@@ -75,17 +66,11 @@ void GalleryListModel::setFilterText(const QString &text)
         return;
     }
 
-    const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
     m_filterText = normalizedText;
     rebuildFilteredItems();
-    m_selectedIndex = -1;
     endResetModel();
     emit countChanged();
-    if (hadSelection)
-    {
-        emit selectedIndexChanged();
-    }
 }
 
 void GalleryListModel::rebuildFilteredItems()
@@ -143,57 +128,15 @@ const GalleryItem *GalleryListModel::at(int row) const
     return &m_items.at(row);
 }
 
-void GalleryListModel::toggleSelected(int row)
-{
-    if (row < 0 || row >= m_items.size())
-    {
-        return;
-    }
-
-    const int previousIndex = m_selectedIndex;
-    m_selectedIndex         = previousIndex == row ? -1 : row;
-
-    if (previousIndex >= 0)
-    {
-        const QModelIndex previous = index(previousIndex);
-        emit              dataChanged(previous, previous, {SelectedRole});
-    }
-    if (m_selectedIndex >= 0)
-    {
-        const QModelIndex current = index(m_selectedIndex);
-        emit              dataChanged(current, current, {SelectedRole});
-    }
-    emit selectedIndexChanged();
-}
-
-void GalleryListModel::clearSelection()
-{
-    if (m_selectedIndex < 0)
-    {
-        return;
-    }
-
-    const QModelIndex previous = index(m_selectedIndex);
-    m_selectedIndex            = -1;
-    emit dataChanged(previous, previous, {SelectedRole});
-    emit selectedIndexChanged();
-}
-
 void GalleryListModel::clear()
 {
     if (m_allItems.isEmpty())
     {
         return;
     }
-    const bool hadSelection = m_selectedIndex >= 0;
     beginResetModel();
     m_allItems.clear();
     m_items.clear();
-    m_selectedIndex = -1;
     endResetModel();
     emit countChanged();
-    if (hadSelection)
-    {
-        emit selectedIndexChanged();
-    }
 }

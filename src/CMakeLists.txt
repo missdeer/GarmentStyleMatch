@@ -86,6 +86,10 @@ set(GSM_IMAGE_FILES
     "${CMAKE_SOURCE_DIR}/resources/icons/navigate-unmatched-down.svg"
     "${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconfirmed-up.svg"
     "${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconfirmed-down.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-upper.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-upper.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-lower.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-lower.svg"
 )
 set_source_files_properties("${CMAKE_SOURCE_DIR}/GarmentStyleMatch.png" PROPERTIES
     QT_RESOURCE_ALIAS "images/GarmentStyleMatch.png"
@@ -107,6 +111,18 @@ set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconf
 )
 set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/navigate-unconfirmed-down.svg" PROPERTIES
     QT_RESOURCE_ALIAS "images/navigate-unconfirmed-down.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-upper.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/gallery-match-upper.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-upper.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/gallery-confirm-upper.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-lower.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/gallery-match-lower.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-lower.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/gallery-confirm-lower.svg"
 )
 
 set(GSM_PLATFORM_SOURCES)

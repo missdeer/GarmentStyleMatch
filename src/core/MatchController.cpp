@@ -1745,11 +1745,6 @@ void MatchController::nextCandidate()
     }
 }
 
-void MatchController::confirmSelectedThumb(int galleryRow)
-{
-    emit logMessage(QStringLiteral("confirmSelectedThumb row=%1").arg(galleryRow));
-}
-
 // QFutureWatcher is parent-owned immediately and also scheduled for deletion when its future finishes.
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
 void MatchController::autoMatchStyleIds()
@@ -2083,6 +2078,68 @@ void MatchController::cancelAutoMatchAllStyleIds()
     {
         emit logMessage(QStringLiteral("正在停止自动匹配，当前图片处理完成后停止..."));
     }
+}
+
+bool MatchController::galleryMatchWouldOverwriteConfirmedStyleId(const QString &part) const
+{
+    if (m_previewSource != PreviewPhoto || m_currentPhotoIndex < 0 || m_autoMatchImagePath != currentPhotoPath())
+    {
+        return false;
+    }
+    const StoredGarmentMatch *match = part == QLatin1String("upper")   ? &m_autoMatchResult.upper
+                                       : part == QLatin1String("lower") ? &m_autoMatchResult.lower
+                                                                        : nullptr;
+    return match && match->confirmed;
+}
+
+bool MatchController::matchGalleryItemToCurrentPhoto(int galleryRow, const QString &part, bool overwriteConfirmed, bool confirmed)
+{
+    if (m_previewSource != PreviewPhoto || !m_photoModel || m_currentPhotoIndex < 0)
+    {
+        emit logMessage(QStringLiteral("匹配款号失败：请先选择一张实拍图"));
+        return false;
+    }
+    const GalleryItem *galleryItem = m_galleryModel ? m_galleryModel->at(galleryRow) : nullptr;
+    if (!galleryItem || (part != QLatin1String("upper") && part != QLatin1String("lower")))
+    {
+        emit logMessage(QStringLiteral("匹配款号失败：参数无效"));
+        return false;
+    }
+
+    const QString targetImagePath = currentPhotoPath();
+    QString       error;
+    const auto    storedResult = MatchResultStore::load(matchDatabasePath(), targetImagePath, &error);
+    if (!error.isEmpty())
+    {
+        emit logMessage(QStringLiteral("匹配款号失败：读取当前实拍图款号记录时出错：%1").arg(error));
+        return false;
+    }
+
+    StoredMatchResult  result = storedResult.value_or(StoredMatchResult {});
+    StoredGarmentMatch &target = part == QLatin1String("upper") ? result.upper : result.lower;
+    if (target.confirmed && !overwriteConfirmed)
+    {
+        emit logMessage(QStringLiteral("匹配款号已取消：当前实拍图已有被确认的%1款号")
+                            .arg(part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙")));
+        return false;
+    }
+
+    target = {galleryItem->styleId, QFileInfo(galleryItem->imagePath).fileName(), confirmed};
+    if (!MatchResultStore::save(matchDatabasePath(), targetImagePath, result, &error))
+    {
+        emit logMessage(QStringLiteral("匹配款号失败：%1").arg(error));
+        return false;
+    }
+
+    m_autoMatchResult    = result;
+    m_autoMatchImagePath = targetImagePath;
+    rebuildAutoMatchedItems();
+    updatePhotoMatchStatuses(targetImagePath, result);
+    emit logMessage(QStringLiteral("已将款号 %1 %2为当前实拍图的%3")
+                        .arg(galleryItem->styleId,
+                             confirmed ? QStringLiteral("确认") : QStringLiteral("匹配"),
+                             part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙")));
+    return true;
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)

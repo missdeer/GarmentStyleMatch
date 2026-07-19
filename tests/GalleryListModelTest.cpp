@@ -20,11 +20,6 @@ namespace
         return condition;
     }
 
-    bool isSelected(const GalleryListModel &model, int row)
-    {
-        return model.data(model.index(row), GalleryListModel::SelectedRole).toBool();
-    }
-
     bool writeFile(const QString &path)
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
@@ -44,27 +39,7 @@ int main(int argc, char *argv[])
         {QStringLiteral("STYLE300C"), QStringLiteral("c.png"), QStringLiteral("baby")},
     });
 
-    model.toggleSelected(0);
-    if (!check(model.selectedIndex() == 0 && isSelected(model, 0) && !isSelected(model, 1), QStringLiteral("点击未选项后应只选中该项")))
-    {
-        return 1;
-    }
-
-    model.toggleSelected(1);
-    if (!check(model.selectedIndex() == 1 && !isSelected(model, 0) && isSelected(model, 1), QStringLiteral("切换选项后旧项必须自动取消")))
-    {
-        return 1;
-    }
-
-    model.toggleSelected(1);
-    if (!check(model.selectedIndex() == -1 && !isSelected(model, 0) && !isSelected(model, 1), QStringLiteral("再次点击当前项后应允许不选")))
-    {
-        return 1;
-    }
-
-    model.toggleSelected(2);
-    model.clearSelection();
-    if (!check(model.selectedIndex() == -1 && !isSelected(model, 2), QStringLiteral("clearSelection 应清除当前选择")))
+    if (!check(!model.roleNames().values().contains(QByteArrayLiteral("selected")), QStringLiteral("款号小图库模型不得再暴露列表项选择状态")))
     {
         return 1;
     }

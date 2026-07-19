@@ -11,6 +11,7 @@
 
 #include "MatchController.h"
 #include "CandidateListModel.h"
+#include "GalleryListModel.h"
 #include "PhotoListModel.h"
 
 namespace
@@ -361,6 +362,114 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     navigationController.activatePreview(false);
     navigationController.nextUnmatchedPhoto();
     if (!check(navigationController.currentPhotoIndex() == 1, QStringLiteral("输出 Tab 激活时未匹配导航不得改变实拍图选择")))
+    {
+        return 1;
+    }
+
+    QTemporaryDir manualMatchTemporary;
+    if (!check(manualMatchTemporary.isValid(), QStringLiteral("无法创建手动图库匹配测试目录")))
+    {
+        return 1;
+    }
+    QDir          manualRoot(manualMatchTemporary.path());
+    const QString manualPhotoDir = manualRoot.filePath(QStringLiteral("photos"));
+    const QString upperImagePath = manualRoot.filePath(QStringLiteral("upper-style.png"));
+    const QString replacementImagePath = manualRoot.filePath(QStringLiteral("replacement-style.png"));
+    if (!check(manualRoot.mkpath(QStringLiteral("photos")) && createFile(manualRoot.filePath(QStringLiteral("photos/input.jpg"))) &&
+                   createFile(upperImagePath) && createFile(replacementImagePath),
+               QStringLiteral("无法准备手动图库匹配测试文件")))
+    {
+        return 1;
+    }
+
+    PhotoListModel   manualPhotoModel;
+    GalleryListModel manualGalleryModel;
+    MatchController  manualController;
+    manualController.setPhotoModel(&manualPhotoModel);
+    manualController.setGalleryModel(&manualGalleryModel);
+    manualGalleryModel.setItems({
+        {QStringLiteral("STYLE-UPPER"), upperImagePath, QStringLiteral("adult")},
+        {QStringLiteral("STYLE-REPLACEMENT"), replacementImagePath, QStringLiteral("adult")},
+    });
+    if (!check(!manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
+               QStringLiteral("没有选中实拍图时不得执行图库右键匹配")))
+    {
+        return 1;
+    }
+
+    manualController.setPhotoDir(manualPhotoDir);
+    if (!check(manualController.currentPhotoIndex() == 0 &&
+                   manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
+               QStringLiteral("应能把图库图片匹配为当前实拍图的上衣")))
+    {
+        return 1;
+    }
+    const QString manualDatabasePath = QDir(manualPhotoDir).filePath(QStringLiteral("gsm.db"));
+    QString       manualMatchError;
+    auto          manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    const QVariantMap upperPreview = manualController.autoMatchedItems().value(0).toMap();
+    if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-UPPER") &&
+                   manualResult->upper.imageName == QStringLiteral("upper-style.png") && !manualResult->upper.confirmed &&
+                   upperPreview.value(QStringLiteral("imagePath")).toString() == upperImagePath &&
+                   manualPhotoModel.data(manualPhotoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt() ==
+                       static_cast<int>(PhotoMatchStatus::Matched),
+               QStringLiteral("图库匹配后必须保存待确认款号，并即时刷新中间预览和列表状态：%1").arg(manualMatchError)))
+    {
+        return 1;
+    }
+
+    manualController.confirmAutoMatch(QStringLiteral("upper"));
+    if (!check(manualController.galleryMatchWouldOverwriteConfirmedStyleId(QStringLiteral("upper")),
+               QStringLiteral("图库右键匹配覆盖已确认上衣前必须要求用户确认")))
+    {
+        return 1;
+    }
+    if (!check(!manualController.matchGalleryItemToCurrentPhoto(1, QStringLiteral("upper"), false, false),
+               QStringLiteral("用户未确认覆盖时不得替换已确认款号")))
+    {
+        return 1;
+    }
+    manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-UPPER") && manualResult->upper.confirmed,
+               QStringLiteral("取消覆盖后必须保留原有已确认上衣款号")))
+    {
+        return 1;
+    }
+    if (!check(manualController.matchGalleryItemToCurrentPhoto(1, QStringLiteral("upper"), true, false) &&
+                   manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("lower"), false, false),
+               QStringLiteral("确认覆盖后应替换上衣，并可独立匹配裤裙")))
+    {
+        return 1;
+    }
+    manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    const QVariantList manualPreviewItems = manualController.autoMatchedItems();
+    if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-REPLACEMENT") && !manualResult->upper.confirmed &&
+                   manualResult->lower.styleId == QStringLiteral("STYLE-UPPER") && !manualResult->lower.confirmed &&
+                   manualPreviewItems.size() == 2 &&
+                   manualPreviewItems.at(0).toMap().value(QStringLiteral("imagePath")).toString() == replacementImagePath &&
+                   manualPreviewItems.at(1).toMap().value(QStringLiteral("imagePath")).toString() == upperImagePath,
+               QStringLiteral("覆盖及裤裙匹配后必须即时显示两张正确的款式预览")))
+    {
+        return 1;
+    }
+    if (!check(manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, true) &&
+                   manualController.matchGalleryItemToCurrentPhoto(1, QStringLiteral("lower"), false, true),
+               QStringLiteral("确认为上衣和确认为裤裙必须直接写入已确认状态")))
+    {
+        return 1;
+    }
+    manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    const QVariantList confirmedPreviewItems = manualController.autoMatchedItems();
+    if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-UPPER") && manualResult->upper.confirmed &&
+                   manualResult->lower.styleId == QStringLiteral("STYLE-REPLACEMENT") && manualResult->lower.confirmed &&
+                   confirmedPreviewItems.size() == 2 &&
+                   confirmedPreviewItems.at(0).toMap().value(QStringLiteral("confirmed")).toBool() &&
+                   confirmedPreviewItems.at(1).toMap().value(QStringLiteral("confirmed")).toBool() &&
+                   manualPhotoModel.data(manualPhotoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt() ==
+                       static_cast<int>(PhotoMatchStatus::Confirmed) &&
+                   manualPhotoModel.data(manualPhotoModel.index(0), PhotoListModel::LowerMatchStatusRole).toInt() ==
+                       static_cast<int>(PhotoMatchStatus::Confirmed),
+               QStringLiteral("图库确认操作必须即时刷新数据库与实拍图两个部位的已确认状态")))
     {
         return 1;
     }

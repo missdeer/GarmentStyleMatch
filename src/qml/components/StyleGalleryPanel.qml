@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.impl
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
@@ -12,9 +13,12 @@ Rectangle {
     property string categoryText: qsTr("全部")
     property string searchText: ""
     property string uiStyle: ""
+    property bool currentPhotoSelected: false
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
+    signal matchRequested(int galleryRow, string part)
+    signal confirmRequested(int galleryRow, string part)
 
     color: Theme.background
 
@@ -22,6 +26,29 @@ Rectangle {
         var s = u.toString().replace(/^file:\/\//, "")
         if (/^\/[A-Za-z]:/.test(s)) s = s.substring(1)
         return s
+    }
+
+    Menu {
+        id: matchMenu
+        property int galleryRow: -1
+
+        MenuItem {
+            text: qsTr("匹配为上衣")
+            onTriggered: root.matchRequested(matchMenu.galleryRow, "upper")
+        }
+        MenuItem {
+            text: qsTr("匹配为裤裙")
+            onTriggered: root.matchRequested(matchMenu.galleryRow, "lower")
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("确认为上衣")
+            onTriggered: root.confirmRequested(matchMenu.galleryRow, "upper")
+        }
+        MenuItem {
+            text: qsTr("确认为裤裙")
+            onTriggered: root.confirmRequested(matchMenu.galleryRow, "lower")
+        }
     }
 
     ColumnLayout {
@@ -131,7 +158,6 @@ Rectangle {
                 required property string imagePath
                 required property string tag
                 required property int    indexLabel
-                required property bool   selected
 
                 width:  GridView.view.cellWidth
                 height: GridView.view.cellHeight
@@ -139,9 +165,9 @@ Rectangle {
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: 4
-                    color: cell.selected ? Theme.accentLightBg : Theme.surface
-                    border.color: cell.selected ? Theme.accent : Theme.border
-                    border.width: cell.selected ? 2 : 1
+                    color: Theme.surface
+                    border.color: Theme.border
+                    border.width: 1
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -149,6 +175,7 @@ Rectangle {
                         spacing: 4
 
                         Item {
+                            id: thumbArea
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
@@ -170,21 +197,146 @@ Rectangle {
                                 source: cell.imagePath !== "" ? "file:///" + cell.imagePath : ""
                             }
 
-                            Rectangle {
-                                visible: cell.selected
+                            HoverHandler {
+                                id: thumbHover
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                cursorShape: Qt.PointingHandCursor
+                                z: 1
+                                onClicked: function(mouse) {
+                                    if (mouse.button === Qt.RightButton && root.currentPhotoSelected) {
+                                        matchMenu.galleryRow = cell.index
+                                        matchMenu.popup()
+                                    }
+                                }
+                                onDoubleClicked: function(mouse) {
+                                    if (mouse.button === Qt.LeftButton)
+                                        root.searchTextEdited(cell.styleId)
+                                }
+                            }
+
+                            Grid {
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 4
-                                width: 22
-                                height: 22
-                                radius: 11
-                                color: Theme.accent
+                                columns: 2
+                                spacing: 4
+                                visible: thumbHover.hovered
+                                z: 2
 
-                                Label {
-                                    anchors.centerIn: parent
-                                    text: "✓"
-                                    color: Theme.accentText
-                                    font.bold: true
+                                Button {
+                                    id: matchUpperButton
+                                    width: 28
+                                    height: 28
+                                    leftPadding: 2
+                                    rightPadding: 2
+                                    topPadding: 2
+                                    bottomPadding: 2
+                                    enabled: root.currentPhotoSelected
+                                    contentItem: Item {
+                                        implicitWidth: 24
+                                        implicitHeight: 24
+                                        ColorImage {
+                                            anchors.centerIn: parent
+                                            width: 24
+                                            height: 24
+                                            source: "qrc:/qt/qml/GarmentStyleMatch/images/gallery-match-upper.svg"
+                                            color: matchUpperButton.palette.buttonText
+                                            sourceSize.width: 24
+                                            sourceSize.height: 24
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("将此款式匹配为当前实拍图的上衣（待确认）")
+                                    onClicked: root.matchRequested(cell.index, "upper")
+                                }
+
+                                Button {
+                                    id: confirmUpperButton
+                                    width: 28
+                                    height: 28
+                                    leftPadding: 2
+                                    rightPadding: 2
+                                    topPadding: 2
+                                    bottomPadding: 2
+                                    enabled: root.currentPhotoSelected
+                                    contentItem: Item {
+                                        implicitWidth: 24
+                                        implicitHeight: 24
+                                        ColorImage {
+                                            anchors.centerIn: parent
+                                            width: 24
+                                            height: 24
+                                            source: "qrc:/qt/qml/GarmentStyleMatch/images/gallery-confirm-upper.svg"
+                                            color: confirmUpperButton.palette.buttonText
+                                            sourceSize.width: 24
+                                            sourceSize.height: 24
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("将此款式确认为当前实拍图的上衣")
+                                    onClicked: root.confirmRequested(cell.index, "upper")
+                                }
+
+                                Button {
+                                    id: matchLowerButton
+                                    width: 28
+                                    height: 28
+                                    leftPadding: 2
+                                    rightPadding: 2
+                                    topPadding: 2
+                                    bottomPadding: 2
+                                    enabled: root.currentPhotoSelected
+                                    contentItem: Item {
+                                        implicitWidth: 24
+                                        implicitHeight: 24
+                                        ColorImage {
+                                            anchors.centerIn: parent
+                                            width: 24
+                                            height: 24
+                                            source: "qrc:/qt/qml/GarmentStyleMatch/images/gallery-match-lower.svg"
+                                            color: matchLowerButton.palette.buttonText
+                                            sourceSize.width: 24
+                                            sourceSize.height: 24
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("将此款式匹配为当前实拍图的裤裙（待确认）")
+                                    onClicked: root.matchRequested(cell.index, "lower")
+                                }
+
+                                Button {
+                                    id: confirmLowerButton
+                                    width: 28
+                                    height: 28
+                                    leftPadding: 2
+                                    rightPadding: 2
+                                    topPadding: 2
+                                    bottomPadding: 2
+                                    enabled: root.currentPhotoSelected
+                                    contentItem: Item {
+                                        implicitWidth: 24
+                                        implicitHeight: 24
+                                        ColorImage {
+                                            anchors.centerIn: parent
+                                            width: 24
+                                            height: 24
+                                            source: "qrc:/qt/qml/GarmentStyleMatch/images/gallery-confirm-lower.svg"
+                                            color: confirmLowerButton.palette.buttonText
+                                            sourceSize.width: 24
+                                            sourceSize.height: 24
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("将此款式确认为当前实拍图的裤裙")
+                                    onClicked: root.confirmRequested(cell.index, "lower")
                                 }
                             }
                         }
@@ -215,15 +367,6 @@ Rectangle {
                         }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (root.model)
-                                root.model.toggleSelected(cell.index)
-                        }
-                        onDoubleClicked: root.searchTextEdited(cell.styleId)
-                    }
                 }
             }
         }

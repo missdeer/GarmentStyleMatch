@@ -219,10 +219,11 @@ public slots:
     void previousCandidate();
     void nextCandidate();
 
-    void               confirmSelectedThumb(int galleryRow);
     void               autoMatchStyleIds();
     void               autoMatchAllStyleIds();
     void               cancelAutoMatchAllStyleIds();
+    [[nodiscard]] bool galleryMatchWouldOverwriteConfirmedStyleId(const QString &part) const;
+    bool               matchGalleryItemToCurrentPhoto(int galleryRow, const QString &part, bool overwriteConfirmed, bool confirmed);
     [[nodiscard]] bool copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const;
     bool               copyAdjacentStyleIds(int offset, const QString &part, const QString &confirmedPolicy);
     bool               copyStyleIdsToAdjacent(int offset, const QString &part, const QString &confirmedPolicy);

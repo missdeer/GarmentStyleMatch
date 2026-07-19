@@ -17,8 +17,6 @@ class GalleryListModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
-    Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectedIndexChanged)
-
 public:
     enum Roles : std::uint16_t
     {
@@ -26,7 +24,6 @@ public:
         ImagePathRole,
         TagRole,
         IndexLabelRole,
-        SelectedRole,
     };
 
     explicit GalleryListModel(QObject *parent = nullptr);
@@ -47,18 +44,10 @@ public:
     {
         return m_allItems;
     }
-    [[nodiscard]] int selectedIndex() const
-    {
-        return m_selectedIndex;
-    }
-
-    Q_INVOKABLE void toggleSelected(int row);
-    Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void clear();
 
 signals:
     void countChanged();
-    void selectedIndexChanged();
 
 private:
     void rebuildFilteredItems();
@@ -66,5 +55,4 @@ private:
     QVector<GalleryItem> m_allItems;
     QVector<GalleryItem> m_items;
     QString              m_filterText;
-    int                  m_selectedIndex = -1;
 };

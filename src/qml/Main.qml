@@ -49,6 +49,9 @@ ApplicationWindow {
     property int pendingCopyOffset: 0
     property string pendingCopyPart: ""
     property bool pendingCopyToAdjacent: false
+    property int pendingGalleryMatchRow: -1
+    property string pendingGalleryMatchPart: ""
+    property bool pendingGalleryMatchConfirmed: false
 
     component SplitterHandle: Rectangle {
         implicitWidth: 5
@@ -78,6 +81,17 @@ ApplicationWindow {
             controller.copyAdjacentStyleIds(pendingCopyOffset, pendingCopyPart, confirmedPolicy)
     }
 
+    function requestGalleryMatch(galleryRow, part, confirmed) {
+        if (!controller.galleryMatchWouldOverwriteConfirmedStyleId(part)) {
+            controller.matchGalleryItemToCurrentPhoto(galleryRow, part, false, confirmed)
+            return
+        }
+        pendingGalleryMatchRow = galleryRow
+        pendingGalleryMatchPart = part
+        pendingGalleryMatchConfirmed = confirmed
+        overwriteGalleryMatchDialog.open()
+    }
+
     Connections {
         target: controller
         function onLogMessage(msg) { root.statusText = msg }
@@ -105,6 +119,32 @@ ApplicationWindow {
 
         contentItem: Label {
             text: qsTr("目标实拍图已有被确认的款号，请选择复制方式。")
+            wrapMode: Text.Wrap
+        }
+    }
+
+    Dialog {
+        id: overwriteGalleryMatchDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(420, parent.width - 32)
+        modal: true
+        title: qsTr("确认覆盖款号")
+        standardButtons: Dialog.Yes | Dialog.Cancel
+        closePolicy: Popup.CloseOnEscape
+        onOpened: {
+            standardButton(Dialog.Yes).text = qsTr("覆盖")
+            standardButton(Dialog.Cancel).text = qsTr("取消")
+        }
+        onAccepted: controller.matchGalleryItemToCurrentPhoto(
+                        root.pendingGalleryMatchRow,
+                        root.pendingGalleryMatchPart,
+                        true,
+                        root.pendingGalleryMatchConfirmed)
+
+        contentItem: Label {
+            text: qsTr("当前实拍图已有已确认的%1款号，是否覆盖？")
+                    .arg(root.pendingGalleryMatchPart === "upper" ? qsTr("上衣") : qsTr("裤裙"))
             wrapMode: Text.Wrap
         }
     }
@@ -242,12 +282,15 @@ ApplicationWindow {
                     categoryText:     controller.categoryFilter
                     searchText:       controller.searchText
                     pptPath:          controller.pptPath
+                    currentPhotoSelected: controller.inputTabActive && controller.currentPhotoIndex >= 0
                     onSearchTextEdited:   (t) => controller.searchText = t
                     onCategoryEdited:     (t) => controller.categoryFilter = t
                     onPptPathEdited:      (p) => controller.pptPath = p
                     onPptSearchRequested: ()  => controller.reloadPpt()
                     onPptPageToggled:     (r) => controller.togglePptPageSelected(r)
                     onExtractRequested:   ()  => controller.extractFromSelectedPages()
+                    onGalleryMatchRequested: (row, part) => root.requestGalleryMatch(row, part, false)
+                    onGalleryConfirmRequested: (row, part) => root.requestGalleryMatch(row, part, true)
                 }
             }
         }

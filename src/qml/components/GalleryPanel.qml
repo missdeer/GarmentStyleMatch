@@ -14,6 +14,7 @@ Rectangle {
     property string categoryText: qsTr("全部")
     property string searchText: ""
     property string pptPath: ""
+    property bool currentPhotoSelected: false
     property bool startupTabInitialized: false
     readonly property bool showPptTab: Qt.platform.os === "windows"
 
@@ -23,6 +24,8 @@ Rectangle {
     signal pptSearchRequested()
     signal pptPageToggled(int row)
     signal extractRequested()
+    signal galleryMatchRequested(int galleryRow, string part)
+    signal galleryConfirmRequested(int galleryRow, string part)
 
     function initializeStartupTab(loadFinished) {
         if (startupTabInitialized)
@@ -93,8 +96,11 @@ Rectangle {
                 categoryText:  root.categoryText
                 searchText:    root.searchText
                 uiStyle:       controller.currentUiStyle
+                currentPhotoSelected: root.currentPhotoSelected
                 onSearchTextEdited: (t) => root.searchTextEdited(t)
                 onCategoryEdited:   (t) => root.categoryEdited(t)
+                onMatchRequested: (row, part) => root.galleryMatchRequested(row, part)
+                onConfirmRequested: (row, part) => root.galleryConfirmRequested(row, part)
             }
         }
     }
