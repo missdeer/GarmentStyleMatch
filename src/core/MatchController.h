@@ -205,6 +205,7 @@ public slots:
 
     void restorePersistentState();
     void completeDeferredStartup();
+    void notifyMainWindowShown();
     void activatePreview(bool inputTabActive);
 
     void previousImage(bool inputTabActive = false);
@@ -266,6 +267,7 @@ signals:
     void deferredStartupCompleted();
     void modelDownloadRequired();
     void busyChanged();
+    void mainWindowShown();
 
     void logMessage(const QString &msg);
 

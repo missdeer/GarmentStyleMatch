@@ -23,6 +23,7 @@ set(GSM_HEADERS
     core/MatchResultStore.h
     core/SQLiteDB.h
     core/SQLiteStatement.h
+    platform/SplashScreen.h
 )
 
 if(WIN32)
@@ -30,12 +31,20 @@ if(WIN32)
         core/PptPageListModel.cpp
         core/PptStyleExtractor.cpp
         core/WindowsMlExecutionProvider.cpp
+        platform/SplashScreenWin.cpp
     )
     list(APPEND GSM_HEADERS
         core/PptPageListModel.h
         core/PptStyleExtractor.h
         core/WindowsMlExecutionProvider.h
     )
+elseif(APPLE)
+    list(APPEND GSM_SOURCES platform/SplashScreenMac.mm)
+    set_source_files_properties(platform/SplashScreenMac.mm PROPERTIES
+        COMPILE_OPTIONS "-fobjc-arc"
+    )
+else()
+    list(APPEND GSM_SOURCES platform/SplashScreenStub.cpp)
 endif()
 
 # Some localized MSVC installations emit /showIncludes output in a code page
@@ -93,6 +102,12 @@ elseif(APPLE)
         MACOSX_PACKAGE_LOCATION "Resources"
     )
     list(APPEND GSM_PLATFORM_SOURCES "${GSM_MACOS_ICON}")
+
+    set(GSM_MACOS_SPLASH_PNG "${CMAKE_SOURCE_DIR}/GarmentStyleMatchSplash.png")
+    set_source_files_properties("${GSM_MACOS_SPLASH_PNG}" PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
+    list(APPEND GSM_PLATFORM_SOURCES "${GSM_MACOS_SPLASH_PNG}")
 endif()
 
 qt_add_executable(GarmentStyleMatch WIN32 MACOSX_BUNDLE
@@ -127,7 +142,12 @@ target_link_libraries(GarmentStyleMatch PRIVATE
     gsm_sqlite
     gsm_windowsml_api
     $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
+    $<$<PLATFORM_ID:Windows>:gdiplus>
 )
+
+if(APPLE)
+    target_link_libraries(GarmentStyleMatch PRIVATE "-framework Cocoa")
+endif()
 
 if(WIN32)
     add_custom_command(TARGET GarmentStyleMatch POST_BUILD

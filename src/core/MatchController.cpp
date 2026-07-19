@@ -179,6 +179,11 @@ MatchController::MatchController(QObject *parent)
     m_parallelMatchThreadCount   = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
 }
 
+void MatchController::notifyMainWindowShown()
+{
+    emit mainWindowShown();
+}
+
 void MatchController::completeDeferredStartup()
 {
     if (m_deferredStartupCompleted)

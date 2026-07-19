@@ -40,6 +40,7 @@ ApplicationWindow {
         if (firstFramePresented)
             return
         firstFramePresented = true
+        controller.notifyMainWindowShown()
         workspaceLoader.active = true
         Qt.callLater(function() { controller.completeDeferredStartup() })
     }

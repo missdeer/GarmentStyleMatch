@@ -9,12 +9,15 @@
 #include "core/ImageMetadata.h"
 #include "core/MatchController.h"
 #include "core/PhotoListModel.h"
+#include "platform/SplashScreen.h"
 #ifdef Q_OS_WIN
 #    include "core/PptPageListModel.h"
 #endif
 
 int main(int argc, char *argv[])
 {
+    SplashScreen::show();
+
     QGuiApplication::setOrganizationName(QStringLiteral("Eidos"));
     QGuiApplication::setApplicationName(QStringLiteral("GarmentStyleMatch"));
     QGuiApplication::setApplicationVersion(QStringLiteral("0.1.0"));
@@ -51,6 +54,8 @@ int main(int argc, char *argv[])
 
     const auto refreshImageMetadata = [&controller, &imageMetadata] { imageMetadata.setImagePath(controller.currentPhotoPath()); };
     QObject::connect(&controller, &MatchController::currentPhotoPathChanged, &imageMetadata, refreshImageMetadata);
+
+    QObject::connect(&controller, &MatchController::mainWindowShown, &app, [] { SplashScreen::hide(); });
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("controller"), &controller);
