@@ -9,7 +9,7 @@
 
 namespace
 {
-    constexpr long long kMinDisplayMs = 3000;
+    constexpr long long kMinDisplayMs = 1500;
 
     NSWindow                             *g_window        = nil;
     std::chrono::steady_clock::time_point g_showTime      = {};
@@ -36,6 +36,11 @@ namespace SplashScreen
         }
 
         [NSApplication sharedApplication];
+        // Ensure the process is a foreground GUI app before we create a window.
+        // In a bundled build this is already the case, but setting it explicitly
+        // makes the splash appear on top when the binary is launched directly
+        // (e.g. from a terminal for development).
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
         NSString *path = [[NSBundle mainBundle] pathForResource:@"GarmentStyleMatchSplash" ofType:@"png"];
         if (path == nil)
@@ -77,6 +82,19 @@ namespace SplashScreen
 
         [g_window orderFrontRegardless];
 
+        // AppKit only paints on run-loop turns. show() is called before
+        // QGuiApplication is constructed, so no run loop is spinning yet — the
+        // splash pixels would otherwise stay in the backing store until
+        // QGuiApplication::exec() starts, by which time the main window is
+        // about to appear too and both would pop up together, defeating the
+        // splash's purpose. Force a synchronous draw and pump the run loop
+        // long enough for the compositor to present at least one frame.
+        [[g_window contentView] setNeedsDisplay:YES];
+        [g_window displayIfNeeded];
+        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+
+        // Start the min-display clock after the splash is actually on screen,
+        // not from when we merely asked AppKit to show it.
         g_showTime = std::chrono::steady_clock::now();
     }
 
