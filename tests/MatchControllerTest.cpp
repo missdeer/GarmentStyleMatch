@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileSystemWatcher>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -398,8 +399,8 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         return 1;
     }
     QDir          manualRoot(manualMatchTemporary.path());
-    const QString manualPhotoDir = manualRoot.filePath(QStringLiteral("photos"));
-    const QString upperImagePath = manualRoot.filePath(QStringLiteral("upper-style.png"));
+    const QString manualPhotoDir       = manualRoot.filePath(QStringLiteral("photos"));
+    const QString upperImagePath       = manualRoot.filePath(QStringLiteral("upper-style.png"));
     const QString replacementImagePath = manualRoot.filePath(QStringLiteral("replacement-style.png"));
     if (!check(manualRoot.mkpath(QStringLiteral("photos")) && createFile(manualRoot.filePath(QStringLiteral("photos/input.jpg"))) &&
                    createFile(upperImagePath) && createFile(replacementImagePath),
@@ -424,15 +425,14 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
 
     manualController.setPhotoDir(manualPhotoDir);
-    if (!check(manualController.currentPhotoIndex() == 0 &&
-                   manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
+    if (!check(manualController.currentPhotoIndex() == 0 && manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
                QStringLiteral("应能把图库图片匹配为当前实拍图的上衣")))
     {
         return 1;
     }
-    const QString manualDatabasePath = QDir(manualPhotoDir).filePath(QStringLiteral("gsm.db"));
-    QString       manualMatchError;
-    auto          manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    const QString     manualDatabasePath = QDir(manualPhotoDir).filePath(QStringLiteral("gsm.db"));
+    QString           manualMatchError;
+    auto              manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
     const QVariantMap upperPreview = manualController.autoMatchedItems().value(0).toMap();
     if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-UPPER") &&
                    manualResult->upper.imageName == QStringLiteral("upper-style.png") && !manualResult->upper.confirmed &&
@@ -440,6 +440,20 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
                    manualPhotoModel.data(manualPhotoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt() ==
                        static_cast<int>(PhotoMatchStatus::Matched),
                QStringLiteral("图库匹配后必须保存待确认款号，并即时刷新中间预览和列表状态：%1").arg(manualMatchError)))
+    {
+        return 1;
+    }
+
+    QFileSystemWatcher manualDirectoryWatcher;
+    bool               manualDirectoryChangeObserved = false;
+    manualDirectoryWatcher.addPath(manualPhotoDir);
+    QObject::connect(&manualDirectoryWatcher, &QFileSystemWatcher::directoryChanged, &manualController, [&manualDirectoryChangeObserved] {
+        manualDirectoryChangeObserved = true;
+    });
+    if (!check(createFile(manualRoot.filePath(QStringLiteral("photos/ignored.tmp"))) &&
+                   waitFor([&manualDirectoryChangeObserved] { return manualDirectoryChangeObserved; }) &&
+                   manualController.autoMatchedItems().size() == 1,
+               QStringLiteral("输入目录内非实拍图文件变化不得清空当前款号预览")))
     {
         return 1;
     }
@@ -467,11 +481,10 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    manualResult                          = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
     const QVariantList manualPreviewItems = manualController.autoMatchedItems();
     if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-REPLACEMENT") && !manualResult->upper.confirmed &&
-                   manualResult->lower.styleId == QStringLiteral("STYLE-UPPER") && !manualResult->lower.confirmed &&
-                   manualPreviewItems.size() == 2 &&
+                   manualResult->lower.styleId == QStringLiteral("STYLE-UPPER") && !manualResult->lower.confirmed && manualPreviewItems.size() == 2 &&
                    manualPreviewItems.at(0).toMap().value(QStringLiteral("imagePath")).toString() == replacementImagePath &&
                    manualPreviewItems.at(1).toMap().value(QStringLiteral("imagePath")).toString() == upperImagePath,
                QStringLiteral("覆盖及裤裙匹配后必须即时显示两张正确的款式预览")))
@@ -484,12 +497,11 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
-    manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    manualResult                             = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
     const QVariantList confirmedPreviewItems = manualController.autoMatchedItems();
     if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-UPPER") && manualResult->upper.confirmed &&
                    manualResult->lower.styleId == QStringLiteral("STYLE-REPLACEMENT") && manualResult->lower.confirmed &&
-                   confirmedPreviewItems.size() == 2 &&
-                   confirmedPreviewItems.at(0).toMap().value(QStringLiteral("confirmed")).toBool() &&
+                   confirmedPreviewItems.size() == 2 && confirmedPreviewItems.at(0).toMap().value(QStringLiteral("confirmed")).toBool() &&
                    confirmedPreviewItems.at(1).toMap().value(QStringLiteral("confirmed")).toBool() &&
                    manualPhotoModel.data(manualPhotoModel.index(0), PhotoListModel::UpperMatchStatusRole).toInt() ==
                        static_cast<int>(PhotoMatchStatus::Confirmed) &&

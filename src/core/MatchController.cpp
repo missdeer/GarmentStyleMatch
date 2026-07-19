@@ -1233,7 +1233,6 @@ void MatchController::scanPhotoDir(bool skipIfEntriesUnchanged)
         return;
     }
 
-    clearAutoMatchResult();
     QVector<PhotoItem> items;
     if (!m_photoDir.isEmpty())
     {
@@ -1265,6 +1264,7 @@ void MatchController::scanPhotoDir(bool skipIfEntriesUnchanged)
     {
         return;
     }
+    clearAutoMatchResult();
     m_photoEntrySnapshot = std::move(entrySnapshot);
     m_photoModel->setItems(std::move(items));
     refreshPhotoMatchStatuses();
@@ -2223,8 +2223,8 @@ bool MatchController::galleryMatchWouldOverwriteConfirmedStyleId(const QString &
         return false;
     }
     const StoredGarmentMatch *match = part == QLatin1String("upper")   ? &m_autoMatchResult.upper
-                                       : part == QLatin1String("lower") ? &m_autoMatchResult.lower
-                                                                        : nullptr;
+                                      : part == QLatin1String("lower") ? &m_autoMatchResult.lower
+                                                                       : nullptr;
     return match && match->confirmed;
 }
 
@@ -2251,7 +2251,7 @@ bool MatchController::matchGalleryItemToCurrentPhoto(int galleryRow, const QStri
         return false;
     }
 
-    StoredMatchResult  result = storedResult.value_or(StoredMatchResult {});
+    StoredMatchResult   result = storedResult.value_or(StoredMatchResult {});
     StoredGarmentMatch &target = part == QLatin1String("upper") ? result.upper : result.lower;
     if (target.confirmed && !overwriteConfirmed)
     {
