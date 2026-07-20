@@ -222,6 +222,7 @@ public slots:
 
     void               autoMatchStyleIds();
     void               autoMatchAllStyleIds();
+    void               autoMatchAllUnconfirmedStyleIds();
     void               cancelAutoMatchAllStyleIds();
     [[nodiscard]] bool galleryMatchWouldOverwriteConfirmedStyleId(const QString &part) const;
     bool               matchGalleryItemToCurrentPhoto(int galleryRow, const QString &part, bool overwriteConfirmed, bool confirmed);
@@ -347,6 +348,7 @@ private:
 
     void                         setBusy(bool on);
     void                         setBatchAutoMatchInProgress(bool inProgress);
+    void                         startBatchAutoMatchStyleIds(bool onlyUnconfirmed);
     void                         startNextModelDownload();
     void                         startPythonDependencyInstall();
     void                         startPythonModelExtraction();

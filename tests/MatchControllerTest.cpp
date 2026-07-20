@@ -545,6 +545,11 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
+    if (!check(controller.metaObject()->indexOfMethod("autoMatchAllUnconfirmedStyleIds()") >= 0,
+               QStringLiteral("控制器必须向 QML 暴露批量匹配未确认实拍图入口")))
+    {
+        return 1;
+    }
     if (!check(controller.metaObject()->indexOfMethod("cancelAutoMatchAllStyleIds()") >= 0,
                QStringLiteral("控制器必须向 QML 暴露停止批量自动匹配入口")))
     {
@@ -664,21 +669,23 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
             batchMatchLoop.quit();
         }
     });
-    controller.autoMatchAllStyleIds();
-    if (!check(controller.busy(), QStringLiteral("批量匹配应在后台检查每张实拍图的确认状态")))
+    controller.autoMatchAllUnconfirmedStyleIds();
+    if (!check(controller.busy() && controller.batchAutoMatchInProgress(),
+               QStringLiteral("未确认批量匹配必须在后台检查每张实拍图的确认状态")))
     {
         return 1;
     }
     QTimer::singleShot(kAsyncTimeoutMs, &batchMatchLoop, &QEventLoop::quit);
     batchMatchLoop.exec();
     if (!check(!controller.busy() && autoMatchPolicyMessage.contains(QStringLiteral("成功 0 张，跳过 2 张，失败 1 张")),
-               QStringLiteral("批量匹配必须跳过两项均确认的实拍图，仅处理仍有未确认部位的图片")))
+               QStringLiteral("未确认批量匹配必须跳过两项均确认的实拍图，仅处理仍有未确认部位的图片")))
     {
         return 1;
     }
 
     controller.autoMatchAllStyleIds();
-    if (!check(controller.busy() && controller.batchAutoMatchInProgress(), QStringLiteral("批量匹配期间必须暴露可停止状态")))
+    if (!check(controller.busy() && controller.batchAutoMatchInProgress(),
+               QStringLiteral("批量匹配期间必须暴露可停止状态")))
     {
         return 1;
     }

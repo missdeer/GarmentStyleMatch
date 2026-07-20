@@ -13,6 +13,7 @@ Rectangle {
 
     signal autoMatchRequested()
     signal autoMatchAllRequested()
+    signal autoMatchAllUnconfirmedRequested()
     signal cancelAutoMatchAllRequested()
     signal copyStyleIdsRequested(int offset, string part)
     signal copyStyleIdsToAdjacentRequested(int offset, string part)
@@ -39,6 +40,20 @@ Rectangle {
                 highlighted: true
                 enabled: !root.busy
                 onClicked: root.autoMatchRequested()
+            }
+
+            Button {
+                Layout.fillWidth: true
+                text: root.batchAutoMatchInProgress
+                      ? qsTr("停止自动匹配")
+                      : qsTr("自动匹配所有未确认实拍图款号")
+                enabled: !root.busy || root.batchAutoMatchInProgress
+                onClicked: {
+                    if (root.batchAutoMatchInProgress)
+                        root.cancelAutoMatchAllRequested()
+                    else
+                        root.autoMatchAllUnconfirmedRequested()
+                }
             }
 
             Button {

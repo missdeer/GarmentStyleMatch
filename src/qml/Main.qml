@@ -266,6 +266,7 @@ ApplicationWindow {
                                             && controller.currentPhotoIndex + 1 < candidatePanel.inputItemCount
                         onAutoMatchRequested: controller.autoMatchStyleIds()
                         onAutoMatchAllRequested: controller.autoMatchAllStyleIds()
+                        onAutoMatchAllUnconfirmedRequested: controller.autoMatchAllUnconfirmedStyleIds()
                         onCancelAutoMatchAllRequested: controller.cancelAutoMatchAllStyleIds()
                         onCopyStyleIdsRequested: (offset, part) => root.requestStyleIdCopy(offset, part, false)
                         onCopyStyleIdsToAdjacentRequested: (offset, part) => root.requestStyleIdCopy(offset, part, true)

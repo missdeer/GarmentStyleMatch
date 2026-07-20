@@ -14,6 +14,7 @@ Rectangle {
 
     signal autoMatchRequested()
     signal autoMatchAllRequested()
+    signal autoMatchAllUnconfirmedRequested()
     signal cancelAutoMatchAllRequested()
     signal copyStyleIdsRequested(int offset, string part)
     signal copyStyleIdsToAdjacentRequested(int offset, string part)
@@ -47,6 +48,7 @@ Rectangle {
                 nextAvailable: root.nextPhotoAvailable
                 onAutoMatchRequested: root.autoMatchRequested()
                 onAutoMatchAllRequested: root.autoMatchAllRequested()
+                onAutoMatchAllUnconfirmedRequested: root.autoMatchAllUnconfirmedRequested()
                 onCancelAutoMatchAllRequested: root.cancelAutoMatchAllRequested()
                 onCopyStyleIdsRequested: (offset, part) => root.copyStyleIdsRequested(offset, part)
                 onCopyStyleIdsToAdjacentRequested: (offset, part) => root.copyStyleIdsToAdjacentRequested(offset, part)

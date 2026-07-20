@@ -1997,7 +1997,17 @@ void MatchController::autoMatchStyleIds()
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void MatchController::autoMatchAllStyleIds() // NOLINT(readability-function-cognitive-complexity)
+void MatchController::autoMatchAllStyleIds()
+{
+    startBatchAutoMatchStyleIds(false);
+}
+
+void MatchController::autoMatchAllUnconfirmedStyleIds()
+{
+    startBatchAutoMatchStyleIds(true);
+}
+
+void MatchController::startBatchAutoMatchStyleIds(bool onlyUnconfirmed) // NOLINT(readability-function-cognitive-complexity)
 {
     if (m_busy)
     {
@@ -2080,11 +2090,14 @@ void MatchController::autoMatchAllStyleIds() // NOLINT(readability-function-cogn
 
     setBatchAutoMatchInProgress(true);
     setBusy(true);
-    emit      logMessage(QStringLiteral("正在检查并使用 %1 个线程批量匹配 %2 张实拍图...").arg(m_parallelMatchThreadCount).arg(photoPaths.size()));
+    emit logMessage(QStringLiteral("正在检查并使用 %1 个线程批量匹配 %2 张%3实拍图...")
+                        .arg(m_parallelMatchThreadCount)
+                        .arg(photoPaths.size())
+                        .arg(onlyUnconfirmed ? QStringLiteral("未确认") : QStringLiteral("")));
     const int parallelThreadCount = m_parallelMatchThreadCount;
     // The worker intentionally keeps cancellation, preflight, matching, merging, and summary accounting in one sequential transaction.
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    watcher->setFuture(QtConcurrent::run([photoPaths, galleryItems, modelsDir, options, databasePath, cancellation, parallelThreadCount] {
+    watcher->setFuture(QtConcurrent::run([photoPaths, galleryItems, modelsDir, options, databasePath, cancellation, parallelThreadCount, onlyUnconfirmed] {
         BatchAutoMatchSummary summary;
         const auto            cancelledSummary = [&] {
             summary.cancelled   = true;
@@ -2110,7 +2123,7 @@ void MatchController::autoMatchAllStyleIds() // NOLINT(readability-function-cogn
                 }
                 continue;
             }
-            if (existingResult && existingResult->allMatchesConfirmed())
+            if (onlyUnconfirmed && existingResult && existingResult->allMatchesConfirmed())
             {
                 ++summary.skipped;
                 continue;
