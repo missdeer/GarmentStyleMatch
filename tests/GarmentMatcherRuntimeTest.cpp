@@ -234,12 +234,15 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         }
 
         const QString                         missingPhotoPath = QDir(temporary.path()).absoluteFilePath(QStringLiteral("missing.jpg"));
-        const QVector<GarmentMatcher::Result> batchResults =
-            GarmentMatcher::matchAll({photoPath, missingPhotoPath, photoPath}, gallery, options, nullptr, 2);
+        std::atomic_int                       completedResults = 0;
+        const QVector<GarmentMatcher::Result> batchResults     = GarmentMatcher::matchAll(
+            {photoPath, missingPhotoPath, photoPath}, gallery, options, nullptr, 2, [&](int, const GarmentMatcher::Result &) {
+                completedResults.fetch_add(1);
+            });
         if (!check(batchResults.size() == 3 && batchResults.at(0).success && !batchResults.at(1).success && batchResults.at(2).success &&
                        batchResults.at(0).joinedStyleIds() == QStringLiteral("STYLE001") &&
-                       batchResults.at(2).joinedStyleIds() == QStringLiteral("STYLE001"),
-                   QStringLiteral("并行批量匹配必须按输入顺序返回每张实拍图的独立结果")))
+                       batchResults.at(2).joinedStyleIds() == QStringLiteral("STYLE001") && completedResults.load() == 3,
+                   QStringLiteral("并行批量匹配必须按输入顺序返回每张实拍图的独立结果，并逐项报告完成进度")))
         {
             return 1;
         }

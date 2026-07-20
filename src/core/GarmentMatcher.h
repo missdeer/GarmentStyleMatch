@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 
 #include <QString>
 #include <QStringList>
@@ -36,6 +37,8 @@ public:
         [[nodiscard]] QString joinedStyleIds() const;
     };
 
+    using ResultCallback = std::function<void(int, const Result &)>;
+
     [[nodiscard]] static QStringList     availableProviders();
     [[nodiscard]] static QString         activeProvider();
     [[nodiscard]] static Result          match(const QString &photoPath, const QVector<GalleryItem> &galleryItems, const Options &options);
@@ -43,5 +46,6 @@ public:
                                                   const QVector<GalleryItem> &galleryItems,
                                                   const Options              &options,
                                                   const std::atomic_bool     *cancellationRequested = nullptr,
-                                                  int                         parallelThreadCount   = 1);
+                                                  int                         parallelThreadCount   = 1,
+                                                  const ResultCallback       &resultCallback        = {});
 };

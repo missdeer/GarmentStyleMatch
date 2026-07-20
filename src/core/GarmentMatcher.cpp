@@ -1140,7 +1140,8 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(const QStringList      
                                                          const QVector<GalleryItem> &galleryItems,
                                                          const Options              &options,
                                                          const std::atomic_bool     *cancellationRequested,
-                                                         int                         parallelThreadCount)
+                                                         int                         parallelThreadCount,
+                                                         const ResultCallback       &resultCallback)
 {
     QVector<Result> results;
     if (cancellationRequested && cancellationRequested->load())
@@ -1185,6 +1186,10 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(const QStringList      
                         }
                         claimedCount.fetch_add(1);
                         workerResults[static_cast<std::size_t>(photoIndex)] = matchPhoto(photoPaths.at(photoIndex), *runtime, gallery);
+                        if (resultCallback)
+                        {
+                            resultCallback(photoIndex, workerResults[static_cast<std::size_t>(photoIndex)]);
+                        }
                     }
                 });
             }
@@ -1203,6 +1208,10 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(const QStringList      
             Result result;
             result.error = message;
             results.push_back(std::move(result));
+            if (resultCallback)
+            {
+                resultCallback(static_cast<int>(results.size() - 1), results.back());
+            }
         }
     }
     return results;

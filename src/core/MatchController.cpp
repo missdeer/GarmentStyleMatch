@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <mutex>
 #include <utility>
 
 #include <QCoreApplication>
@@ -2040,8 +2041,28 @@ void MatchController::startBatchAutoMatchStyleIds(bool onlyUnconfirmed) // NOLIN
     matchTimer.start();
     const auto cancellation      = std::make_shared<std::atomic_bool>(false);
     m_batchAutoMatchCancellation = cancellation;
-    const int totalPhotos        = static_cast<int>(photoPaths.size());
-    auto     *watcher            = new QFutureWatcher<BatchAutoMatchSummary>(this);
+    const int  totalPhotos       = static_cast<int>(photoPaths.size());
+    const auto reportProgress    = [this, totalPhotos](const BatchAutoMatchSummary &summary) {
+        const int succeeded = summary.succeeded;
+        const int skipped   = summary.skipped;
+        const int failed    = summary.failed;
+        QMetaObject::invokeMethod(
+            this,
+            [this, succeeded, skipped, failed, totalPhotos] {
+                if (!m_batchAutoMatchInProgress)
+                {
+                    return;
+                }
+                QString message = QStringLiteral("批量自动匹配进度：已匹配成功 %1 张，跳过 %2 张").arg(succeeded).arg(skipped);
+                if (failed > 0)
+                {
+                    message += QStringLiteral("，失败 %1 张").arg(failed);
+                }
+                emit logMessage(message + QStringLiteral("，总共 %1 张待匹配。").arg(totalPhotos));
+            },
+            Qt::QueuedConnection);
+    };
+    auto *watcher = new QFutureWatcher<BatchAutoMatchSummary>(this);
     connect(watcher, &QFutureWatcher<BatchAutoMatchSummary>::finished, this, [this, watcher, matchTimer, cancellation, totalPhotos] {
         BatchAutoMatchSummary summary = watcher->result();
         if (cancellation->load() && !summary.cancelled)
@@ -2090,131 +2111,145 @@ void MatchController::startBatchAutoMatchStyleIds(bool onlyUnconfirmed) // NOLIN
 
     setBatchAutoMatchInProgress(true);
     setBusy(true);
-    emit logMessage(QStringLiteral("正在检查并使用 %1 个线程批量匹配 %2 张%3实拍图...")
-                        .arg(m_parallelMatchThreadCount)
-                        .arg(photoPaths.size())
-                        .arg(onlyUnconfirmed ? QStringLiteral("未确认") : QStringLiteral("")));
+    emit logMessage(QStringLiteral("批量自动匹配进度：已匹配成功 0 张，跳过 0 张，总共 %1 张待匹配。").arg(totalPhotos));
+
     const int parallelThreadCount = m_parallelMatchThreadCount;
-    // The worker intentionally keeps cancellation, preflight, matching, merging, and summary accounting in one sequential transaction.
+    // The worker keeps cancellation, preflight, matching, merging, and summary accounting in one background transaction.
+    // Parallel match callbacks serialize database merging and progress snapshots through summaryMutex.
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    watcher->setFuture(QtConcurrent::run([photoPaths, galleryItems, modelsDir, options, databasePath, cancellation, parallelThreadCount, onlyUnconfirmed] {
-        BatchAutoMatchSummary summary;
-        const auto            cancelledSummary = [&] {
-            summary.cancelled   = true;
-            summary.unprocessed = static_cast<int>(photoPaths.size()) - summary.succeeded - summary.skipped - summary.failed;
-            return summary;
-        };
-        QStringList pendingPhotoPaths;
-        pendingPhotoPaths.reserve(photoPaths.size());
-        for (const QString &photoPath : photoPaths)
-        {
+    watcher->setFuture(QtConcurrent::run(
+        [photoPaths, galleryItems, modelsDir, options, databasePath, cancellation, parallelThreadCount, onlyUnconfirmed, reportProgress] {
+            BatchAutoMatchSummary summary;
+            const auto            cancelledSummary = [&] {
+                summary.cancelled   = true;
+                summary.unprocessed = static_cast<int>(photoPaths.size()) - summary.succeeded - summary.skipped - summary.failed;
+                return summary;
+            };
+            QStringList pendingPhotoPaths;
+            pendingPhotoPaths.reserve(photoPaths.size());
+            for (const QString &photoPath : photoPaths)
+            {
+                if (cancellation->load())
+                {
+                    return cancelledSummary();
+                }
+                QString    error;
+                const auto existingResult = MatchResultStore::load(databasePath, photoPath, &error);
+                if (!error.isEmpty())
+                {
+                    ++summary.failed;
+                    if (summary.firstError.isEmpty())
+                    {
+                        summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                    }
+                    reportProgress(summary);
+                    continue;
+                }
+                if (onlyUnconfirmed && existingResult && existingResult->allMatchesConfirmed())
+                {
+                    ++summary.skipped;
+                    reportProgress(summary);
+                    continue;
+                }
+                pendingPhotoPaths.push_back(photoPath);
+            }
+
             if (cancellation->load())
             {
                 return cancelledSummary();
             }
-            QString    error;
-            const auto existingResult = MatchResultStore::load(databasePath, photoPath, &error);
-            if (!error.isEmpty())
+            if (pendingPhotoPaths.isEmpty())
             {
-                ++summary.failed;
+                return summary;
+            }
+            if (galleryItems.isEmpty())
+            {
+                summary.failed += static_cast<int>(pendingPhotoPaths.size());
                 if (summary.firstError.isEmpty())
                 {
-                    summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                    summary.firstError = QStringLiteral("请先从 PPT 提取款号小图库");
                 }
-                continue;
+                reportProgress(summary);
+                return summary;
             }
-            if (onlyUnconfirmed && existingResult && existingResult->allMatchesConfirmed())
+            if (modelsDir.isEmpty())
             {
-                ++summary.skipped;
-                continue;
+                summary.failed += static_cast<int>(pendingPhotoPaths.size());
+                summary.modelDownloadRequired = true;
+                if (summary.firstError.isEmpty())
+                {
+                    summary.firstError = QStringLiteral("未找到可用模型，请从顶部“下载模型”菜单下载");
+                }
+                reportProgress(summary);
+                return summary;
             }
-            pendingPhotoPaths.push_back(photoPath);
-        }
 
-        if (cancellation->load())
-        {
-            return cancelledSummary();
-        }
-        if (pendingPhotoPaths.isEmpty())
-        {
-            return summary;
-        }
-        if (galleryItems.isEmpty())
-        {
-            summary.failed += static_cast<int>(pendingPhotoPaths.size());
-            if (summary.firstError.isEmpty())
-            {
-                summary.firstError = QStringLiteral("请先从 PPT 提取款号小图库");
-            }
-            return summary;
-        }
-        if (modelsDir.isEmpty())
-        {
-            summary.failed += static_cast<int>(pendingPhotoPaths.size());
-            summary.modelDownloadRequired = true;
-            if (summary.firstError.isEmpty())
-            {
-                summary.firstError = QStringLiteral("未找到可用模型，请从顶部“下载模型”菜单下载");
-            }
-            return summary;
-        }
-
-        const QVector<GarmentMatcher::Result> results =
-            GarmentMatcher::matchAll(pendingPhotoPaths, galleryItems, options, cancellation.get(), parallelThreadCount);
-        const bool matchingCancelled = results.size() < pendingPhotoPaths.size();
-        for (qsizetype index = 0; index < results.size(); ++index)
-        {
-            if (!matchingCancelled && cancellation->load())
+            std::mutex summaryMutex;
+            int        matchedCount = 0;
+            const auto handleResult = [&](int index, const GarmentMatcher::Result &result) {
+                BatchAutoMatchSummary progress;
+                {
+                    const std::scoped_lock lock(summaryMutex);
+                    ++matchedCount;
+                    const QString &photoPath = pendingPhotoPaths.at(index);
+                    if (!result.success)
+                    {
+                        ++summary.failed;
+                        if (summary.firstError.isEmpty())
+                        {
+                            summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), result.error);
+                        }
+                    }
+                    else
+                    {
+                        QString    error;
+                        const auto latestStoredResult = MatchResultStore::load(databasePath, photoPath, &error);
+                        if (!error.isEmpty())
+                        {
+                            ++summary.failed;
+                            if (summary.firstError.isEmpty())
+                            {
+                                summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                            }
+                        }
+                        else
+                        {
+                            StoredMatchResult mergedResult = latestStoredResult.value_or(StoredMatchResult {});
+                            if (mergedResult.allMatchesConfirmed())
+                            {
+                                ++summary.skipped;
+                            }
+                            else
+                            {
+                                mergedResult.replaceUnconfirmedMatches(storedMatchResult(result));
+                                if (MatchResultStore::save(databasePath, photoPath, mergedResult, &error))
+                                {
+                                    ++summary.succeeded;
+                                }
+                                else
+                                {
+                                    ++summary.failed;
+                                    if (summary.firstError.isEmpty())
+                                    {
+                                        summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    progress = summary;
+                }
+                reportProgress(progress);
+            };
+            static_cast<void>(
+                GarmentMatcher::matchAll(pendingPhotoPaths, galleryItems, options, cancellation.get(), parallelThreadCount, handleResult));
+            const bool matchingCancelled = matchedCount < pendingPhotoPaths.size();
+            if (matchingCancelled)
             {
                 return cancelledSummary();
             }
-            const QString                &photoPath = pendingPhotoPaths.at(index);
-            const GarmentMatcher::Result &result    = results.at(index);
-            if (!result.success)
-            {
-                ++summary.failed;
-                if (summary.firstError.isEmpty())
-                {
-                    summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), result.error);
-                }
-                continue;
-            }
-
-            QString    error;
-            const auto latestStoredResult = MatchResultStore::load(databasePath, photoPath, &error);
-            if (!error.isEmpty())
-            {
-                ++summary.failed;
-                if (summary.firstError.isEmpty())
-                {
-                    summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
-                }
-                continue;
-            }
-            StoredMatchResult mergedResult = latestStoredResult.value_or(StoredMatchResult {});
-            if (mergedResult.allMatchesConfirmed())
-            {
-                ++summary.skipped;
-                continue;
-            }
-            mergedResult.replaceUnconfirmedMatches(storedMatchResult(result));
-            if (MatchResultStore::save(databasePath, photoPath, mergedResult, &error))
-            {
-                ++summary.succeeded;
-                continue;
-            }
-            ++summary.failed;
-            if (summary.firstError.isEmpty())
-            {
-                summary.firstError = QStringLiteral("%1：%2").arg(QFileInfo(photoPath).fileName(), error);
-            }
-        }
-        if (matchingCancelled)
-        {
-            return cancelledSummary();
-        }
-        return summary;
-    }));
+            return summary;
+        }));
 }
 
 void MatchController::cancelAutoMatchAllStyleIds()

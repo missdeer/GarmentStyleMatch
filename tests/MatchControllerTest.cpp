@@ -631,9 +631,16 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         return 1;
     }
 
-    QString autoMatchPolicyMessage;
+    QString     autoMatchPolicyMessage;
+    QStringList batchProgressMessages;
     QObject::connect(&controller, &MatchController::logMessage, &controller, [&autoMatchPolicyMessage](const QString &message) {
         autoMatchPolicyMessage = message;
+    });
+    QObject::connect(&controller, &MatchController::logMessage, &controller, [&batchProgressMessages](const QString &message) {
+        if (message.startsWith(QStringLiteral("批量自动匹配进度：")))
+        {
+            batchProgressMessages.push_back(message);
+        }
     });
     controller.setCurrentPhotoIndex(1);
     controller.setCurrentPhotoIndex(0);
@@ -670,8 +677,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         }
     });
     controller.autoMatchAllUnconfirmedStyleIds();
-    if (!check(controller.busy() && controller.batchAutoMatchInProgress(),
-               QStringLiteral("未确认批量匹配必须在后台检查每张实拍图的确认状态")))
+    if (!check(controller.busy() && controller.batchAutoMatchInProgress(), QStringLiteral("未确认批量匹配必须在后台检查每张实拍图的确认状态")))
     {
         return 1;
     }
@@ -682,10 +688,14 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
+    if (!check(batchProgressMessages.contains(QStringLiteral("批量自动匹配进度：已匹配成功 0 张，跳过 2 张，失败 1 张，总共 3 张待匹配。")),
+               QStringLiteral("批量自动匹配状态栏必须持续报告成功、跳过和总数")))
+    {
+        return 1;
+    }
 
     controller.autoMatchAllStyleIds();
-    if (!check(controller.busy() && controller.batchAutoMatchInProgress(),
-               QStringLiteral("批量匹配期间必须暴露可停止状态")))
+    if (!check(controller.busy() && controller.batchAutoMatchInProgress(), QStringLiteral("批量匹配期间必须暴露可停止状态")))
     {
         return 1;
     }
