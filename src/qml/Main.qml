@@ -52,6 +52,8 @@ ApplicationWindow {
     property int pendingGalleryMatchRow: -1
     property string pendingGalleryMatchPart: ""
     property bool pendingGalleryMatchConfirmed: false
+    property string classificationReportTitle: ""
+    property string classificationReportText: ""
 
     component SplitterHandle: Rectangle {
         implicitWidth: 5
@@ -95,6 +97,27 @@ ApplicationWindow {
     Connections {
         target: controller
         function onLogMessage(msg) { root.statusText = msg }
+        function onClassificationFinished(title, report) {
+            root.classificationReportTitle = title
+            root.classificationReportText = report
+            classificationReportDialog.open()
+        }
+    }
+
+    Dialog {
+        id: classificationReportDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(500, parent.width - 32)
+        modal: true
+        title: root.classificationReportTitle
+        standardButtons: Dialog.Ok
+        closePolicy: Popup.CloseOnEscape
+
+        contentItem: Label {
+            text: root.classificationReportText
+            wrapMode: Text.Wrap
+        }
     }
 
     Dialog {
@@ -270,6 +293,8 @@ ApplicationWindow {
                         onCancelAutoMatchAllRequested: controller.cancelAutoMatchAllStyleIds()
                         onCopyStyleIdsRequested: (offset, part) => root.requestStyleIdCopy(offset, part, false)
                         onCopyStyleIdsToAdjacentRequested: (offset, part) => root.requestStyleIdCopy(offset, part, true)
+                        onClassifyMatchedPhotosRequested: controller.classifyMatchedPhotos()
+                        onClassifyConfirmedPhotosRequested: controller.classifyConfirmedPhotos()
                     }
                 }
 

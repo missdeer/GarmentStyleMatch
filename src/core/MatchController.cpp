@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QFutureWatcher>
@@ -189,6 +190,55 @@ namespace
             directoryPrefix += QLatin1Char('/');
         }
         return cleanPath.startsWith(directoryPrefix, kPathCaseSensitivity);
+    }
+
+    bool filesHaveSameContent(const QString &firstPath, const QString &secondPath)
+    {
+        QFile first(firstPath);
+        QFile second(secondPath);
+        if (first.size() != second.size() || !first.open(QIODevice::ReadOnly) || !second.open(QIODevice::ReadOnly))
+        {
+            return false;
+        }
+
+        constexpr qint64 kComparisonChunkSize = 64 * 1024;
+        while (!first.atEnd())
+        {
+            if (first.read(kComparisonChunkSize) != second.read(kComparisonChunkSize))
+            {
+                return false;
+            }
+        }
+        return second.atEnd();
+    }
+
+    QString styleDirectoryPath(const QFileInfoList &directories, const QString &styleId, bool *ambiguous)
+    {
+        QStringList exactMatches;
+        QStringList suffixMatches;
+        for (const QFileInfo &directory : directories)
+        {
+            const QString directoryName = directory.fileName();
+            if (directoryName.compare(styleId, kPathCaseSensitivity) == 0)
+            {
+                exactMatches.push_back(directory.absoluteFilePath());
+            }
+            else if (directoryName.endsWith(styleId, kPathCaseSensitivity))
+            {
+                suffixMatches.push_back(directory.absoluteFilePath());
+            }
+        }
+
+        const QStringList &matches = exactMatches.isEmpty() ? suffixMatches : exactMatches;
+        if (matches.size() == 1)
+        {
+            return matches.constFirst();
+        }
+        if (ambiguous)
+        {
+            *ambiguous = !matches.isEmpty();
+        }
+        return {};
     }
 } // namespace
 
@@ -1825,6 +1875,213 @@ void MatchController::previousUnconfirmedPhoto()
 void MatchController::nextUnconfirmedPhoto()
 {
     navigatePhoto(1, PhotoNavigationFilter::Unconfirmed);
+}
+
+void MatchController::classifyMatchedPhotos()
+{
+    classifyPhotos(false);
+}
+
+void MatchController::classifyConfirmedPhotos()
+{
+    classifyPhotos(true);
+}
+
+void MatchController::classifyPhotos(bool onlyConfirmed)
+{
+    const QString operation    = onlyConfirmed ? QStringLiteral("归类已确认实拍图") : QStringLiteral("归类已匹配实拍图");
+    const auto    reportNotRun = [this, &operation](const QString &reason) {
+        const int     totalPhotos = m_photoModel ? static_cast<int>(m_photoModel->allItems().size()) : 0;
+        const QString report      = QStringLiteral("总实拍图：%1 张\n成功归类：0 张\n归类失败：0 张\n本次未执行：%2").arg(totalPhotos).arg(reason);
+        emit          logMessage(QStringLiteral("%1失败：%2").arg(operation, reason));
+        emit          classificationFinished(operation, report);
+    };
+    if (m_busy)
+    {
+        reportNotRun(QStringLiteral("请等待当前任务完成"));
+        return;
+    }
+    if (!m_photoModel || m_photoDir.isEmpty())
+    {
+        reportNotRun(QStringLiteral("请先选择实拍图输入目录"));
+        return;
+    }
+
+    const QDir outputDirectory(m_outputDir);
+    if (m_outputDir.isEmpty() || !outputDirectory.exists())
+    {
+        reportNotRun(QStringLiteral("请先选择有效的输出目录"));
+        return;
+    }
+
+    const QVector<PhotoItem> photos = m_photoModel->allItems();
+    if (photos.isEmpty())
+    {
+        reportNotRun(QStringLiteral("输入实拍图列表为空"));
+        return;
+    }
+
+    const QFileInfoList styleDirectories           = outputDirectory.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
+    int                 eligiblePhotos             = 0;
+    int                 classifiedPhotos           = 0;
+    int                 failedPhotos               = 0;
+    int                 ineligiblePhotos           = 0;
+    int                 copiedFiles                = 0;
+    int                 existingFiles              = 0;
+    int                 recordFailures             = 0;
+    int                 missingDirectoryFailures   = 0;
+    int                 ambiguousDirectoryFailures = 0;
+    int                 conflictingFileFailures    = 0;
+    int                 copyFailures               = 0;
+    QString             firstError;
+
+    setBusy(true);
+    auto busyGuard = qScopeGuard([this] { setBusy(false); });
+    for (const PhotoItem &photo : photos)
+    {
+        QString    error;
+        const auto result = MatchResultStore::load(matchDatabasePath(), photo.imagePath, &error);
+        if (!error.isEmpty())
+        {
+            ++failedPhotos;
+            ++recordFailures;
+            if (firstError.isEmpty())
+            {
+                firstError = QStringLiteral("读取 %1 的款号记录失败：%2").arg(photo.fileName, error);
+            }
+            continue;
+        }
+
+        const bool bothMatched = result && !result->upper.isEmpty() && !result->lower.isEmpty();
+        const bool eligible    = onlyConfirmed ? result && result->allMatchesConfirmed() : bothMatched;
+        if (!eligible)
+        {
+            ++ineligiblePhotos;
+            continue;
+        }
+        ++eligiblePhotos;
+
+        QStringList styleIds {result->upper.styleId};
+        if (!styleIds.contains(result->lower.styleId, kPathCaseSensitivity))
+        {
+            styleIds.push_back(result->lower.styleId);
+        }
+
+        QStringList targetDirectories;
+        for (const QString &styleId : std::as_const(styleIds))
+        {
+            bool          ambiguous       = false;
+            const QString targetDirectory = styleDirectoryPath(styleDirectories, styleId, &ambiguous);
+            if (targetDirectory.isEmpty())
+            {
+                error = ambiguous ? QStringLiteral("找到多个目录名以款号 %1 结尾的输出子目录").arg(styleId)
+                                  : QStringLiteral("未找到目录名以款号 %1 结尾的输出子目录").arg(styleId);
+                if (ambiguous)
+                {
+                    ++ambiguousDirectoryFailures;
+                }
+                else
+                {
+                    ++missingDirectoryFailures;
+                }
+                break;
+            }
+            targetDirectories.push_back(targetDirectory);
+        }
+        if (targetDirectories.size() != styleIds.size())
+        {
+            ++failedPhotos;
+            if (firstError.isEmpty())
+            {
+                firstError = QStringLiteral("%1：%2").arg(photo.fileName, error);
+            }
+            continue;
+        }
+
+        bool classified = true;
+        for (const QString &targetDirectory : std::as_const(targetDirectories))
+        {
+            const QString destinationPath = QDir(targetDirectory).absoluteFilePath(photo.fileName);
+            if (QFileInfo::exists(destinationPath))
+            {
+                if (filesHaveSameContent(photo.imagePath, destinationPath))
+                {
+                    ++existingFiles;
+                    continue;
+                }
+                classified = false;
+                ++conflictingFileFailures;
+                if (firstError.isEmpty())
+                {
+                    firstError = QStringLiteral("%1 已存在且内容不同，未覆盖").arg(QDir::toNativeSeparators(destinationPath));
+                }
+                break;
+            }
+            if (!QFile::copy(photo.imagePath, destinationPath))
+            {
+                classified = false;
+                ++copyFailures;
+                if (firstError.isEmpty())
+                {
+                    firstError = QStringLiteral("无法复制 %1 到 %2").arg(photo.fileName, QDir::toNativeSeparators(targetDirectory));
+                }
+                break;
+            }
+            ++copiedFiles;
+        }
+
+        if (classified)
+        {
+            ++classifiedPhotos;
+        }
+        else
+        {
+            ++failedPhotos;
+        }
+    }
+
+    setBusy(false);
+    QString message = QStringLiteral("%1完成：符合条件 %2 张，已归类 %3 张（新复制 %4 份，已存在 %5 份），失败 %6 张。")
+                          .arg(operation)
+                          .arg(eligiblePhotos)
+                          .arg(classifiedPhotos)
+                          .arg(copiedFiles)
+                          .arg(existingFiles)
+                          .arg(failedPhotos);
+    if (!firstError.isEmpty())
+    {
+        message += QStringLiteral("首个错误：%1").arg(firstError);
+    }
+    emit logMessage(message);
+
+    QStringList reportLines {
+        QStringLiteral("总实拍图：%1 张").arg(photos.size()),
+        QStringLiteral("符合条件：%1 张").arg(eligiblePhotos),
+        QStringLiteral("成功归类：%1 张").arg(classifiedPhotos),
+        QStringLiteral("归类失败：%1 张").arg(failedPhotos),
+        QStringLiteral("不符合条件：%1 张").arg(ineligiblePhotos),
+        QStringLiteral("文件处理：新复制 %1 份，已存在 %2 份").arg(copiedFiles).arg(existingFiles),
+    };
+    if (failedPhotos > 0)
+    {
+        reportLines.push_back(QStringLiteral("\n失败原因："));
+        const auto appendReason = [&reportLines](const QString &reason, int count) {
+            if (count > 0)
+            {
+                reportLines.push_back(QStringLiteral("• %1：%2 张").arg(reason).arg(count));
+            }
+        };
+        appendReason(QStringLiteral("款号记录读取失败"), recordFailures);
+        appendReason(QStringLiteral("未找到款号对应的输出目录"), missingDirectoryFailures);
+        appendReason(QStringLiteral("款号对应多个输出目录"), ambiguousDirectoryFailures);
+        appendReason(QStringLiteral("目标存在同名异内容文件"), conflictingFileFailures);
+        appendReason(QStringLiteral("文件复制失败"), copyFailures);
+        if (!firstError.isEmpty())
+        {
+            reportLines.push_back(QStringLiteral("\n首个错误：%1").arg(firstError));
+        }
+    }
+    emit classificationFinished(operation, reportLines.join(QLatin1Char('\n')));
 }
 
 void MatchController::navigatePhoto(int direction, PhotoNavigationFilter filter)

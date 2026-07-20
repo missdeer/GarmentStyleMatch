@@ -33,10 +33,10 @@ namespace
         return false;
     }
 
-    bool createFile(const QString &path)
+    bool createFile(const QString &path, const QByteArray &contents = QByteArrayLiteral("test"))
     {
         QFile file(path);
-        return file.open(QIODevice::WriteOnly) && file.write("test") == 4;
+        return file.open(QIODevice::WriteOnly) && file.write(contents) == contents.size();
     }
 
     bool waitFor(const std::function<bool()> &condition)
@@ -958,6 +958,122 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     restoredController.activatePreview(false);
     if (!check(restoredController.currentImagePage() == 1 && restoredController.currentImagePath() == root.filePath(QStringLiteral("Alpha/02.PNG")),
                QStringLiteral("启动恢复后应还原输出 Tab 当前浏览的主图")))
+    {
+        return 1;
+    }
+
+    QTemporaryDir classificationTemporary;
+    if (!check(classificationTemporary.isValid(), QStringLiteral("无法创建实拍图归类测试目录")))
+    {
+        return 1;
+    }
+    QDir classificationRoot(classificationTemporary.path());
+    if (!check(
+            classificationRoot.mkpath(QStringLiteral("photos")) && classificationRoot.mkpath(QStringLiteral("output/look_TOP001")) &&
+                classificationRoot.mkpath(QStringLiteral("output/look_BOTTOM001")) &&
+                classificationRoot.mkpath(QStringLiteral("output/look_BOTH002")) && classificationRoot.mkpath(QStringLiteral("output/look_TOP003")) &&
+                classificationRoot.mkpath(QStringLiteral("output/other_TOP003")) && classificationRoot.mkpath(QStringLiteral("output/look_COLLIDE")),
+            QStringLiteral("无法创建款号后缀输出目录")))
+    {
+        return 1;
+    }
+
+    const QDir    classificationPhotoDir(classificationRoot.filePath(QStringLiteral("photos")));
+    const QDir    classificationOutputDir(classificationRoot.filePath(QStringLiteral("output")));
+    const QString mixedPhoto      = classificationPhotoDir.filePath(QStringLiteral("mixed.jpg"));
+    const QString confirmedPhoto  = classificationPhotoDir.filePath(QStringLiteral("confirmed.jpg"));
+    const QString incompletePhoto = classificationPhotoDir.filePath(QStringLiteral("incomplete.jpg"));
+    const QString ambiguousPhoto  = classificationPhotoDir.filePath(QStringLiteral("ambiguous.jpg"));
+    const QString collisionPhoto  = classificationPhotoDir.filePath(QStringLiteral("collision.jpg"));
+    const QString missingPhoto    = classificationPhotoDir.filePath(QStringLiteral("missing.jpg"));
+    const QString collisionTarget = QDir(classificationOutputDir.filePath(QStringLiteral("look_COLLIDE"))).filePath(QStringLiteral("collision.jpg"));
+    if (!check(createFile(mixedPhoto) && createFile(confirmedPhoto) && createFile(incompletePhoto) && createFile(ambiguousPhoto) &&
+                   createFile(collisionPhoto) && createFile(missingPhoto) && createFile(collisionTarget, QByteArrayLiteral("different")),
+               QStringLiteral("无法创建实拍图归类测试文件")))
+    {
+        return 1;
+    }
+
+    StoredMatchResult mixedMatch;
+    mixedMatch.upper = {QStringLiteral("TOP001"), QStringLiteral("top.png"), false};
+    mixedMatch.lower = {QStringLiteral("BOTTOM001"), QStringLiteral("bottom.png"), true};
+    StoredMatchResult confirmedMatch;
+    confirmedMatch.upper = {QStringLiteral("BOTH002"), QStringLiteral("both.png"), true};
+    confirmedMatch.lower = {QStringLiteral("BOTH002"), QStringLiteral("both.png"), true};
+    StoredMatchResult incompleteMatch;
+    incompleteMatch.upper = {QStringLiteral("TOP001"), QStringLiteral("top.png"), true};
+    StoredMatchResult ambiguousMatch;
+    ambiguousMatch.upper = {QStringLiteral("TOP003"), QStringLiteral("top.png"), false};
+    ambiguousMatch.lower = {QStringLiteral("TOP003"), QStringLiteral("top.png"), false};
+    StoredMatchResult collisionMatch;
+    collisionMatch.upper = {QStringLiteral("COLLIDE"), QStringLiteral("collision.png"), false};
+    collisionMatch.lower = {QStringLiteral("COLLIDE"), QStringLiteral("collision.png"), false};
+    StoredMatchResult missingMatch;
+    missingMatch.upper                       = {QStringLiteral("MISSING"), QStringLiteral("missing.png"), false};
+    missingMatch.lower                       = {QStringLiteral("MISSING"), QStringLiteral("missing.png"), false};
+    const QString classificationDatabasePath = classificationPhotoDir.filePath(QStringLiteral("gsm.db"));
+    if (!check(MatchResultStore::save(classificationDatabasePath, mixedPhoto, mixedMatch, &matchStoreError) &&
+                   MatchResultStore::save(classificationDatabasePath, confirmedPhoto, confirmedMatch, &matchStoreError) &&
+                   MatchResultStore::save(classificationDatabasePath, incompletePhoto, incompleteMatch, &matchStoreError) &&
+                   MatchResultStore::save(classificationDatabasePath, ambiguousPhoto, ambiguousMatch, &matchStoreError) &&
+                   MatchResultStore::save(classificationDatabasePath, collisionPhoto, collisionMatch, &matchStoreError) &&
+                   MatchResultStore::save(classificationDatabasePath, missingPhoto, missingMatch, &matchStoreError),
+               QStringLiteral("无法准备实拍图归类款号记录：%1").arg(matchStoreError)))
+    {
+        return 1;
+    }
+
+    CandidateListModel classificationCandidateModel;
+    PhotoListModel     classificationPhotoModel;
+    MatchController    classificationController;
+    classificationController.setCandidateModel(&classificationCandidateModel);
+    classificationController.setPhotoModel(&classificationPhotoModel);
+    classificationController.setPhotoDir(classificationPhotoDir.path());
+    classificationController.setOutputDir(classificationOutputDir.path());
+    QString classificationMessage;
+    QString classificationReport;
+    QObject::connect(&classificationController,
+                     &MatchController::logMessage,
+                     &classificationController,
+                     [&classificationMessage](const QString &message) { classificationMessage = message; });
+    QObject::connect(&classificationController,
+                     &MatchController::classificationFinished,
+                     &classificationController,
+                     [&classificationReport](const QString &, const QString &report) { classificationReport = report; });
+
+    classificationController.classifyConfirmedPhotos();
+    if (!check(QFileInfo::exists(QDir(classificationOutputDir.filePath(QStringLiteral("look_BOTH002"))).filePath(QStringLiteral("confirmed.jpg"))) &&
+                   !QFileInfo::exists(QDir(classificationOutputDir.filePath(QStringLiteral("look_TOP001"))).filePath(QStringLiteral("mixed.jpg"))) &&
+                   classificationMessage.contains(QStringLiteral("符合条件 1 张，已归类 1 张")) &&
+                   classificationReport.contains(QStringLiteral("总实拍图：6 张")) &&
+                   classificationReport.contains(QStringLiteral("成功归类：1 张")) &&
+                   classificationReport.contains(QStringLiteral("不符合条件：5 张")),
+               QStringLiteral("已确认归类只能复制上衣和裤裙均确认的实拍图：%1｜%2").arg(classificationMessage, classificationReport)))
+    {
+        return 1;
+    }
+
+    classificationController.classifyMatchedPhotos();
+    if (!check(
+            QFileInfo::exists(QDir(classificationOutputDir.filePath(QStringLiteral("look_TOP001"))).filePath(QStringLiteral("mixed.jpg"))) &&
+                QFileInfo::exists(QDir(classificationOutputDir.filePath(QStringLiteral("look_BOTTOM001"))).filePath(QStringLiteral("mixed.jpg"))) &&
+                !QFileInfo::exists(
+                    QDir(classificationOutputDir.filePath(QStringLiteral("look_TOP001"))).filePath(QStringLiteral("incomplete.jpg"))) &&
+                !QFileInfo::exists(QDir(classificationOutputDir.filePath(QStringLiteral("look_TOP003"))).filePath(QStringLiteral("ambiguous.jpg"))) &&
+                classificationMessage.contains(QStringLiteral("符合条件 5 张，已归类 2 张")) &&
+                classificationMessage.contains(QStringLiteral("失败 3 张")) && classificationReport.contains(QStringLiteral("总实拍图：6 张")) &&
+                classificationReport.contains(QStringLiteral("归类失败：3 张")) &&
+                classificationReport.contains(QStringLiteral("不符合条件：1 张")) &&
+                classificationReport.contains(QStringLiteral("未找到款号对应的输出目录：1 张")) &&
+                classificationReport.contains(QStringLiteral("款号对应多个输出目录：1 张")) &&
+                classificationReport.contains(QStringLiteral("目标存在同名异内容文件：1 张")),
+            QStringLiteral("已匹配归类必须报告成功、失败及失败原因：%1｜%2").arg(classificationMessage, classificationReport)))
+    {
+        return 1;
+    }
+    QFile collisionFile(collisionTarget);
+    if (!check(collisionFile.open(QIODevice::ReadOnly) && collisionFile.readAll() == QByteArrayLiteral("different"),
+               QStringLiteral("归类不得覆盖目标目录中内容不同的同名实拍图")))
     {
         return 1;
     }

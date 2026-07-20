@@ -224,6 +224,8 @@ public slots:
     void               autoMatchAllStyleIds();
     void               autoMatchAllUnconfirmedStyleIds();
     void               cancelAutoMatchAllStyleIds();
+    void               classifyMatchedPhotos();
+    void               classifyConfirmedPhotos();
     [[nodiscard]] bool galleryMatchWouldOverwriteConfirmedStyleId(const QString &part) const;
     bool               matchGalleryItemToCurrentPhoto(int galleryRow, const QString &part, bool overwriteConfirmed, bool confirmed);
     [[nodiscard]] bool copyWouldOverwriteConfirmedStyleIds(int offset, const QString &part, bool targetAdjacent) const;
@@ -271,6 +273,7 @@ signals:
     void modelDownloadRequired();
     void busyChanged();
     void mainWindowShown();
+    void classificationFinished(const QString &title, const QString &report);
 
     void logMessage(const QString &msg);
 
@@ -349,6 +352,7 @@ private:
     void                         setBusy(bool on);
     void                         setBatchAutoMatchInProgress(bool inProgress);
     void                         startBatchAutoMatchStyleIds(bool onlyUnconfirmed);
+    void                         classifyPhotos(bool onlyConfirmed);
     void                         startNextModelDownload();
     void                         startPythonDependencyInstall();
     void                         startPythonModelExtraction();

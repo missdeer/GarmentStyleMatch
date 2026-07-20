@@ -17,6 +17,8 @@ Rectangle {
     signal cancelAutoMatchAllRequested()
     signal copyStyleIdsRequested(int offset, string part)
     signal copyStyleIdsToAdjacentRequested(int offset, string part)
+    signal classifyMatchedPhotosRequested()
+    signal classifyConfirmedPhotosRequested()
 
     implicitHeight: layout.implicitHeight + 20
     color: Theme.surfaceAlt
@@ -152,6 +154,25 @@ Rectangle {
                     enabled: !root.busy && root.nextAvailable
                     onClicked: root.copyStyleIdsToAdjacentRequested(1, copyPartGroup.checkedButton.part)
                 }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+
+            Button {
+                Layout.fillWidth: true
+                text: qsTr("归类已匹配实拍图")
+                enabled: !root.busy
+                onClicked: root.classifyMatchedPhotosRequested()
+            }
+
+            Button {
+                Layout.fillWidth: true
+                text: qsTr("归类已确认实拍图")
+                enabled: !root.busy
+                onClicked: root.classifyConfirmedPhotosRequested()
             }
         }
     }

@@ -18,6 +18,8 @@ Rectangle {
     signal cancelAutoMatchAllRequested()
     signal copyStyleIdsRequested(int offset, string part)
     signal copyStyleIdsToAdjacentRequested(int offset, string part)
+    signal classifyMatchedPhotosRequested()
+    signal classifyConfirmedPhotosRequested()
 
     color: Theme.surface
     border.color: Theme.border
@@ -52,6 +54,8 @@ Rectangle {
                 onCancelAutoMatchAllRequested: root.cancelAutoMatchAllRequested()
                 onCopyStyleIdsRequested: (offset, part) => root.copyStyleIdsRequested(offset, part)
                 onCopyStyleIdsToAdjacentRequested: (offset, part) => root.copyStyleIdsToAdjacentRequested(offset, part)
+                onClassifyMatchedPhotosRequested: root.classifyMatchedPhotosRequested()
+                onClassifyConfirmedPhotosRequested: root.classifyConfirmedPhotosRequested()
             }
             PropertyList { entries: imageMetadata.fileInfo }
             PropertyList { entries: imageMetadata.imageInfo }
