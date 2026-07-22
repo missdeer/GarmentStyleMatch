@@ -10,6 +10,7 @@ set(GSM_SOURCES
     core/MatchResultStore.cpp
     core/SQLiteDB.cpp
     core/SQLiteStatement.cpp
+    core/LuaCategoryRuleEngine.cpp
 )
 
 set(GSM_HEADERS
@@ -23,6 +24,7 @@ set(GSM_HEADERS
     core/MatchResultStore.h
     core/SQLiteDB.h
     core/SQLiteStatement.h
+    core/LuaCategoryRuleEngine.h
     platform/SplashScreen.h
 )
 
@@ -172,6 +174,7 @@ target_link_libraries(GarmentStyleMatch PRIVATE
     gsm_onnxruntime_headers
     ${OpenCV_LIBS}
     gsm_sqlite
+    gsm_lua
     gsm_windowsml_api
     $<$<PLATFORM_ID:Windows>:Qt6::AxContainer>
     $<$<PLATFORM_ID:Windows>:gdiplus>

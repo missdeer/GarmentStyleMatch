@@ -106,6 +106,29 @@ target_link_libraries(HttpDownloaderTest PRIVATE
 
 add_test(NAME HttpDownloaderTest COMMAND HttpDownloaderTest)
 
+add_executable(LuaCategoryRuleEngineTest
+    LuaCategoryRuleEngineTest.cpp
+    ../src/core/LuaCategoryRuleEngine.cpp
+    ../src/core/LuaCategoryRuleEngine.h
+)
+
+# Keep the test objects synchronized when localized /showIncludes output cannot
+# provide a dependable header depfile.
+set_property(SOURCE LuaCategoryRuleEngineTest.cpp ../src/core/LuaCategoryRuleEngine.cpp APPEND PROPERTY
+    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/LuaCategoryRuleEngine.h"
+)
+
+target_include_directories(LuaCategoryRuleEngineTest PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/core
+)
+
+target_link_libraries(LuaCategoryRuleEngineTest PRIVATE
+    Qt6::Core
+    gsm_lua
+)
+
+add_test(NAME LuaCategoryRuleEngineTest COMMAND LuaCategoryRuleEngineTest)
+
 set(_gsm_match_controller_test_sources
     MatchControllerTest.cpp
     ../src/core/MatchController.cpp
