@@ -1,7 +1,9 @@
+#include <array>
 #include <cstddef>
 
 #include <QCoreApplication>
 #include <QDebug>
+#include <QFile>
 
 #include "LuaCategoryRuleEngine.h"
 
@@ -14,6 +16,49 @@ namespace
     constexpr std::size_t kRuntimeMemoryBytes            = 256 * 1024;
     constexpr int         kRuntimeExecutionInstructions  = 2'000;
     constexpr int         kRuntimeValidationInstructions = 20'000;
+
+    struct ExpectedCategory
+    {
+        const char  *code;
+        const char  *level1Code;
+        const char  *level1Name;
+        const char  *level2Code;
+        const char  *level2Name;
+        Engine::Part part;
+    };
+
+    constexpr std::array<ExpectedCategory, 59> kCurrentBrandCategories {{
+        {"JD", "2", "外套", "2.5", "羽绒", Engine::Part::Upper},     {"JP", "2", "外套", "2.6", "棉服", Engine::Part::Upper},
+        {"JJ", "2", "外套", "2.1", "夹克", Engine::Part::Upper},     {"JE", "2", "外套", "2.8", "牛仔外套", Engine::Part::Upper},
+        {"JW", "2", "外套", "2.7", "毛呢", Engine::Part::Upper},     {"JL", "2", "外套", "2.9", "皮衣", Engine::Part::Upper},
+        {"JK", "2", "外套", "2.2", "西装", Engine::Part::Upper},     {"JT", "2", "外套", "2.3", "风衣", Engine::Part::Upper},
+        {"VW", "2", "外套", "2.4", "背心", Engine::Part::Upper},     {"CK", "1", "上衣", "1.5", "毛针织", Engine::Part::Upper},
+        {"KW", "1", "上衣", "1.5", "毛针织", Engine::Part::Upper},   {"KN", "1", "上衣", "1.5", "毛针织", Engine::Part::Upper},
+        {"MZ", "1", "上衣", "1.2", "卫衣", Engine::Part::Upper},     {"MW", "1", "上衣", "1.2", "卫衣", Engine::Part::Upper},
+        {"MA", "1", "上衣", "1.2", "卫衣", Engine::Part::Upper},     {"MH", "1", "上衣", "1.2", "卫衣", Engine::Part::Upper},
+        {"LW", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},      {"LS", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},
+        {"LA", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},      {"RW", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},
+        {"RS", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},      {"RA", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},
+        {"RN", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},      {"RL", "1", "上衣", "1.1", "T恤", Engine::Part::Upper},
+        {"HW", "1", "上衣", "1.4", "POLO", Engine::Part::Upper},     {"HS", "1", "上衣", "1.4", "POLO", Engine::Part::Upper},
+        {"HA", "1", "上衣", "1.4", "POLO", Engine::Part::Upper},     {"YW", "1", "上衣", "1.3", "衬衫", Engine::Part::Upper},
+        {"YS", "1", "上衣", "1.3", "衬衫", Engine::Part::Upper},     {"YC", "1", "上衣", "1.3", "衬衫", Engine::Part::Upper},
+        {"YP", "1", "上衣", "1.3", "衬衫", Engine::Part::Upper},     {"YA", "1", "上衣", "1.3", "衬衫", Engine::Part::Upper},
+        {"TM", "3", "裤子", "3.1", "卫裤", Engine::Part::Lower},     {"MT", "3", "裤子", "3.1", "卫裤", Engine::Part::Lower},
+        {"TC", "3", "裤子", "3.2", "休闲裤", Engine::Part::Lower},   {"TH", "3", "裤子", "3.2", "休闲裤", Engine::Part::Lower},
+        {"TG", "3", "裤子", "3.2", "休闲裤", Engine::Part::Lower},   {"TJ", "3", "裤子", "3.3", "牛仔裤", Engine::Part::Lower},
+        {"TF", "3", "裤子", "3.3", "牛仔裤", Engine::Part::Lower},   {"TW", "3", "裤子", "3.4", "西装裤", Engine::Part::Lower},
+        {"WH", "3", "裤子", "3.5", "半身裙", Engine::Part::Lower},   {"AY", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"AC", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"AN", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"AK", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"XP", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"AW", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"AM", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"AB", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"AF", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"AG", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"AP", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"AS", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"AX", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"FD", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"FT", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"MS", "4", "配件", "4.1", "配饰", Engine::Part::Accessory}, {"OA", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+        {"PP", "4", "配件", "4.1", "配饰", Engine::Part::Accessory},
+    }};
 
     bool check(bool condition, const QString &message)
     {
@@ -246,14 +291,77 @@ return {
 
         return 0;
     }
+
+    int testCurrentBrandRule(const QString &rulePath)
+    {
+        QFile ruleFile(rulePath);
+        if (!check(ruleFile.open(QIODevice::ReadOnly), QStringLiteral("无法读取当前品牌规则：%1").arg(rulePath)))
+        {
+            return 1;
+        }
+        const QByteArray script = ruleFile.readAll();
+        Engine           engine(script);
+        if (!check(engine.state() == Engine::State::Ready && engine.ruleId() == QStringLiteral("current-brand") &&
+                       engine.ruleVersion() == QStringLiteral("1"),
+                   QStringLiteral("当前品牌规则必须通过全量自验证并暴露稳定身份与修订：%1").arg(engine.errorMessage())))
+        {
+            return 1;
+        }
+
+        for (const ExpectedCategory &expected : kCurrentBrandCategories)
+        {
+            const QString        code    = QString::fromLatin1(expected.code);
+            const QString        styleId = code == QLatin1String("JE") ? QStringLiteral("T0JE26B38A008") : QStringLiteral("T0%126B38A008").arg(code);
+            const Engine::Result actual  = engine.classify(styleId);
+            if (!check(actual.recognized && actual.error.isEmpty() && actual.categoryCode == code &&
+                           actual.level1Code == QString::fromLatin1(expected.level1Code) &&
+                           actual.level1Name == QString::fromUtf8(expected.level1Name) &&
+                           actual.level2Code == QString::fromLatin1(expected.level2Code) &&
+                           actual.level2Name == QString::fromUtf8(expected.level2Name) && actual.part == expected.part,
+                       QStringLiteral("当前品牌代码 %1 必须符合已确认的业务层级与粗分类").arg(code)))
+            {
+                return 1;
+            }
+        }
+
+        const Engine::Result shortStyleId = engine.classify(QStringLiteral("T0J"));
+        const Engine::Result unknownCode  = engine.classify(QStringLiteral("T0ZZ26B38A008"));
+        if (!check(!shortStyleId.recognized && shortStyleId.part == Engine::Part::Unknown && shortStyleId.error.isEmpty() &&
+                       !unknownCode.recognized && unknownCode.part == Engine::Part::Unknown && unknownCode.error.isEmpty(),
+                   QStringLiteral("短款号和未知代码必须作为正常业务未知安全返回")))
+        {
+            return 1;
+        }
+
+        constexpr auto denimMapping = "JE = \"denim-jacket\"";
+        if (!check(script.contains(denimMapping), QStringLiteral("规则变更夹具必须能定位 JE 映射")))
+        {
+            return 1;
+        }
+        QByteArray incompleteScript = script;
+        incompleteScript.replace(denimMapping, "JE = nil");
+        Engine incompleteRule(incompleteScript);
+        if (!check(incompleteRule.state() == Engine::State::Rejected, QStringLiteral("遗漏任一已支持代码时，全量自验证必须拒绝规则启用")))
+        {
+            return 1;
+        }
+
+        return 0;
+    }
 } // namespace
 
 int main(int argc, char *argv[])
 {
     QCoreApplication application(argc, argv);
-    int              result = 0;
+    if (argc != 2)
+    {
+        qCritical() << "Usage: LuaCategoryRuleEngineTest <current-brand-rule>";
+        return 1;
+    }
+    int result = 0;
     result |= testValidRuleContract();
     result |= testRejectedRulesAndSandbox();
     result |= testLimitsAndRecovery();
+    result |= testCurrentBrandRule(QString::fromLocal8Bit(argv[1]));
     return result;
 }

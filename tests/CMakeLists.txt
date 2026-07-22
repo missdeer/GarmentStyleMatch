@@ -115,7 +115,9 @@ add_executable(LuaCategoryRuleEngineTest
 # Keep the test objects synchronized when localized /showIncludes output cannot
 # provide a dependable header depfile.
 set_property(SOURCE LuaCategoryRuleEngineTest.cpp ../src/core/LuaCategoryRuleEngine.cpp APPEND PROPERTY
-    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/LuaCategoryRuleEngine.h"
+    OBJECT_DEPENDS
+        "${CMAKE_SOURCE_DIR}/src/core/LuaCategoryRuleEngine.h"
+        "${CMAKE_SOURCE_DIR}/resources/category-rules/current-brand.lua"
 )
 
 target_include_directories(LuaCategoryRuleEngineTest PRIVATE
@@ -127,7 +129,9 @@ target_link_libraries(LuaCategoryRuleEngineTest PRIVATE
     gsm_lua
 )
 
-add_test(NAME LuaCategoryRuleEngineTest COMMAND LuaCategoryRuleEngineTest)
+add_test(NAME LuaCategoryRuleEngineTest COMMAND LuaCategoryRuleEngineTest
+    "${CMAKE_SOURCE_DIR}/resources/category-rules/current-brand.lua"
+)
 
 set(_gsm_match_controller_test_sources
     MatchControllerTest.cpp
