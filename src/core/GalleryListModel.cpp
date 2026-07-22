@@ -1,11 +1,107 @@
+#include <memory>
+#include <optional>
 #include <utility>
 
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 
 #include "GalleryListModel.h"
+#include "LuaCategoryRuleEngine.h"
+#include "SQLiteDB.h"
+#include "SQLiteStatement.h"
+
+namespace
+{
+    QString normalizedStyleId(const QString &styleId)
+    {
+        return styleId.trimmed().toUpper();
+    }
+
+    QString partName(LuaCategoryRuleEngine::Part part)
+    {
+        using Part = LuaCategoryRuleEngine::Part;
+        switch (part)
+        {
+        case Part::Upper:
+            return QStringLiteral("upper");
+        case Part::Lower:
+            return QStringLiteral("lower");
+        case Part::Accessory:
+            return QStringLiteral("accessory");
+        case Part::Dress:
+            return QStringLiteral("dress");
+        case Part::Unknown:
+            return QStringLiteral("unknown");
+        }
+        return QStringLiteral("unknown");
+    }
+
+    struct CoarseClassification
+    {
+        QString part = QStringLiteral("unknown");
+        QString error;
+    };
+
+    CoarseClassification coarseClassification(const LuaCategoryRuleEngine::Result &result)
+    {
+        return {partName(result.part), result.error};
+    }
+
+    bool isValidClassification(const CoarseClassification &classification)
+    {
+        return classification.error.isEmpty() && (classification.part == QLatin1String("upper") || classification.part == QLatin1String("lower") ||
+                                                  classification.part == QLatin1String("accessory") ||
+                                                  classification.part == QLatin1String("dress") || classification.part == QLatin1String("unknown"));
+    }
+
+    bool prepareCategoryCache(SQLiteDB &database)
+    {
+        return database.execute("CREATE TABLE IF NOT EXISTS gallery_categories("
+                                "normalized_style_id TEXT NOT NULL,rule_id TEXT NOT NULL,rule_version TEXT NOT NULL,rule_sha256 TEXT NOT NULL,"
+                                "part TEXT NOT NULL,"
+                                "PRIMARY KEY(normalized_style_id,rule_id,rule_version,rule_sha256))");
+    }
+
+    std::optional<CoarseClassification> loadCachedCategory(
+        SQLiteDB &database, const QString &styleId, const QString &ruleId, const QString &ruleVersion, const QString &ruleSha256)
+    {
+        SQLiteStatement statement = database.prepare("SELECT part "
+                                                     "FROM gallery_categories WHERE normalized_style_id=?1 AND rule_id=?2 AND rule_version=?3 "
+                                                     "AND rule_sha256=?4");
+        if (!statement || !statement.bindText(1, styleId) || !statement.bindText(2, ruleId) || !statement.bindText(3, ruleVersion) ||
+            !statement.bindText(4, ruleSha256) || statement.step() != SQLiteStatement::StepResult::Row)
+        {
+            return std::nullopt;
+        }
+
+        CoarseClassification classification {statement.columnText(0), {}};
+        return isValidClassification(classification) ? std::optional<CoarseClassification>(std::move(classification)) : std::nullopt;
+    }
+
+    void saveCachedCategory(SQLiteDB                   &database,
+                            const QString              &styleId,
+                            const QString              &ruleId,
+                            const QString              &ruleVersion,
+                            const QString              &ruleSha256,
+                            const CoarseClassification &classification)
+    {
+        SQLiteStatement statement =
+            database.prepare("INSERT INTO gallery_categories(normalized_style_id,rule_id,rule_version,rule_sha256,part) VALUES(?1,?2,?3,?4,?5) "
+                             "ON CONFLICT(normalized_style_id,rule_id,rule_version,rule_sha256) DO UPDATE SET part=excluded.part");
+        if (!statement || !statement.bindText(1, styleId) || !statement.bindText(2, ruleId) || !statement.bindText(3, ruleVersion) ||
+            !statement.bindText(4, ruleSha256) || !statement.bindText(5, classification.part))
+        {
+            return;
+        }
+        (void)statement.step();
+    }
+} // namespace
 
 GalleryListModel::GalleryListModel(QObject *parent) : QAbstractListModel(parent) {}
+
+GalleryListModel::~GalleryListModel() = default;
 
 int GalleryListModel::rowCount(const QModelIndex &parent) const
 {
@@ -34,6 +130,10 @@ QVariant GalleryListModel::data(const QModelIndex &index, int role) const
         return item.tag;
     case IndexLabelRole:
         return index.row() + 1;
+    case PartRole:
+        return item.part;
+    case CategoryErrorRole:
+        return item.categoryError;
     default:
         return {};
     }
@@ -46,16 +146,127 @@ QHash<int, QByteArray> GalleryListModel::roleNames() const
         {ImagePathRole, "imagePath"},
         {TagRole, "tag"},
         {IndexLabelRole, "indexLabel"},
+        {PartRole, "part"},
+        {CategoryErrorRole, "categoryError"},
     };
 }
 
 void GalleryListModel::setItems(QVector<GalleryItem> items)
 {
+    classifyItems(items);
     beginResetModel();
     m_allItems.swap(items);
     rebuildFilteredItems();
     endResetModel();
     emit countChanged();
+}
+
+void GalleryListModel::setCategoryCachePath(const QString &databasePath)
+{
+    if (databasePath == m_categoryCachePath)
+    {
+        return;
+    }
+    m_categoryCachePath = databasePath;
+    if (!m_allItems.isEmpty())
+    {
+        beginResetModel();
+        classifyItems(m_allItems);
+        rebuildFilteredItems();
+        endResetModel();
+    }
+}
+
+void GalleryListModel::setCategoryRuleScript(const QByteArray &script)
+{
+    if (script == m_categoryRuleScript)
+    {
+        return;
+    }
+
+    m_categoryRuleScript = script;
+    m_categoryRule.reset();
+    m_categoryRuleSha256.clear();
+    if (!script.isEmpty())
+    {
+        m_categoryRuleSha256 = QString::fromLatin1(QCryptographicHash::hash(script, QCryptographicHash::Sha256).toHex());
+        m_categoryRule       = std::make_unique<LuaCategoryRuleEngine>(script);
+    }
+
+    if (!m_allItems.isEmpty())
+    {
+        beginResetModel();
+        classifyItems(m_allItems);
+        rebuildFilteredItems();
+        endResetModel();
+    }
+}
+
+void GalleryListModel::classifyItems(QVector<GalleryItem> &items) const
+{
+    for (GalleryItem &item : items)
+    {
+        item.part = QStringLiteral("unknown");
+        item.categoryError.clear();
+    }
+    if (!m_categoryRule)
+    {
+        return;
+    }
+    if (m_categoryRule->state() != LuaCategoryRuleEngine::State::Ready)
+    {
+        const QString error = m_categoryRule->errorMessage();
+        for (GalleryItem &item : items)
+        {
+            item.categoryError = error;
+        }
+        return;
+    }
+
+    std::unique_ptr<SQLiteDB> database;
+    if (!m_categoryCachePath.isEmpty())
+    {
+        QDir().mkpath(QFileInfo(m_categoryCachePath).absolutePath());
+        auto candidate = std::make_unique<SQLiteDB>(m_categoryCachePath);
+        if (*candidate && prepareCategoryCache(*candidate))
+        {
+            database = std::move(candidate);
+        }
+    }
+
+    const QString                        ruleId                  = m_categoryRule->ruleId();
+    const QString                        ruleVersion             = m_categoryRule->ruleVersion();
+    const bool                           cacheTransactionStarted = database && database->execute("BEGIN TRANSACTION");
+    QHash<QString, CoarseClassification> classifications;
+    classifications.reserve(items.size());
+    for (GalleryItem &item : items)
+    {
+        const QString styleId = normalizedStyleId(item.styleId);
+        auto          found   = classifications.constFind(styleId);
+        if (found == classifications.constEnd())
+        {
+            std::optional<CoarseClassification> classification;
+            if (database)
+            {
+                classification = loadCachedCategory(*database, styleId, ruleId, ruleVersion, m_categoryRuleSha256);
+            }
+            if (!classification)
+            {
+                classification = coarseClassification(m_categoryRule->classify(styleId));
+                if (cacheTransactionStarted && isValidClassification(*classification))
+                {
+                    saveCachedCategory(*database, styleId, ruleId, ruleVersion, m_categoryRuleSha256, *classification);
+                }
+            }
+            found = classifications.constFind(classifications.insert(styleId, std::move(*classification)).key());
+        }
+        item.part          = found->part;
+        item.categoryError = found->error;
+    }
+    if (cacheTransactionStarted)
+    {
+        (void)database->execute("COMMIT");
+    }
 }
 
 void GalleryListModel::setFilterText(const QString &text)

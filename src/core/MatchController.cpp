@@ -344,6 +344,8 @@ void MatchController::setGalleryModel(GalleryListModel *m)
     m_galleryModel = m;
     if (m_galleryModel)
     {
+        m_galleryModel->setCategoryCachePath(
+            QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_categories.sqlite")));
         m_galleryModel->setFilterText(m_searchText);
         connect(m_galleryModel, &GalleryListModel::countChanged, this, &MatchController::rebuildAutoMatchedItems);
     }

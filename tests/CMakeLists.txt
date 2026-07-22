@@ -21,6 +21,12 @@ add_executable(GalleryListModelTest
     GalleryListModelTest.cpp
     ../src/core/GalleryListModel.cpp
     ../src/core/GalleryListModel.h
+    ../src/core/LuaCategoryRuleEngine.cpp
+    ../src/core/LuaCategoryRuleEngine.h
+    ../src/core/SQLiteDB.cpp
+    ../src/core/SQLiteDB.h
+    ../src/core/SQLiteStatement.cpp
+    ../src/core/SQLiteStatement.h
 )
 
 target_include_directories(GalleryListModelTest PRIVATE
@@ -29,6 +35,8 @@ target_include_directories(GalleryListModelTest PRIVATE
 
 target_link_libraries(GalleryListModelTest PRIVATE
     Qt6::Core
+    gsm_lua
+    gsm_sqlite
 )
 
 add_test(NAME GalleryListModelTest COMMAND GalleryListModelTest)
@@ -145,6 +153,8 @@ set(_gsm_match_controller_test_sources
     ../src/core/CandidateListModel.h
     ../src/core/GalleryListModel.cpp
     ../src/core/GalleryListModel.h
+    ../src/core/LuaCategoryRuleEngine.cpp
+    ../src/core/LuaCategoryRuleEngine.h
     ../src/core/PhotoListModel.cpp
     ../src/core/PhotoListModel.h
     ../src/core/MatchResultStore.cpp
@@ -169,7 +179,12 @@ add_executable(MatchControllerTest ${_gsm_match_controller_test_sources})
 # Keep the test object's MatchController layout synchronized even when localized
 # MSVC /showIncludes output prevents Ninja from discovering header dependencies.
 set_property(SOURCE MatchControllerTest.cpp APPEND PROPERTY
-    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/MatchController.h"
+    OBJECT_DEPENDS
+        "${CMAKE_SOURCE_DIR}/src/core/MatchController.h"
+        "${CMAKE_SOURCE_DIR}/src/core/GalleryListModel.h"
+)
+set_property(SOURCE ../src/core/MatchController.cpp ../src/core/GalleryListModel.cpp APPEND PROPERTY
+    OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/GalleryListModel.h"
 )
 set_property(SOURCE ../src/core/MatchController.cpp APPEND PROPERTY
     OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/HttpDownloader.h"
@@ -188,6 +203,7 @@ target_link_libraries(MatchControllerTest PRIVATE
     Qt6::Widgets
     LibArchive::LibArchive
     gsm_onnxruntime_headers
+    gsm_lua
     ${OpenCV_LIBS}
     gsm_sqlite
     gsm_windowsml_api

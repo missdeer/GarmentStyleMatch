@@ -1,16 +1,22 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
 #include <QAbstractListModel>
+#include <QByteArray>
 #include <QString>
 #include <QVector>
+
+class LuaCategoryRuleEngine;
 
 struct GalleryItem
 {
     QString styleId;   // e.g. "T0JE26B38A008"
     QString imagePath; // reference sketch/gallery image path
     QString tag;       // e.g. "baby"
+    QString part = QStringLiteral("unknown");
+    QString categoryError;
 };
 
 class GalleryListModel : public QAbstractListModel
@@ -24,9 +30,12 @@ public:
         ImagePathRole,
         TagRole,
         IndexLabelRole,
+        PartRole,
+        CategoryErrorRole,
     };
 
     explicit GalleryListModel(QObject *parent = nullptr);
+    ~GalleryListModel() override;
 
     [[nodiscard]] int                    rowCount(const QModelIndex &parent = QModelIndex()) const override;
     [[nodiscard]] QVariant               data(const QModelIndex &index, int role) const override;
@@ -34,6 +43,8 @@ public:
 
     void                  setItems(QVector<GalleryItem> items);
     void                  loadFromStyleCacheDir(const QString &directoryPath);
+    void                  setCategoryCachePath(const QString &databasePath);
+    void                  setCategoryRuleScript(const QByteArray &script);
     void                  setFilterText(const QString &text);
     [[nodiscard]] QString filterText() const
     {
@@ -50,9 +61,14 @@ signals:
     void countChanged();
 
 private:
+    void classifyItems(QVector<GalleryItem> &items) const;
     void rebuildFilteredItems();
 
-    QVector<GalleryItem> m_allItems;
-    QVector<GalleryItem> m_items;
-    QString              m_filterText;
+    QVector<GalleryItem>                   m_allItems;
+    QVector<GalleryItem>                   m_items;
+    QString                                m_filterText;
+    QString                                m_categoryCachePath;
+    QByteArray                             m_categoryRuleScript;
+    QString                                m_categoryRuleSha256;
+    std::unique_ptr<LuaCategoryRuleEngine> m_categoryRule;
 };
