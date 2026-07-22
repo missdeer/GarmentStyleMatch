@@ -87,7 +87,7 @@ return {
                 part = "upper"
             }
         end
-        return { recognized = false, part = "unknown" }
+        return { recognized = false, categoryCode = "ZZ", part = "unknown" }
     end,
     tests = {
         {
@@ -102,7 +102,7 @@ return {
                 part = "upper"
             }
         },
-        { input = "OTHER", expected = { recognized = false, part = "unknown" } }
+        { input = "OTHER", expected = { recognized = false, categoryCode = "ZZ", part = "unknown" } }
     }
 }
 )lua";
@@ -175,8 +175,9 @@ return {
             return 1;
         }
         const Engine::Result intentionalUnknown = engine.classify(QStringLiteral("OTHER"));
-        if (!check(!intentionalUnknown.recognized && intentionalUnknown.part == Engine::Part::Unknown && intentionalUnknown.error.isEmpty(),
-                   QStringLiteral("规则主动返回 unknown 必须与执行失败的诊断结果区分")))
+        if (!check(!intentionalUnknown.recognized && intentionalUnknown.categoryCode == QStringLiteral("ZZ") &&
+                       intentionalUnknown.part == Engine::Part::Unknown && intentionalUnknown.error.isEmpty(),
+                   QStringLiteral("规则主动返回 unknown 必须保留未知代码，并与执行失败的诊断结果区分")))
         {
             return 1;
         }
@@ -326,9 +327,10 @@ return {
 
         const Engine::Result shortStyleId = engine.classify(QStringLiteral("T0J"));
         const Engine::Result unknownCode  = engine.classify(QStringLiteral("T0ZZ26B38A008"));
-        if (!check(!shortStyleId.recognized && shortStyleId.part == Engine::Part::Unknown && shortStyleId.error.isEmpty() &&
-                       !unknownCode.recognized && unknownCode.part == Engine::Part::Unknown && unknownCode.error.isEmpty(),
-                   QStringLiteral("短款号和未知代码必须作为正常业务未知安全返回")))
+        if (!check(!shortStyleId.recognized && shortStyleId.categoryCode.isEmpty() && shortStyleId.part == Engine::Part::Unknown &&
+                       shortStyleId.error.isEmpty() && !unknownCode.recognized && unknownCode.categoryCode == QStringLiteral("ZZ") &&
+                       unknownCode.part == Engine::Part::Unknown && unknownCode.error.isEmpty(),
+                   QStringLiteral("短款号必须安全返回无代码 unknown，未知代码必须保留诊断代码")))
         {
             return 1;
         }

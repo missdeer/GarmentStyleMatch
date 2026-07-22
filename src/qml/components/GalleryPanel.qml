@@ -15,11 +15,17 @@ Rectangle {
     property string searchText: ""
     property string pptPath: ""
     property bool currentPhotoSelected: false
+    property var categoryRuleOptions: []
+    property string currentCategoryRule: ""
+    property string categoryRuleStatus: ""
+    property string categorySummary: ""
     property bool startupTabInitialized: false
     readonly property bool showPptTab: Qt.platform.os === "windows"
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
+    signal categoryRuleSelected(string ruleId)
+    signal reloadCategoryRuleRequested()
     signal pptPathEdited(string path)
     signal pptSearchRequested()
     signal pptPageToggled(int row)
@@ -97,8 +103,14 @@ Rectangle {
                 searchText:    root.searchText
                 uiStyle:       controller.currentUiStyle
                 currentPhotoSelected: root.currentPhotoSelected
+                categoryRuleOptions: root.categoryRuleOptions
+                currentCategoryRule: root.currentCategoryRule
+                categoryRuleStatus: root.categoryRuleStatus
+                categorySummary: root.categorySummary
                 onSearchTextEdited: (t) => root.searchTextEdited(t)
                 onCategoryEdited:   (t) => root.categoryEdited(t)
+                onCategoryRuleSelected: (ruleId) => root.categoryRuleSelected(ruleId)
+                onReloadCategoryRuleRequested: root.reloadCategoryRuleRequested()
                 onMatchRequested: (row, part) => root.galleryMatchRequested(row, part)
                 onConfirmRequested: (row, part) => root.galleryConfirmRequested(row, part)
             }

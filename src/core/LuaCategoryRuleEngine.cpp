@@ -225,6 +225,24 @@ namespace
         LuaCategoryRuleEngine::Result result;
         result.recognized = *recognized;
         result.part       = *part;
+        pushRawField(state, tableIndex, "categoryCode");
+        if (lua_type(state, -1) != LUA_TNIL)
+        {
+            if (lua_type(state, -1) != LUA_TSTRING)
+            {
+                lua_pop(state, 1);
+                return invalidResult(QStringLiteral("Lua 分类结果的 categoryCode 必须是非空字符串"));
+            }
+            std::size_t length  = 0;
+            const char *value   = lua_tolstring(state, -1, &length);
+            result.categoryCode = QString::fromUtf8(value, static_cast<qsizetype>(length));
+            if (result.categoryCode.isEmpty())
+            {
+                lua_pop(state, 1);
+                return invalidResult(QStringLiteral("Lua 分类结果的 categoryCode 必须是非空字符串"));
+            }
+        }
+        lua_pop(state, 1);
         if (!result.recognized)
         {
             if (result.part != LuaCategoryRuleEngine::Part::Unknown)
@@ -238,22 +256,20 @@ namespace
             return invalidResult(QStringLiteral("已识别的 Lua 分类结果不能使用 unknown"));
         }
 
-        const auto categoryCode = stringField(state, tableIndex, "categoryCode");
-        const auto level1Code   = stringField(state, tableIndex, "level1Code");
-        const auto level1Name   = stringField(state, tableIndex, "level1Name");
-        const auto level2Code   = stringField(state, tableIndex, "level2Code");
-        const auto level2Name   = stringField(state, tableIndex, "level2Name");
-        if (!categoryCode || categoryCode->isEmpty() || !level1Code || level1Code->isEmpty() || !level1Name || level1Name->isEmpty() || !level2Code ||
+        const auto level1Code = stringField(state, tableIndex, "level1Code");
+        const auto level1Name = stringField(state, tableIndex, "level1Name");
+        const auto level2Code = stringField(state, tableIndex, "level2Code");
+        const auto level2Name = stringField(state, tableIndex, "level2Name");
+        if (result.categoryCode.isEmpty() || !level1Code || level1Code->isEmpty() || !level1Name || level1Name->isEmpty() || !level2Code ||
             level2Code->isEmpty() || !level2Name || level2Name->isEmpty())
         {
             return invalidResult(QStringLiteral("已识别的 Lua 分类结果缺少品类层级信息"));
         }
 
-        result.categoryCode = *categoryCode;
-        result.level1Code   = *level1Code;
-        result.level1Name   = *level1Name;
-        result.level2Code   = *level2Code;
-        result.level2Name   = *level2Name;
+        result.level1Code = *level1Code;
+        result.level1Name = *level1Name;
+        result.level2Code = *level2Code;
+        result.level2Name = *level2Name;
         return result;
     }
 

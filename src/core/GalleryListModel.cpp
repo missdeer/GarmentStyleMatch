@@ -41,12 +41,13 @@ namespace
     struct CoarseClassification
     {
         QString part = QStringLiteral("unknown");
+        QString categoryCode;
         QString error;
     };
 
     CoarseClassification coarseClassification(const LuaCategoryRuleEngine::Result &result)
     {
-        return {partName(result.part), result.error};
+        return {partName(result.part), result.categoryCode, result.error};
     }
 
     bool isValidClassification(const CoarseClassification &classification)
@@ -58,16 +59,36 @@ namespace
 
     bool prepareCategoryCache(SQLiteDB &database)
     {
-        return database.execute("CREATE TABLE IF NOT EXISTS gallery_categories("
-                                "normalized_style_id TEXT NOT NULL,rule_id TEXT NOT NULL,rule_version TEXT NOT NULL,rule_sha256 TEXT NOT NULL,"
-                                "part TEXT NOT NULL,"
-                                "PRIMARY KEY(normalized_style_id,rule_id,rule_version,rule_sha256))");
+        if (!database.execute("CREATE TABLE IF NOT EXISTS gallery_categories("
+                              "normalized_style_id TEXT NOT NULL,rule_id TEXT NOT NULL,rule_version TEXT NOT NULL,rule_sha256 TEXT NOT NULL,"
+                              "part TEXT NOT NULL,category_code TEXT NOT NULL DEFAULT '',"
+                              "PRIMARY KEY(normalized_style_id,rule_id,rule_version,rule_sha256))"))
+        {
+            return false;
+        }
+
+        SQLiteStatement columns = database.prepare("PRAGMA table_info(gallery_categories)");
+        if (!columns)
+        {
+            return false;
+        }
+        bool                        hasCategoryCode = false;
+        SQLiteStatement::StepResult result;
+        while ((result = columns.step()) == SQLiteStatement::StepResult::Row)
+        {
+            if (columns.columnText(1) == QLatin1String("category_code"))
+            {
+                hasCategoryCode = true;
+            }
+        }
+        return result == SQLiteStatement::StepResult::Done &&
+               (hasCategoryCode || database.execute("ALTER TABLE gallery_categories ADD COLUMN category_code TEXT NOT NULL DEFAULT ''"));
     }
 
     std::optional<CoarseClassification> loadCachedCategory(
         SQLiteDB &database, const QString &styleId, const QString &ruleId, const QString &ruleVersion, const QString &ruleSha256)
     {
-        SQLiteStatement statement = database.prepare("SELECT part "
+        SQLiteStatement statement = database.prepare("SELECT part,category_code "
                                                      "FROM gallery_categories WHERE normalized_style_id=?1 AND rule_id=?2 AND rule_version=?3 "
                                                      "AND rule_sha256=?4");
         if (!statement || !statement.bindText(1, styleId) || !statement.bindText(2, ruleId) || !statement.bindText(3, ruleVersion) ||
@@ -76,7 +97,7 @@ namespace
             return std::nullopt;
         }
 
-        CoarseClassification classification {statement.columnText(0), {}};
+        CoarseClassification classification {statement.columnText(0), statement.columnText(1), {}};
         return isValidClassification(classification) ? std::optional<CoarseClassification>(std::move(classification)) : std::nullopt;
     }
 
@@ -88,10 +109,11 @@ namespace
                             const CoarseClassification &classification)
     {
         SQLiteStatement statement =
-            database.prepare("INSERT INTO gallery_categories(normalized_style_id,rule_id,rule_version,rule_sha256,part) VALUES(?1,?2,?3,?4,?5) "
-                             "ON CONFLICT(normalized_style_id,rule_id,rule_version,rule_sha256) DO UPDATE SET part=excluded.part");
+            database.prepare("INSERT INTO gallery_categories(normalized_style_id,rule_id,rule_version,rule_sha256,part,category_code) "
+                             "VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(normalized_style_id,rule_id,rule_version,rule_sha256) "
+                             "DO UPDATE SET part=excluded.part,category_code=excluded.category_code");
         if (!statement || !statement.bindText(1, styleId) || !statement.bindText(2, ruleId) || !statement.bindText(3, ruleVersion) ||
-            !statement.bindText(4, ruleSha256) || !statement.bindText(5, classification.part))
+            !statement.bindText(4, ruleSha256) || !statement.bindText(5, classification.part) || !statement.bindText(6, classification.categoryCode))
         {
             return;
         }
@@ -159,6 +181,7 @@ void GalleryListModel::setItems(QVector<GalleryItem> items)
     rebuildFilteredItems();
     endResetModel();
     emit countChanged();
+    emit classificationChanged();
 }
 
 void GalleryListModel::setCategoryCachePath(const QString &databasePath)
@@ -177,9 +200,9 @@ void GalleryListModel::setCategoryCachePath(const QString &databasePath)
     }
 }
 
-void GalleryListModel::setCategoryRuleScript(const QByteArray &script)
+void GalleryListModel::setCategoryRuleScript(const QByteArray &script, bool forceReload)
 {
-    if (script == m_categoryRuleScript)
+    if (!forceReload && script == m_categoryRuleScript)
     {
         return;
     }
@@ -200,6 +223,22 @@ void GalleryListModel::setCategoryRuleScript(const QByteArray &script)
         rebuildFilteredItems();
         endResetModel();
     }
+    emit classificationChanged();
+}
+
+bool GalleryListModel::categoryRuleReady() const
+{
+    return m_categoryRule && m_categoryRule->state() == LuaCategoryRuleEngine::State::Ready;
+}
+
+QString GalleryListModel::categoryRuleId() const
+{
+    return m_categoryRule ? m_categoryRule->ruleId() : QString();
+}
+
+QString GalleryListModel::categoryRuleError() const
+{
+    return m_categoryRule && m_categoryRule->state() != LuaCategoryRuleEngine::State::Ready ? m_categoryRule->errorMessage() : QString();
 }
 
 void GalleryListModel::classifyItems(QVector<GalleryItem> &items) const
@@ -208,6 +247,7 @@ void GalleryListModel::classifyItems(QVector<GalleryItem> &items) const
     {
         item.part = QStringLiteral("unknown");
         item.categoryError.clear();
+        item.categoryCode.clear();
     }
     if (!m_categoryRule)
     {
@@ -262,6 +302,7 @@ void GalleryListModel::classifyItems(QVector<GalleryItem> &items) const
         }
         item.part          = found->part;
         item.categoryError = found->error;
+        item.categoryCode  = found->categoryCode;
     }
     if (cacheTransactionStarted)
     {
@@ -350,4 +391,5 @@ void GalleryListModel::clear()
     m_items.clear();
     endResetModel();
     emit countChanged();
+    emit classificationChanged();
 }

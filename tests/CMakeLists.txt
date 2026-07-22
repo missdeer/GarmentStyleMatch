@@ -176,12 +176,21 @@ if(WIN32)
 endif()
 add_executable(MatchControllerTest ${_gsm_match_controller_test_sources})
 
+add_custom_command(TARGET MatchControllerTest POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/resources/category-rules"
+            "$<TARGET_FILE_DIR:MatchControllerTest>/category-rules"
+    COMMENT "Copying category rules for MatchControllerTest"
+    VERBATIM
+)
+
 # Keep the test object's MatchController layout synchronized even when localized
 # MSVC /showIncludes output prevents Ninja from discovering header dependencies.
 set_property(SOURCE MatchControllerTest.cpp APPEND PROPERTY
     OBJECT_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/core/MatchController.h"
         "${CMAKE_SOURCE_DIR}/src/core/GalleryListModel.h"
+        "${CMAKE_SOURCE_DIR}/resources/category-rules/current-brand.lua"
 )
 set_property(SOURCE ../src/core/MatchController.cpp ../src/core/GalleryListModel.cpp APPEND PROPERTY
     OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/GalleryListModel.h"

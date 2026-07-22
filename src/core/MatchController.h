@@ -44,6 +44,10 @@ class MatchController : public QObject
     Q_PROPERTY(QString currentStyleId READ currentStyleId NOTIFY currentStyleIdChanged)
     Q_PROPERTY(QVariantList autoMatchedItems READ autoMatchedItems NOTIFY autoMatchedItemsChanged)
     Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
+    Q_PROPERTY(QVariantList availableCategoryRules READ availableCategoryRules CONSTANT)
+    Q_PROPERTY(QString currentCategoryRule READ currentCategoryRule WRITE setCurrentCategoryRule NOTIFY currentCategoryRuleChanged)
+    Q_PROPERTY(QString categoryRuleStatus READ categoryRuleStatus NOTIFY categoryClassificationChanged)
+    Q_PROPERTY(QString categorySummary READ categorySummary NOTIFY categoryClassificationChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
     Q_PROPERTY(QString inputFilterText READ inputFilterText WRITE setInputFilterText NOTIFY inputFilterTextChanged)
     Q_PROPERTY(QString outputFilterText READ outputFilterText WRITE setOutputFilterText NOTIFY outputFilterTextChanged)
@@ -106,6 +110,22 @@ public:
     {
         return m_categoryFilter;
     }
+    [[nodiscard]] QVariantList availableCategoryRules() const
+    {
+        return m_availableCategoryRules;
+    }
+    [[nodiscard]] QString currentCategoryRule() const
+    {
+        return m_currentCategoryRule;
+    }
+    [[nodiscard]] QString categoryRuleStatus() const
+    {
+        return m_categoryRuleStatus;
+    }
+    [[nodiscard]] QString categorySummary() const
+    {
+        return m_categorySummary;
+    }
     [[nodiscard]] QString searchText() const
     {
         return m_searchText;
@@ -164,6 +184,7 @@ public:
     }
     [[nodiscard]] static QString modelDirectory();
     [[nodiscard]] static QString applicationModelDirectory();
+    [[nodiscard]] static QString applicationCategoryRulesDirectory();
     [[nodiscard]] static QString findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir);
     [[nodiscard]] static bool    modelFilesExistInDirectories(const QString &applicationModelsDir, const QString &localModelsDir);
     [[nodiscard]] static QString availableModelDirectory();
@@ -185,6 +206,7 @@ public:
     void setCurrentPhotoIndex(int idx);
     void setCurrentImagePage(int page);
     void setCategoryFilter(const QString &v);
+    void setCurrentCategoryRule(const QString &ruleId);
     void setSearchText(const QString &v);
     void setInputFilterText(const QString &v);
     void setOutputFilterText(const QString &v);
@@ -203,6 +225,7 @@ public slots:
     void                      downloadModels();
     void                      cancelModelDownload();
     static void               openModelDirectory();
+    void                      reloadCategoryRule();
 
     void restorePersistentState();
     void completeDeferredStartup();
@@ -254,6 +277,8 @@ signals:
     void currentStyleIdChanged();
     void autoMatchedItemsChanged();
     void categoryFilterChanged();
+    void currentCategoryRuleChanged();
+    void categoryClassificationChanged();
     void searchTextChanged();
     void inputFilterTextChanged();
     void outputFilterTextChanged();
@@ -292,6 +317,9 @@ private:
     void                  clearAutoMatchResult();
     void                  restoreAutoMatchResult();
     void                  rebuildAutoMatchedItems();
+    void                  applyCategoryRule(bool forceReload = false);
+    void                  refreshCategorySummary();
+    [[nodiscard]] QString categoryRuleDisplayName(const QString &ruleId) const;
     void                  refreshPhotoMatchStatuses();
     void                  updatePhotoMatchStatuses(const QString &imagePath, const StoredMatchResult &result);
     [[nodiscard]] int     adjacentPhotoMatchStatus(int offset, bool upper) const;
@@ -317,6 +345,11 @@ private:
     PreviewSource m_previewSource     = PreviewPhoto;
 
     QString                           m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
+    QVariantList                      m_availableCategoryRules;
+    QString                           m_currentCategoryRule;
+    QString                           m_categoryRuleLoadError;
+    QString                           m_categoryRuleStatus;
+    QString                           m_categorySummary;
     QString                           m_searchText;
     QString                           m_inputFilterText;
     QString                           m_outputFilterText;

@@ -15,7 +15,9 @@
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QFutureWatcher>
+#include <QHash>
 #include <QLibraryInfo>
+#include <QMap>
 #include <QPointer>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -240,6 +242,33 @@ namespace
         }
         return {};
     }
+
+    QString categoryRuleName(const QString &ruleId)
+    {
+        return ruleId == QLatin1String("current-brand") ? QStringLiteral("当前品牌") : ruleId;
+    }
+
+    QVariantList categoryRuleOptions(const QString &directoryPath, const QString &savedRuleId)
+    {
+        QVariantList options;
+        options.push_back(QVariantMap {{QStringLiteral("id"), QString()}, {QStringLiteral("name"), QStringLiteral("不使用品类规则")}});
+
+        bool       savedRuleFound = savedRuleId.isEmpty();
+        const QDir directory(directoryPath);
+        const auto scripts = directory.entryInfoList({QStringLiteral("*.lua")}, QDir::Files | QDir::Readable, QDir::Name | QDir::IgnoreCase);
+        for (const QFileInfo &script : scripts)
+        {
+            const QString ruleId = script.completeBaseName();
+            options.push_back(QVariantMap {{QStringLiteral("id"), ruleId}, {QStringLiteral("name"), categoryRuleName(ruleId)}});
+            savedRuleFound = savedRuleFound || ruleId == savedRuleId;
+        }
+        if (!savedRuleFound)
+        {
+            options.push_back(QVariantMap {{QStringLiteral("id"), savedRuleId},
+                                           {QStringLiteral("name"), QStringLiteral("%1（不可用）").arg(categoryRuleName(savedRuleId))}});
+        }
+        return options;
+    }
 } // namespace
 
 MatchController::MatchController(QObject *parent)
@@ -254,6 +283,9 @@ MatchController::MatchController(QObject *parent)
     m_availableInferenceEngines  = cachedList.isEmpty() ? QStringList {QStringLiteral("CPU")} : cachedList;
     m_parallelMatchThreadCount   = settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount()).toInt();
     m_parallelMatchThreadCount   = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
+    m_currentCategoryRule        = settings.value(QStringLiteral("gallery/categoryRule")).toString();
+    m_availableCategoryRules     = categoryRuleOptions(applicationCategoryRulesDirectory(), m_currentCategoryRule);
+    refreshCategorySummary();
 }
 
 void MatchController::notifyMainWindowShown()
@@ -348,6 +380,12 @@ void MatchController::setGalleryModel(GalleryListModel *m)
             QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_categories.sqlite")));
         m_galleryModel->setFilterText(m_searchText);
         connect(m_galleryModel, &GalleryListModel::countChanged, this, &MatchController::rebuildAutoMatchedItems);
+        connect(m_galleryModel, &GalleryListModel::classificationChanged, this, &MatchController::refreshCategorySummary);
+        applyCategoryRule();
+    }
+    else
+    {
+        refreshCategorySummary();
     }
 }
 
@@ -538,6 +576,16 @@ QString MatchController::applicationModelDirectory()
     return QDir::cleanPath(applicationDir.absoluteFilePath(QStringLiteral("../Resources/models")));
 #else
     return applicationDir.absoluteFilePath(QStringLiteral("models"));
+#endif
+}
+
+QString MatchController::applicationCategoryRulesDirectory()
+{
+    const QDir applicationDir(QCoreApplication::applicationDirPath());
+#ifdef Q_OS_MACOS
+    return QDir::cleanPath(applicationDir.absoluteFilePath(QStringLiteral("../Resources/category-rules")));
+#else
+    return applicationDir.absoluteFilePath(QStringLiteral("category-rules"));
 #endif
 }
 
@@ -1056,6 +1104,240 @@ void MatchController::setCategoryFilter(const QString &v)
     }
     m_categoryFilter = v;
     emit categoryFilterChanged();
+}
+
+QString MatchController::categoryRuleDisplayName(const QString &ruleId) const
+{
+    for (const QVariant &option : m_availableCategoryRules)
+    {
+        const QVariantMap item = option.toMap();
+        if (item.value(QStringLiteral("id")).toString() == ruleId)
+        {
+            return item.value(QStringLiteral("name")).toString();
+        }
+    }
+    return categoryRuleName(ruleId);
+}
+
+void MatchController::setCurrentCategoryRule(const QString &ruleId)
+{
+    bool available = false;
+    for (const QVariant &option : m_availableCategoryRules)
+    {
+        if (option.toMap().value(QStringLiteral("id")).toString() == ruleId)
+        {
+            available = true;
+            break;
+        }
+    }
+    if (!available || ruleId == m_currentCategoryRule)
+    {
+        return;
+    }
+
+    m_currentCategoryRule = ruleId;
+    QSettings().setValue(QStringLiteral("gallery/categoryRule"), ruleId);
+    emit currentCategoryRuleChanged();
+    applyCategoryRule();
+    emit logMessage(ruleId.isEmpty() ? QStringLiteral("已禁用品类规则") : QStringLiteral("已选择品类规则：%1").arg(categoryRuleDisplayName(ruleId)));
+}
+
+void MatchController::reloadCategoryRule()
+{
+    if (m_currentCategoryRule.isEmpty())
+    {
+        return;
+    }
+    applyCategoryRule(true);
+    emit logMessage(m_categoryRuleLoadError.isEmpty() ? QStringLiteral("已重新加载品类规则：%1").arg(categoryRuleDisplayName(m_currentCategoryRule))
+                                                      : QStringLiteral("品类规则重新加载失败：%1").arg(m_categoryRuleLoadError));
+}
+
+void MatchController::applyCategoryRule(bool forceReload)
+{
+    m_categoryRuleLoadError.clear();
+    if (!m_galleryModel)
+    {
+        refreshCategorySummary();
+        return;
+    }
+    if (m_currentCategoryRule.isEmpty())
+    {
+        m_galleryModel->setCategoryRuleScript({}, forceReload);
+        refreshCategorySummary();
+        return;
+    }
+
+    if (m_currentCategoryRule == QLatin1String(".") || m_currentCategoryRule == QLatin1String("..") ||
+        m_currentCategoryRule.contains(QLatin1Char('/')) || m_currentCategoryRule.contains(QLatin1Char('\\')))
+    {
+        m_categoryRuleLoadError = QStringLiteral("规则身份无效：%1").arg(m_currentCategoryRule);
+        m_galleryModel->setCategoryRuleScript({}, true);
+        refreshCategorySummary();
+        return;
+    }
+
+    const QString scriptPath = QDir(applicationCategoryRulesDirectory()).absoluteFilePath(QStringLiteral("%1.lua").arg(m_currentCategoryRule));
+    QFile         scriptFile(scriptPath);
+    if (!scriptFile.open(QIODevice::ReadOnly))
+    {
+        m_categoryRuleLoadError = QStringLiteral("无法读取规则文件：%1").arg(scriptPath);
+        m_galleryModel->setCategoryRuleScript({}, true);
+        refreshCategorySummary();
+        return;
+    }
+
+    m_galleryModel->setCategoryRuleScript(scriptFile.readAll(), forceReload);
+    if (!m_galleryModel->categoryRuleReady())
+    {
+        m_categoryRuleLoadError = m_galleryModel->categoryRuleError();
+    }
+    else if (m_galleryModel->categoryRuleId() != m_currentCategoryRule)
+    {
+        m_categoryRuleLoadError = QStringLiteral("规则身份不匹配：期望 %1，实际 %2").arg(m_currentCategoryRule, m_galleryModel->categoryRuleId());
+        m_galleryModel->setCategoryRuleScript({}, true);
+    }
+    refreshCategorySummary();
+}
+
+void MatchController::refreshCategorySummary()
+{
+    QHash<QString, const GalleryItem *> uniqueStyles;
+    QVector<const GalleryItem *>        units;
+    int                                 invalidStyleItems = 0;
+    if (m_galleryModel)
+    {
+        for (const GalleryItem &item : m_galleryModel->allItems())
+        {
+            const QString styleId = item.styleId.trimmed().toUpper();
+            if (styleId.isEmpty())
+            {
+                units.push_back(&item);
+                ++invalidStyleItems;
+            }
+            else if (!uniqueStyles.contains(styleId))
+            {
+                uniqueStyles.insert(styleId, &item);
+                units.push_back(&item);
+            }
+        }
+    }
+
+    QMap<QString, int> partCounts {{QStringLiteral("upper"), 0},
+                                   {QStringLiteral("lower"), 0},
+                                   {QStringLiteral("accessory"), 0},
+                                   {QStringLiteral("dress"), 0},
+                                   {QStringLiteral("unknown"), 0}};
+    QMap<QString, int> unknownCodes;
+    QMap<QString, int> executionErrors;
+    int                missingCategoryCodes = 0;
+    int                recognized           = 0;
+    for (const GalleryItem *item : std::as_const(units))
+    {
+        const QString part = partCounts.contains(item->part) ? item->part : QStringLiteral("unknown");
+        ++partCounts[part];
+        if (part != QLatin1String("unknown"))
+        {
+            ++recognized;
+            continue;
+        }
+        if (!item->categoryError.isEmpty())
+        {
+            ++executionErrors[item->categoryError];
+        }
+        else if (item->styleId.trimmed().isEmpty())
+        {
+            continue;
+        }
+        else if (!item->categoryCode.isEmpty())
+        {
+            ++unknownCodes[item->categoryCode];
+        }
+        else
+        {
+            ++missingCategoryCodes;
+        }
+    }
+
+    const int     total     = units.size();
+    const QString ruleName  = m_currentCategoryRule.isEmpty() ? QStringLiteral("不使用品类规则") : categoryRuleDisplayName(m_currentCategoryRule);
+    const bool    ruleReady = m_galleryModel && m_galleryModel->categoryRuleReady() && m_categoryRuleLoadError.isEmpty();
+    const QString coverage =
+        total == 0
+            ? QStringLiteral("不适用")
+            : QStringLiteral("%1%（%2/%3）").arg(QString::number(static_cast<double>(recognized) * 100.0 / total, 'f', 1)).arg(recognized).arg(total);
+
+    QString newStatus;
+    if (m_currentCategoryRule.isEmpty())
+    {
+        newStatus = QStringLiteral("品类规则已禁用 · %1 个分类单元").arg(total);
+    }
+    else if (!m_categoryRuleLoadError.isEmpty())
+    {
+        newStatus = QStringLiteral("%1 · 规则不可用").arg(ruleName);
+    }
+    else if (!m_galleryModel)
+    {
+        newStatus = QStringLiteral("%1 · 等待图库").arg(ruleName);
+    }
+    else if (ruleReady)
+    {
+        newStatus = total == 0 ? QStringLiteral("%1 · 无图库款号").arg(ruleName) : QStringLiteral("%1 · 覆盖 %2").arg(ruleName, coverage);
+    }
+    else
+    {
+        newStatus = QStringLiteral("%1 · 规则不可用").arg(ruleName);
+    }
+
+    QStringList reportLines {
+        QStringLiteral("品类规则：%1").arg(ruleName),
+        QStringLiteral("规则状态：%1")
+            .arg(m_currentCategoryRule.isEmpty() ? QStringLiteral("已禁用")
+                 : ruleReady                     ? QStringLiteral("可用")
+                                                 : QStringLiteral("不可用")),
+        QStringLiteral("统计单位：%1（去重款号 %2，无有效款号图片 %3）").arg(total).arg(uniqueStyles.size()).arg(invalidStyleItems),
+        QStringLiteral("upper：%1").arg(partCounts.value(QStringLiteral("upper"))),
+        QStringLiteral("lower：%1").arg(partCounts.value(QStringLiteral("lower"))),
+        QStringLiteral("accessory：%1").arg(partCounts.value(QStringLiteral("accessory"))),
+        QStringLiteral("dress：%1").arg(partCounts.value(QStringLiteral("dress"))),
+        QStringLiteral("unknown：%1").arg(partCounts.value(QStringLiteral("unknown"))),
+        QStringLiteral("覆盖率：%1").arg(coverage),
+    };
+    if (!unknownCodes.isEmpty())
+    {
+        QStringList codeDetails;
+        for (auto iterator = unknownCodes.cbegin(); iterator != unknownCodes.cend(); ++iterator)
+        {
+            codeDetails.push_back(QStringLiteral("%1（%2）").arg(iterator.key()).arg(iterator.value()));
+        }
+        reportLines.push_back(QStringLiteral("未知品类代码：%1").arg(codeDetails.join(QStringLiteral("、"))));
+    }
+    if (missingCategoryCodes > 0)
+    {
+        reportLines.push_back(QStringLiteral("无有效品类代码：%1").arg(missingCategoryCodes));
+    }
+    if (invalidStyleItems > 0)
+    {
+        reportLines.push_back(QStringLiteral("无有效款号图片：%1").arg(invalidStyleItems));
+    }
+    if (!m_categoryRuleLoadError.isEmpty())
+    {
+        reportLines.push_back(QStringLiteral("规则异常：%1").arg(m_categoryRuleLoadError));
+        executionErrors.clear();
+    }
+    for (auto iterator = executionErrors.cbegin(); iterator != executionErrors.cend(); ++iterator)
+    {
+        reportLines.push_back(QStringLiteral("分类异常：%1（%2）").arg(iterator.key()).arg(iterator.value()));
+    }
+
+    const QString newSummary = reportLines.join(QLatin1Char('\n'));
+    if (newStatus == m_categoryRuleStatus && newSummary == m_categorySummary)
+    {
+        return;
+    }
+    m_categoryRuleStatus = newStatus;
+    m_categorySummary    = newSummary;
+    emit categoryClassificationChanged();
 }
 
 void MatchController::setSearchText(const QString &v)

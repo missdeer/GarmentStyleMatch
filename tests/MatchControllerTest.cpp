@@ -1078,5 +1078,115 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         return 1;
     }
 
+    QSettings().remove(QStringLiteral("gallery/categoryRule"));
+    if (!check(QFileInfo::exists(QDir(MatchController::applicationCategoryRulesDirectory()).filePath(QStringLiteral("current-brand.lua"))),
+               QStringLiteral("控制器测试运行目录必须包含随应用部署的当前品牌规则")))
+    {
+        return 1;
+    }
+
+    GalleryListModel categoryGalleryModel;
+    MatchController  categoryController;
+    categoryController.setGalleryModel(&categoryGalleryModel);
+    categoryGalleryModel.setItems({
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("upper-1.png"), QStringLiteral("adult")},
+        {QStringLiteral(" t0je26b38a008 "), QStringLiteral("upper-2.png"), QStringLiteral("adult")},
+        {QStringLiteral("T0WH26B38A008"), QStringLiteral("lower.png"), QStringLiteral("adult")},
+        {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png"), QStringLiteral("adult")},
+        {QString(), QStringLiteral("invalid.png"), QStringLiteral("adult")},
+    });
+    bool currentBrandAvailable = false;
+    for (const QVariant &option : categoryController.availableCategoryRules())
+    {
+        currentBrandAvailable = currentBrandAvailable || option.toMap().value(QStringLiteral("id")).toString() == QLatin1String("current-brand");
+    }
+    if (!check(currentBrandAvailable && categoryController.currentCategoryRule().isEmpty() &&
+                   categoryController.categorySummary().contains(QStringLiteral("规则状态：已禁用")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("unknown：4")),
+               QStringLiteral("首次使用必须明确禁用品类规则，并按去重款号及无效款号单元安全汇总 unknown")))
+    {
+        return 1;
+    }
+
+    categoryController.setCurrentCategoryRule(QStringLiteral("current-brand"));
+    const auto &categoryItems = categoryGalleryModel.allItems();
+    if (!check(categoryController.currentCategoryRule() == QStringLiteral("current-brand") &&
+                   QSettings().value(QStringLiteral("gallery/categoryRule")).toString() == QStringLiteral("current-brand") &&
+                   categoryItems.at(0).part == QStringLiteral("upper") && categoryItems.at(1).part == QStringLiteral("upper") &&
+                   categoryItems.at(2).part == QStringLiteral("lower") && categoryItems.at(3).part == QStringLiteral("unknown") &&
+                   categoryItems.at(3).categoryCode == QStringLiteral("ZZ") && categoryItems.at(4).part == QStringLiteral("unknown") &&
+                   categoryController.categorySummary().contains(QStringLiteral("upper：1")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("lower：1")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("accessory：0")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("dress：0")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("unknown：2")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("覆盖率：50.0%（2/4）")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("未知品类代码：ZZ（1）")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("无有效款号图片：1")),
+               QStringLiteral("启用当前品牌规则必须立即重分类已有图库，并按业务分类单元报告覆盖率、未知代码和无效款号：%1")
+                   .arg(categoryController.categorySummary())))
+    {
+        return 1;
+    }
+    categoryController.reloadCategoryRule();
+    if (!check(categoryController.categoryRuleStatus().contains(QStringLiteral("覆盖 50.0%（2/4）")),
+               QStringLiteral("显式重新加载当前规则后必须保留图库并刷新一致摘要")))
+    {
+        return 1;
+    }
+
+    categoryController.setCurrentCategoryRule(QString());
+    if (!check(categoryGalleryModel.allItems().at(0).part == QStringLiteral("unknown") &&
+                   categoryGalleryModel.allItems().at(2).part == QStringLiteral("unknown") &&
+                   categoryController.categorySummary().contains(QStringLiteral("规则状态：已禁用")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("unknown：4")),
+               QStringLiteral("显式禁用品类规则必须立即把现有图库安全回退为 unknown，且人工图库内容保持存在")))
+    {
+        return 1;
+    }
+
+    categoryController.setCurrentCategoryRule(QStringLiteral("current-brand"));
+    GalleryListModel restoredCategoryGalleryModel;
+    MatchController  restoredCategoryController;
+    restoredCategoryController.setGalleryModel(&restoredCategoryGalleryModel);
+    restoredCategoryGalleryModel.setItems({
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("restored.png"), QStringLiteral("adult")},
+    });
+    if (!check(restoredCategoryController.currentCategoryRule() == QStringLiteral("current-brand") &&
+                   restoredCategoryGalleryModel.allItems().at(0).part == QStringLiteral("upper"),
+               QStringLiteral("重启恢复必须重新应用持久化规则，而不是自动猜测或回退到其他品牌")))
+    {
+        return 1;
+    }
+
+    QSettings().setValue(QStringLiteral("gallery/categoryRule"), QStringLiteral("missing-brand"));
+    GalleryListModel missingRuleGalleryModel;
+    MatchController  missingRuleController;
+    missingRuleController.setGalleryModel(&missingRuleGalleryModel);
+    missingRuleGalleryModel.setItems({
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("missing-rule.png"), QStringLiteral("adult")},
+    });
+    bool missingRuleRetained = false;
+    for (const QVariant &option : missingRuleController.availableCategoryRules())
+    {
+        missingRuleRetained = missingRuleRetained || option.toMap().value(QStringLiteral("id")).toString() == QLatin1String("missing-brand");
+    }
+    if (!check(missingRuleRetained && missingRuleController.currentCategoryRule() == QStringLiteral("missing-brand") &&
+                   missingRuleGalleryModel.allItems().at(0).part == QStringLiteral("unknown") &&
+                   missingRuleController.categoryRuleStatus().contains(QStringLiteral("规则不可用")) &&
+                   missingRuleController.categorySummary().contains(QStringLiteral("规则异常：无法读取规则文件")),
+               QStringLiteral("持久化规则缺失时必须保留用户选择、全量回退 unknown 并显示失败原因：%1").arg(missingRuleController.categorySummary())))
+    {
+        return 1;
+    }
+    missingRuleGalleryModel.clear();
+    if (!check(missingRuleController.categorySummary().contains(QStringLiteral("统计单位：0")) &&
+                   missingRuleController.categorySummary().contains(QStringLiteral("覆盖率：不适用")),
+               QStringLiteral("图库清空后分类摘要必须立即刷新为零计数和不适用覆盖率")))
+    {
+        return 1;
+    }
+    QSettings().remove(QStringLiteral("gallery/categoryRule"));
+
     return 0;
 }

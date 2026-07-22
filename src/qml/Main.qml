@@ -309,8 +309,14 @@ ApplicationWindow {
                     searchText:       controller.searchText
                     pptPath:          controller.pptPath
                     currentPhotoSelected: controller.inputTabActive && controller.currentPhotoIndex >= 0
+                    categoryRuleOptions: controller.availableCategoryRules
+                    currentCategoryRule: controller.currentCategoryRule
+                    categoryRuleStatus: controller.categoryRuleStatus
+                    categorySummary: controller.categorySummary
                     onSearchTextEdited:   (t) => controller.searchText = t
                     onCategoryEdited:     (t) => controller.categoryFilter = t
+                    onCategoryRuleSelected: (ruleId) => controller.currentCategoryRule = ruleId
+                    onReloadCategoryRuleRequested: controller.reloadCategoryRule()
                     onPptPathEdited:      (p) => controller.pptPath = p
                     onPptSearchRequested: ()  => controller.reloadPpt()
                     onPptPageToggled:     (r) => controller.togglePptPageSelected(r)

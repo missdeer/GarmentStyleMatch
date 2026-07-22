@@ -14,9 +14,15 @@ Rectangle {
     property string searchText: ""
     property string uiStyle: ""
     property bool currentPhotoSelected: false
+    property var categoryRuleOptions: []
+    property string currentCategoryRule: ""
+    property string categoryRuleStatus: ""
+    property string categorySummary: ""
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
+    signal categoryRuleSelected(string ruleId)
+    signal reloadCategoryRuleRequested()
     signal matchRequested(int galleryRow, string part)
     signal confirmRequested(int galleryRow, string part)
 
@@ -48,6 +54,27 @@ Rectangle {
         MenuItem {
             text: qsTr("确认为裤裙")
             onTriggered: root.confirmRequested(matchMenu.galleryRow, "lower")
+        }
+    }
+
+    Dialog {
+        id: categorySummaryDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(520, parent.width - 32)
+        height: Math.min(520, parent.height - 32)
+        modal: true
+        title: qsTr("款号品类分类摘要")
+        standardButtons: Dialog.Close
+        closePolicy: Popup.CloseOnEscape
+
+        contentItem: ScrollView {
+            TextArea {
+                text: root.categorySummary
+                readOnly: true
+                wrapMode: TextEdit.Wrap
+                selectByMouse: true
+            }
         }
     }
 
@@ -110,6 +137,55 @@ Rectangle {
                 ]
                 onAccepted: {
                     pathField.text = root.urlToLocalPath(selectedFile)
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 72
+            color: Theme.background
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 2
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Label { text: qsTr("品类规则") }
+                    ComboBox {
+                        id: categoryRuleBox
+                        Layout.fillWidth: true
+                        model: root.categoryRuleOptions
+                        textRole: "name"
+                        valueRole: "id"
+                        currentIndex: indexOfValue(root.currentCategoryRule)
+                        onActivated: root.categoryRuleSelected(currentValue)
+                    }
+                    Button {
+                        text: qsTr("重新加载")
+                        enabled: root.currentCategoryRule !== ""
+                        onClicked: root.reloadCategoryRuleRequested()
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    Label {
+                        Layout.fillWidth: true
+                        text: root.categoryRuleStatus
+                        elide: Label.ElideRight
+                        color: Theme.textSecondary
+                    }
+                    Button {
+                        text: qsTr("查看摘要")
+                        onClicked: categorySummaryDialog.open()
+                    }
                 }
             }
         }

@@ -89,8 +89,12 @@ local codeToCategory = {
     OA = "accessory", PP = "accessory"
 }
 
-local function unknown()
-    return { recognized = false, part = "unknown" }
+local function unknown(code)
+    local result = { recognized = false, part = "unknown" }
+    if code ~= nil then
+        result.categoryCode = code
+    end
+    return result
 end
 
 local function classify(normalizedStyleId)
@@ -101,7 +105,7 @@ local function classify(normalizedStyleId)
     local code = normalizedStyleId:sub(3, 4)
     local category = categories[codeToCategory[code]]
     if category == nil then
-        return unknown()
+        return unknown(code)
     end
 
     return {
@@ -157,7 +161,7 @@ for _, group in ipairs(expectedGroups) do
     end
 end
 tests[#tests + 1] = { input = "T0J", expected = unknown() }
-tests[#tests + 1] = { input = "T0ZZ26B38A008", expected = unknown() }
+tests[#tests + 1] = { input = "T0ZZ26B38A008", expected = unknown("ZZ") }
 
 local mappingCount = 0
 for _ in pairs(codeToCategory) do

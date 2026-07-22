@@ -6,6 +6,7 @@
 #include <QTemporaryDir>
 
 #include "GalleryListModel.h"
+#include "SQLiteDB.h"
 
 namespace
 {
@@ -28,6 +29,9 @@ local function classify(input)
             recognized = true, categoryCode = "JE", level1Code = "2", level1Name = "外套",
             level2Code = "2.8", level2Name = "牛仔外套", part = "upper"
         }
+    end
+    if input == "T0ZZ26B38A008" then
+        return { recognized = false, categoryCode = "ZZ", part = "unknown" }
     end
     return unknown()
 end
@@ -180,6 +184,19 @@ int main(int argc, char *argv[])
     const QByteArray embeddingCacheBefore = embeddingCache.readAll();
     embeddingCache.close();
 
+    {
+        SQLiteDB legacyCategoryDatabase(categoryDatabasePath);
+        if (!check(legacyCategoryDatabase &&
+                       legacyCategoryDatabase.execute("CREATE TABLE gallery_categories("
+                                                      "normalized_style_id TEXT NOT NULL,rule_id TEXT NOT NULL,rule_version TEXT NOT NULL,"
+                                                      "rule_sha256 TEXT NOT NULL,part TEXT NOT NULL,"
+                                                      "PRIMARY KEY(normalized_style_id,rule_id,rule_version,rule_sha256))"),
+                   QStringLiteral("无法准备旧版分类缓存迁移测试数据库")))
+        {
+            return 1;
+        }
+    }
+
     GalleryListModel classifiedModel;
     classifiedModel.setCategoryCachePath(categoryDatabasePath);
     classifiedModel.setCategoryRuleScript(kUpperRule);
@@ -191,8 +208,8 @@ int main(int argc, char *argv[])
     const auto &classifiedItems = classifiedModel.allItems();
     if (!check(classifiedItems.size() == 3 && classifiedItems.at(0).part == QStringLiteral("upper") &&
                    classifiedItems.at(1).part == QStringLiteral("upper") && classifiedItems.at(2).part == QStringLiteral("unknown") &&
-                   classifiedItems.at(2).categoryError.isEmpty(),
-               QStringLiteral("规范化后的同款多图必须只分类一次并传播一致结果，未知代码必须是可复用业务 unknown")))
+                   classifiedItems.at(2).categoryCode == QStringLiteral("ZZ") && classifiedItems.at(2).categoryError.isEmpty(),
+               QStringLiteral("规范化后的同款多图必须只分类一次并传播一致结果，未知代码必须迁移旧缓存并保留诊断代码")))
     {
         return 1;
     }
@@ -213,7 +230,9 @@ int main(int argc, char *argv[])
     });
     if (!check(classifiedModel.allItems().at(0).part == QStringLiteral("upper") && classifiedModel.allItems().at(1).part == QStringLiteral("upper") &&
                    classifiedModel.allItems().at(2).part == QStringLiteral("unknown") && classifiedModel.allItems().at(2).categoryError.isEmpty(),
-               QStringLiteral("规则上下文未变化时，已识别结果和业务 unknown 都必须复用，不能再次执行规则")))
+               QStringLiteral("规则上下文未变化时，已识别结果和业务 unknown 都必须复用，不能再次执行规则")) ||
+        !check(classifiedModel.allItems().at(2).categoryCode == QStringLiteral("ZZ"),
+               QStringLiteral("缓存复用业务 unknown 时必须同时恢复未知品类代码")))
     {
         return 1;
     }

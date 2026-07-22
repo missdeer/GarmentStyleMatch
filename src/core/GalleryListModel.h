@@ -17,6 +17,7 @@ struct GalleryItem
     QString tag;       // e.g. "baby"
     QString part = QStringLiteral("unknown");
     QString categoryError;
+    QString categoryCode;
 };
 
 class GalleryListModel : public QAbstractListModel
@@ -44,7 +45,10 @@ public:
     void                  setItems(QVector<GalleryItem> items);
     void                  loadFromStyleCacheDir(const QString &directoryPath);
     void                  setCategoryCachePath(const QString &databasePath);
-    void                  setCategoryRuleScript(const QByteArray &script);
+    void                  setCategoryRuleScript(const QByteArray &script, bool forceReload = false);
+    [[nodiscard]] bool    categoryRuleReady() const;
+    [[nodiscard]] QString categoryRuleId() const;
+    [[nodiscard]] QString categoryRuleError() const;
     void                  setFilterText(const QString &text);
     [[nodiscard]] QString filterText() const
     {
@@ -59,6 +63,7 @@ public:
 
 signals:
     void countChanged();
+    void classificationChanged();
 
 private:
     void classifyItems(QVector<GalleryItem> &items) const;
