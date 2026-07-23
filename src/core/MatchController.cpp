@@ -135,13 +135,14 @@ namespace
         return true;
     }
 
-    GarmentMatcher::Options matcherOptions(const QString &modelsDir)
+    GarmentMatcher::Options matcherOptions(const QString &modelsDir, bool categoryFilterEnabled)
     {
         GarmentMatcher::Options options;
         options.segmentationModelPath = QDir(modelsDir).absoluteFilePath(QStringLiteral("clothes_segformer_b2.onnx"));
         options.embeddingModelPath    = QDir(modelsDir).absoluteFilePath(QStringLiteral("fashion_clip_vision.onnx"));
         options.featureDatabasePath =
             QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_embeddings.sqlite"));
+        options.categoryFilterEnabled = categoryFilterEnabled;
         return options;
     }
 
@@ -160,13 +161,14 @@ namespace
 
     struct BatchAutoMatchSummary
     {
-        int     succeeded             = 0;
-        int     skipped               = 0;
-        int     failed                = 0;
-        int     unprocessed           = 0;
-        bool    cancelled             = false;
-        bool    modelDownloadRequired = false;
-        QString firstError;
+        int         succeeded             = 0;
+        int         skipped               = 0;
+        int         failed                = 0;
+        int         unprocessed           = 0;
+        bool        cancelled             = false;
+        bool        modelDownloadRequired = false;
+        QString     firstError;
+        QStringList candidateDiagnostics;
     };
 
     [[nodiscard]] int recommendedParallelMatchThreadCount()
@@ -365,6 +367,16 @@ void MatchController::setCandidateModel(CandidateListModel *m)
     {
         m_candidateModel->setFilterText(m_outputFilterText);
     }
+}
+
+QString MatchController::autoMatchFailureMessage(const QString &error, const QStringList &candidateDiagnostics)
+{
+    QString message = QStringLiteral("自动匹配失败：%1").arg(error);
+    if (!candidateDiagnostics.isEmpty())
+    {
+        message += QStringLiteral("；品类候选：%1").arg(candidateDiagnostics.join(QStringLiteral("；")));
+    }
+    return message;
 }
 
 void MatchController::setGalleryModel(GalleryListModel *m)
@@ -2477,7 +2489,7 @@ void MatchController::autoMatchStyleIds()
         return;
     }
 
-    const GarmentMatcher::Options options = matcherOptions(modelsDir);
+    const GarmentMatcher::Options options = matcherOptions(modelsDir, !m_currentCategoryRule.isEmpty());
 
     QElapsedTimer matchTimer;
     matchTimer.start();
@@ -2493,7 +2505,7 @@ void MatchController::autoMatchStyleIds()
         }
         if (!result.success)
         {
-            emit logMessage(QStringLiteral("自动匹配失败：%1").arg(result.error));
+            emit logMessage(autoMatchFailureMessage(result.error, result.candidateDiagnostics));
             return;
         }
 
@@ -2529,6 +2541,10 @@ void MatchController::autoMatchStyleIds()
         else
         {
             updatePhotoMatchStatuses(imagePath, m_autoMatchResult);
+        }
+        if (!result.candidateDiagnostics.isEmpty())
+        {
+            message += QStringLiteral("；品类候选：%1").arg(result.candidateDiagnostics.join(QStringLiteral("；")));
         }
         emit logMessage(message);
     });
@@ -2576,7 +2592,7 @@ void MatchController::startBatchAutoMatchStyleIds(bool onlyUnconfirmed) // NOLIN
 
     const QVector<GalleryItem>    galleryItems = m_galleryModel ? m_galleryModel->allItems() : QVector<GalleryItem> {};
     const QString                 modelsDir    = availableModelDirectory();
-    const GarmentMatcher::Options options      = matcherOptions(modelsDir);
+    const GarmentMatcher::Options options      = matcherOptions(modelsDir, !m_currentCategoryRule.isEmpty());
     const QString                 databasePath = matchDatabasePath();
     QElapsedTimer                 matchTimer;
     matchTimer.start();
@@ -2646,6 +2662,10 @@ void MatchController::startBatchAutoMatchStyleIds(bool onlyUnconfirmed) // NOLIN
         if (!summary.firstError.isEmpty())
         {
             message += QStringLiteral("；首个错误：%1").arg(summary.firstError);
+        }
+        if (!summary.candidateDiagnostics.isEmpty())
+        {
+            message += QStringLiteral("；品类候选：%1").arg(summary.candidateDiagnostics.join(QStringLiteral("；")));
         }
         emit logMessage(message);
     });
@@ -2733,6 +2753,13 @@ void MatchController::startBatchAutoMatchStyleIds(bool onlyUnconfirmed) // NOLIN
                     const std::scoped_lock lock(summaryMutex);
                     ++matchedCount;
                     const QString &photoPath = pendingPhotoPaths.at(index);
+                    for (const QString &diagnostic : result.candidateDiagnostics)
+                    {
+                        if (!summary.candidateDiagnostics.contains(diagnostic))
+                        {
+                            summary.candidateDiagnostics.push_back(diagnostic);
+                        }
+                    }
                     if (!result.success)
                     {
                         ++summary.failed;

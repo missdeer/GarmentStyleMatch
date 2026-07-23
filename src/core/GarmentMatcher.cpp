@@ -437,10 +437,36 @@ namespace
 
     struct GalleryEmbedding
     {
-        QString            styleId;
-        QString            imagePath;
+        GalleryItem        item;
         std::vector<float> values;
     };
+
+    [[nodiscard]] QString normalizedPart(const QString &part)
+    {
+        if (part == QLatin1String("upper") || part == QLatin1String("lower") || part == QLatin1String("accessory") || part == QLatin1String("dress"))
+        {
+            return part;
+        }
+        return QStringLiteral("unknown");
+    }
+
+    [[nodiscard]] QString candidateDiagnostic(const GarmentMatcher::CandidateSelection &selection)
+    {
+        QString message = selection.filterEnabled ? QStringLiteral("%1 候选 %2→%3（unknown %4）")
+                                                        .arg(selection.queryPart)
+                                                        .arg(selection.candidatesBefore)
+                                                        .arg(selection.candidatesAfter)
+                                                        .arg(selection.unknownCandidates)
+                                                  : QStringLiteral("%1 品类约束已关闭，候选 %2→%3")
+                                                        .arg(selection.queryPart)
+                                                        .arg(selection.candidatesBefore)
+                                                        .arg(selection.candidatesAfter);
+        if (!selection.fallbackReason.isEmpty())
+        {
+            message += QStringLiteral("，回退：%1").arg(selection.fallbackReason);
+        }
+        return message;
+    }
 
     [[nodiscard]] cv::Mat loadImage(const QString &path)
     {
@@ -719,6 +745,7 @@ namespace
     {
         cv::Mat upper;
         cv::Mat lower;
+        QString upperPart = QStringLiteral("upper");
     };
 
     [[nodiscard]] GarmentCrops segmentGarments(Ort::Session &session, const cv::Mat &image)
@@ -777,7 +804,7 @@ namespace
         const int dressArea = cv::countNonZero(dressMask);
         if (dressArea > cv::countNonZero(upperMask) + cv::countNonZero(lowerMask))
         {
-            return {maskedCrop(image, dressMask), {}};
+            return {maskedCrop(image, dressMask), {}, QStringLiteral("dress")};
         }
         return {maskedCrop(image, upperMask), maskedCrop(image, lowerMask)};
     }
@@ -866,23 +893,33 @@ namespace
                 embedding = encodeImage(session, image);
                 storeEmbedding(database, item, embeddingModelKey, *embedding);
             }
-            result.push_back({item.styleId, item.imagePath, std::move(*embedding)});
+            result.push_back({item, std::move(*embedding)});
         }
         return result;
     }
 
-    [[nodiscard]] GarmentMatcher::Match bestMatch(const std::vector<float> &query, const QVector<GalleryEmbedding> &gallery)
+    struct RankedMatch
     {
-        GarmentMatcher::Match result;
-        result.score = -1.0F;
-        for (const GalleryEmbedding &candidate : gallery)
+        GarmentMatcher::Match match;
+        QString               candidatePart;
+    };
+
+    [[nodiscard]] RankedMatch bestMatch(const std::vector<float>                 &query,
+                                        const QVector<GalleryEmbedding>          &gallery,
+                                        const GarmentMatcher::CandidateSelection &selection)
+    {
+        RankedMatch result;
+        result.match.score = -1.0F;
+        for (const int index : selection.indexes)
         {
-            const float score = std::inner_product(query.begin(), query.end(), candidate.values.begin(), 0.0F);
-            if (score > result.score)
+            const GalleryEmbedding &candidate = gallery.at(index);
+            const float             score     = std::inner_product(query.begin(), query.end(), candidate.values.begin(), 0.0F);
+            if (score > result.match.score)
             {
-                result.styleId   = candidate.styleId;
-                result.imagePath = candidate.imagePath;
-                result.score     = score;
+                result.match.styleId   = candidate.item.styleId;
+                result.match.imagePath = candidate.item.imagePath;
+                result.match.score     = score;
+                result.candidatePart   = normalizedPart(candidate.item.part);
             }
         }
         return result;
@@ -952,8 +989,8 @@ namespace
         for (const GalleryItem &item : items)
         {
             const QFileInfo info(item.imagePath);
-            keys.push_back(QStringLiteral("%1:%2:%3:%4")
-                               .arg(item.styleId, info.absoluteFilePath())
+            keys.push_back(QStringLiteral("%1:%2:%3:%4:%5")
+                               .arg(item.styleId, info.absoluteFilePath(), normalizedPart(item.part))
                                .arg(info.size())
                                .arg(info.lastModified().toMSecsSinceEpoch()));
         }
@@ -987,7 +1024,10 @@ namespace
         return cache.gallery;
     }
 
-    [[nodiscard]] GarmentMatcher::Result matchPhoto(const QString &photoPath, Runtime &runtime, const QVector<GalleryEmbedding> &gallery)
+    [[nodiscard]] GarmentMatcher::Result matchPhoto(const QString                   &photoPath,
+                                                    Runtime                         &runtime,
+                                                    const QVector<GalleryEmbedding> &gallery,
+                                                    const GarmentMatcher::Options   &options)
     {
         GarmentMatcher::Result result;
         result.provider = runtime.provider;
@@ -1006,15 +1046,38 @@ namespace
             GarmentCrops crops = segmentGarments(*runtime.segmentation, photo);
             if (crops.upper.empty() && crops.lower.empty())
             {
-                throw std::runtime_error("没有分割出上衣、裤子、裙子或连衣裙");
+                crops.upper     = photo;
+                crops.upperPart = QStringLiteral("unknown");
             }
+
+            QVector<GalleryItem> readableGalleryItems;
+            readableGalleryItems.reserve(gallery.size());
+            for (const GalleryEmbedding &candidate : gallery)
+            {
+                readableGalleryItems.push_back(candidate.item);
+            }
+            const auto rankCrop = [&](const cv::Mat &crop, const QString &part) {
+                const GarmentMatcher::CandidateSelection selection =
+                    GarmentMatcher::selectCandidates(part, readableGalleryItems, options.categoryFilterEnabled);
+                result.candidateDiagnostics.push_back(candidateDiagnostic(selection));
+                if (selection.indexes.isEmpty())
+                {
+                    throw std::runtime_error(QStringLiteral("%1 没有可匹配的非配件图库候选（过滤前 %2，过滤后 %3）")
+                                                 .arg(selection.queryPart)
+                                                 .arg(selection.candidatesBefore)
+                                                 .arg(selection.candidatesAfter)
+                                                 .toStdString());
+                }
+                return bestMatch(encodeImage(*runtime.embedding, crop), gallery, selection);
+            };
             if (!crops.upper.empty())
             {
-                result.upper = bestMatch(encodeImage(*runtime.embedding, crops.upper), gallery);
+                const RankedMatch ranked = rankCrop(crops.upper, crops.upperPart);
+                GarmentMatcher::applyCategoryMatch(result, ranked.match, crops.upperPart, ranked.candidatePart);
             }
             if (!crops.lower.empty())
             {
-                result.lower = bestMatch(encodeImage(*runtime.embedding, crops.lower), gallery);
+                result.lower = rankCrop(crops.lower, QStringLiteral("lower")).match;
             }
             result.success = true;
         }
@@ -1099,6 +1162,102 @@ QString GarmentMatcher::activeProvider()
     return QStringLiteral("CPU");
 }
 
+GarmentMatcher::CandidateSelection GarmentMatcher::selectCandidates(const QString              &queryPart,
+                                                                    const QVector<GalleryItem> &galleryItems,
+                                                                    bool                        categoryFilterEnabled)
+{
+    CandidateSelection selection;
+    selection.queryPart        = normalizedPart(queryPart);
+    selection.filterEnabled    = categoryFilterEnabled;
+    selection.candidatesBefore = static_cast<int>(galleryItems.size());
+    if (selection.queryPart == QLatin1String("accessory"))
+    {
+        selection.queryPart = QStringLiteral("unknown");
+    }
+
+    QVector<int> nonAccessoryIndexes;
+    nonAccessoryIndexes.reserve(galleryItems.size());
+    bool hasDressCandidate = false;
+    for (int index = 0; index < galleryItems.size(); ++index)
+    {
+        const QString part = normalizedPart(galleryItems.at(index).part);
+        if (part == QLatin1String("unknown"))
+        {
+            ++selection.unknownCandidates;
+        }
+        if (part != QLatin1String("accessory"))
+        {
+            nonAccessoryIndexes.push_back(index);
+        }
+        hasDressCandidate = hasDressCandidate || part == QLatin1String("dress");
+    }
+
+    if (!categoryFilterEnabled)
+    {
+        selection.indexes.reserve(galleryItems.size());
+        for (int index = 0; index < galleryItems.size(); ++index)
+        {
+            selection.indexes.push_back(index);
+        }
+    }
+    else if (selection.queryPart == QLatin1String("unknown"))
+    {
+        selection.indexes        = nonAccessoryIndexes;
+        selection.fallbackReason = QStringLiteral("实拍类别 unknown，使用全部非配件候选");
+    }
+    else if (selection.queryPart == QLatin1String("dress") && !hasDressCandidate)
+    {
+        selection.indexes        = nonAccessoryIndexes;
+        selection.fallbackReason = QStringLiteral("当前图库无 dress 候选，使用全部非配件候选");
+    }
+    else
+    {
+        for (int index = 0; index < galleryItems.size(); ++index)
+        {
+            const QString part = normalizedPart(galleryItems.at(index).part);
+            if (part == selection.queryPart || part == QLatin1String("unknown"))
+            {
+                selection.indexes.push_back(index);
+            }
+        }
+        if (selection.indexes.isEmpty())
+        {
+            selection.indexes        = nonAccessoryIndexes;
+            selection.fallbackReason = QStringLiteral("兼容候选为 0，使用全部非配件候选");
+        }
+    }
+    selection.candidatesAfter = static_cast<int>(selection.indexes.size());
+    return selection;
+}
+
+void GarmentMatcher::applyCategoryMatch(Result &result, const Match &match, const QString &queryPart, const QString &candidatePart)
+{
+    const QString normalizedQuery     = normalizedPart(queryPart);
+    const QString normalizedCandidate = normalizedPart(candidatePart);
+    if (normalizedQuery == QLatin1String("upper"))
+    {
+        result.upper = match;
+    }
+    else if (normalizedQuery == QLatin1String("lower"))
+    {
+        result.lower = match;
+    }
+    else if (normalizedQuery == QLatin1String("dress") ||
+             (normalizedCandidate != QLatin1String("upper") && normalizedCandidate != QLatin1String("lower")))
+    {
+        result.upper = match;
+        result.lower = match;
+    }
+    else if (normalizedCandidate == QLatin1String("lower"))
+    {
+        result.lower = match;
+    }
+    else
+    {
+        result.upper = match;
+    }
+}
+
 QString GarmentMatcher::Result::joinedStyleIds() const
 {
     QStringList styleIds;
@@ -1127,7 +1286,7 @@ GarmentMatcher::Result GarmentMatcher::match(const QString &photoPath, const QVe
         const std::scoped_lock lock(cache.mutex);
         Runtime               &runtime = cachedRuntime(cache, options);
         const auto            &gallery = cachedGallery(cache, runtime, galleryItems, options);
-        result                         = matchPhoto(photoPath, runtime, gallery);
+        result                         = matchPhoto(photoPath, runtime, gallery, options);
     }
     catch (const std::exception &error)
     {
@@ -1185,7 +1344,7 @@ QVector<GarmentMatcher::Result> GarmentMatcher::matchAll(const QStringList      
                             break;
                         }
                         claimedCount.fetch_add(1);
-                        workerResults[static_cast<std::size_t>(photoIndex)] = matchPhoto(photoPaths.at(photoIndex), *runtime, gallery);
+                        workerResults[static_cast<std::size_t>(photoIndex)] = matchPhoto(photoPaths.at(photoIndex), *runtime, gallery, options);
                         if (resultCallback)
                         {
                             resultCallback(photoIndex, workerResults[static_cast<std::size_t>(photoIndex)]);

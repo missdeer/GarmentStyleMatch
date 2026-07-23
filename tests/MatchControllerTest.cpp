@@ -16,6 +16,7 @@
 #include "MatchController.h"
 #include "CandidateListModel.h"
 #include "GalleryListModel.h"
+#include "GarmentMatcher.h"
 #include "PhotoListModel.h"
 
 namespace
@@ -1183,6 +1184,89 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     if (!check(missingRuleController.categorySummary().contains(QStringLiteral("统计单位：0")) &&
                    missingRuleController.categorySummary().contains(QStringLiteral("覆盖率：不适用")),
                QStringLiteral("图库清空后分类摘要必须立即刷新为零计数和不适用覆盖率")))
+    {
+        return 1;
+    }
+
+    const QString candidateFailureMessage = MatchController::autoMatchFailureMessage(
+        QStringLiteral("unknown 没有可匹配的非配件图库候选"), {QStringLiteral("unknown 候选 1→0（unknown 0），回退：使用全部非配件候选")});
+    if (!check(candidateFailureMessage.contains(QStringLiteral("自动匹配失败")) &&
+                   candidateFailureMessage.contains(QStringLiteral("品类候选：unknown 候选 1→0（unknown 0）")) &&
+                   candidateFailureMessage.contains(QStringLiteral("回退：使用全部非配件候选")),
+               QStringLiteral("单张匹配失败日志必须保留候选数量和回退诊断：%1").arg(candidateFailureMessage)))
+    {
+        return 1;
+    }
+
+    const QVector<GalleryItem> policyItems {
+        {QStringLiteral("UPPER"), QString(), QString(), QStringLiteral("upper")},
+        {QStringLiteral("LOWER"), QString(), QString(), QStringLiteral("lower")},
+        {QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")},
+        {QStringLiteral("DRESS"), QString(), QString(), QStringLiteral("dress")},
+        {QStringLiteral("UNKNOWN"), QString(), QString(), QStringLiteral("unknown")},
+        {QStringLiteral("INVALID"), QString(), QString(), QStringLiteral("invalid")},
+    };
+    const auto upperSelection    = GarmentMatcher::selectCandidates(QStringLiteral("upper"), policyItems, true);
+    const auto lowerSelection    = GarmentMatcher::selectCandidates(QStringLiteral("lower"), policyItems, true);
+    const auto dressSelection    = GarmentMatcher::selectCandidates(QStringLiteral("dress"), policyItems, true);
+    const auto unknownSelection  = GarmentMatcher::selectCandidates(QStringLiteral("unknown"), policyItems, true);
+    const auto disabledSelection = GarmentMatcher::selectCandidates(QStringLiteral("upper"), policyItems, false);
+    if (!check(upperSelection.indexes == QVector<int> {0, 4, 5} && lowerSelection.indexes == QVector<int> {1, 4, 5} &&
+                   dressSelection.indexes == QVector<int> {3, 4, 5} && unknownSelection.indexes == QVector<int>({0, 1, 3, 4, 5}) &&
+                   disabledSelection.indexes == QVector<int>({0, 1, 2, 3, 4, 5}) && upperSelection.unknownCandidates == 2,
+               QStringLiteral("品类策略必须覆盖 upper/lower/accessory/dress/unknown，非法类别按 unknown 安全处理，关闭时恢复全图库基线")))
+    {
+        return 1;
+    }
+
+    const GarmentMatcher::Match routedMatch {QStringLiteral("DRESS"), QStringLiteral("dress.png"), 0.9F};
+    GarmentMatcher::Result      dressResult;
+    GarmentMatcher::Result      unknownLowerResult;
+    GarmentMatcher::Result      unknownAmbiguousResult;
+    GarmentMatcher::applyCategoryMatch(dressResult, routedMatch, QStringLiteral("dress"), QStringLiteral("dress"));
+    GarmentMatcher::applyCategoryMatch(unknownLowerResult, routedMatch, QStringLiteral("unknown"), QStringLiteral("lower"));
+    GarmentMatcher::applyCategoryMatch(unknownAmbiguousResult, routedMatch, QStringLiteral("unknown"), QStringLiteral("unknown"));
+    if (!check(dressResult.upper.styleId == QStringLiteral("DRESS") && dressResult.lower.styleId == QStringLiteral("DRESS") &&
+                   unknownLowerResult.upper.styleId.isEmpty() && unknownLowerResult.lower.styleId == QStringLiteral("DRESS") &&
+                   unknownAmbiguousResult.upper.styleId == QStringLiteral("DRESS") && unknownAmbiguousResult.lower.styleId == QStringLiteral("DRESS"),
+               QStringLiteral("dress 必须占用上下装双槽，unknown 实拍按已知获胜品类落槽，仍未知时保留双槽歧义")))
+    {
+        return 1;
+    }
+
+    const QVector<GalleryItem> noDressItems {
+        {QStringLiteral("UPPER"), QString(), QString(), QStringLiteral("upper")},
+        {QStringLiteral("LOWER"), QString(), QString(), QStringLiteral("lower")},
+        {QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")},
+        {QStringLiteral("UNKNOWN"), QString(), QString(), QStringLiteral("unknown")},
+    };
+    const auto dressFallback = GarmentMatcher::selectCandidates(QStringLiteral("dress"), noDressItems, true);
+    const auto zeroCompatibleFallback =
+        GarmentMatcher::selectCandidates(QStringLiteral("upper"),
+                                         {{QStringLiteral("LOWER"), QString(), QString(), QStringLiteral("lower")},
+                                          {QStringLiteral("DRESS"), QString(), QString(), QStringLiteral("dress")},
+                                          {QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")}},
+                                         true);
+    const auto noGarmentCandidates = GarmentMatcher::selectCandidates(
+        QStringLiteral("lower"), {{QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")}}, true);
+    if (!check(dressFallback.indexes == QVector<int>({0, 1, 3}) && !dressFallback.fallbackReason.isEmpty() &&
+                   zeroCompatibleFallback.indexes == QVector<int>({0, 1}) && !zeroCompatibleFallback.fallbackReason.isEmpty() &&
+                   noGarmentCandidates.indexes.isEmpty() && !noGarmentCandidates.fallbackReason.isEmpty(),
+               QStringLiteral("品牌无 dress、兼容候选为零及仅有配件时必须采用可诊断的非配件安全回退")))
+    {
+        return 1;
+    }
+
+    const QVector<GalleryItem> crossCategoryItems {
+        {QStringLiteral("WRONG-LOWER"), QString(), QString(), QStringLiteral("lower")},
+        {QStringLiteral("CORRECT-UPPER"), QString(), QString(), QStringLiteral("upper")},
+        {QStringLiteral("SAFE-UNKNOWN"), QString(), QString(), QStringLiteral("unknown")},
+    };
+    const auto unconstrained = GarmentMatcher::selectCandidates(QStringLiteral("upper"), crossCategoryItems, false);
+    const auto constrained   = GarmentMatcher::selectCandidates(QStringLiteral("upper"), crossCategoryItems, true);
+    if (!check(unconstrained.indexes.front() == 0 && constrained.indexes == QVector<int>({1, 2}) && constrained.indexes.contains(1) &&
+                   !constrained.indexes.contains(0),
+               QStringLiteral("约束策略必须排除跨品类候选，同时保留同品类正确款号")))
     {
         return 1;
     }

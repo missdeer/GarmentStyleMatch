@@ -71,7 +71,8 @@ class MatchController : public QObject
 public:
     explicit MatchController(QObject *parent = nullptr);
 
-    static QStringList systemUiStyles();
+    static QStringList           systemUiStyles();
+    [[nodiscard]] static QString autoMatchFailureMessage(const QString &error, const QStringList &candidateDiagnostics);
 
     void setCandidateModel(CandidateListModel *m);
     void setGalleryModel(GalleryListModel *m);

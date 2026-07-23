@@ -8,6 +8,7 @@
 #include <QImageReader>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QThread>
 
 #include "GarmentMatcher.h"
 
@@ -52,6 +53,13 @@ namespace
             }
         }
         return image.save(path, format);
+    }
+
+    bool saveSolidImage(const QString &path, const QColor &color)
+    {
+        QImage image(512, 512, QImage::Format_RGB888);
+        image.fill(color);
+        return image.save(path, "BMP");
     }
     // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-identifier-length,readability-magic-numbers)
 
@@ -157,9 +165,11 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         }
     }
 
-    const QString photoPath   = QDir(temporary.path()).absoluteFilePath(QStringLiteral("photo.jpg"));
-    const QString galleryPath = QDir(temporary.path()).absoluteFilePath(QStringLiteral("gallery.bmp"));
-    if (!check(saveSyntheticImage(photoPath, false, "XPM") && saveSyntheticImage(galleryPath, true), QStringLiteral("无法创建合成测试图")))
+    const QString photoPath      = QDir(temporary.path()).absoluteFilePath(QStringLiteral("photo.jpg"));
+    const QString blankPhotoPath = QDir(temporary.path()).absoluteFilePath(QStringLiteral("blank.bmp"));
+    const QString galleryPath    = QDir(temporary.path()).absoluteFilePath(QStringLiteral("gallery.bmp"));
+    if (!check(saveSyntheticImage(photoPath, false, "XPM") && saveSolidImage(blankPhotoPath, Qt::white) && saveSyntheticImage(galleryPath, true),
+               QStringLiteral("无法创建合成测试图")))
     {
         return 1;
     }
@@ -172,6 +182,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     options.segmentationModelPath                   = executableDir.absoluteFilePath(QStringLiteral("models/clothes_segformer_b2.onnx"));
     options.embeddingModelPath                      = executableDir.absoluteFilePath(QStringLiteral("models/fashion_clip_vision.onnx"));
     options.featureDatabasePath                     = QDir(temporary.path()).absoluteFilePath(QStringLiteral("features.sqlite"));
+    options.categoryFilterEnabled                   = false;
     const QStringList workingDirectoryEnginesBefore = executableDir.entryList({QStringLiteral("gsm_fp16*.engine")}, QDir::Files);
 
     const QVector<GalleryItem>   gallery {{QStringLiteral("STYLE001"), galleryPath, QStringLiteral("test")}};
@@ -196,6 +207,39 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
+    if (!check(!result.candidateDiagnostics.isEmpty() && result.candidateDiagnostics.constFirst().contains(QStringLiteral("品类约束已关闭")),
+               QStringLiteral("关闭品类约束时必须保留全图库基线并输出候选数量诊断")))
+    {
+        return 1;
+    }
+
+    options.categoryFilterEnabled = true;
+    const QVector<GalleryItem> lowerGallery {
+        {QStringLiteral("STYLE001"), galleryPath, QStringLiteral("test"), QStringLiteral("lower")},
+    };
+    const GarmentMatcher::Result unknownPhotoResult = GarmentMatcher::match(blankPhotoPath, lowerGallery, options);
+    if (!check(unknownPhotoResult.success && unknownPhotoResult.upper.styleId.isEmpty() &&
+                   unknownPhotoResult.lower.styleId == QStringLiteral("STYLE001") && !unknownPhotoResult.candidateDiagnostics.isEmpty() &&
+                   unknownPhotoResult.candidateDiagnostics.constFirst().contains(QStringLiteral("实拍类别 unknown")),
+               QStringLiteral("分割类别 unknown 时必须使用安全候选，并按获胜图库品类写入下装而非上衣")))
+    {
+        return 1;
+    }
+    const QDateTime featureDatabaseTimestamp = QFileInfo(options.featureDatabasePath).lastModified();
+    QThread::msleep(20);
+    const QVector<GalleryItem> accessoryGallery {
+        {QStringLiteral("STYLE001"), galleryPath, QStringLiteral("test"), QStringLiteral("accessory")},
+    };
+    const GarmentMatcher::Result noGarmentCandidateResult = GarmentMatcher::match(photoPath, accessoryGallery, options);
+    if (!check(!noGarmentCandidateResult.success && noGarmentCandidateResult.error.contains(QStringLiteral("没有可匹配的非配件图库候选")) &&
+                   !noGarmentCandidateResult.candidateDiagnostics.isEmpty() &&
+                   noGarmentCandidateResult.candidateDiagnostics.constFirst().contains(QStringLiteral("回退")) &&
+                   QFileInfo(options.featureDatabasePath).lastModified() == featureDatabaseTimestamp,
+               QStringLiteral("仅修改分类必须刷新候选并复用既有图像向量，且零候选失败保留回退诊断")))
+    {
+        return 1;
+    }
+    options.categoryFilterEnabled = false;
     if (!check(QFileInfo(options.featureDatabasePath).size() > 0, QStringLiteral("未生成 SQLite 特征缓存")))
     {
         return 1;
