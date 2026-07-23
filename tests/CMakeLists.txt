@@ -41,6 +41,68 @@ target_link_libraries(GalleryListModelTest PRIVATE
 
 add_test(NAME GalleryListModelTest COMMAND GalleryListModelTest)
 
+find_package(Qt6 6.10 REQUIRED COMPONENTS QuickTest)
+
+add_executable(StyleGalleryPanelTest
+    StyleGalleryPanelTest.cpp
+)
+
+target_compile_definitions(StyleGalleryPanelTest PRIVATE
+    QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"
+)
+
+target_link_libraries(StyleGalleryPanelTest PRIVATE
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::QuickTest
+)
+
+set(_style_gallery_test_qml_files
+    "${CMAKE_SOURCE_DIR}/src/qml/Theme.qml"
+    "${CMAKE_SOURCE_DIR}/src/qml/components/ClearableTextField.qml"
+    "${CMAKE_SOURCE_DIR}/src/qml/components/IconButton.qml"
+    "${CMAKE_SOURCE_DIR}/src/qml/components/StyleGalleryPanel.qml"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/qml/Theme.qml" PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
+    QT_RESOURCE_ALIAS "qml/Theme.qml"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/qml/components/ClearableTextField.qml" PROPERTIES
+    QT_RESOURCE_ALIAS "qml/components/ClearableTextField.qml"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/qml/components/IconButton.qml" PROPERTIES
+    QT_RESOURCE_ALIAS "qml/components/IconButton.qml"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/qml/components/StyleGalleryPanel.qml" PROPERTIES
+    QT_RESOURCE_ALIAS "qml/components/StyleGalleryPanel.qml"
+)
+
+set(_style_gallery_test_image_files
+    "${CMAKE_SOURCE_DIR}/resources/icons/folder-open.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/archive.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-upper.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-upper.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-lower.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-lower.svg"
+)
+foreach(_image_file IN LISTS _style_gallery_test_image_files)
+    get_filename_component(_image_name "${_image_file}" NAME)
+    set_source_files_properties("${_image_file}" PROPERTIES
+        QT_RESOURCE_ALIAS "images/${_image_name}"
+    )
+endforeach()
+
+qt_add_qml_module(StyleGalleryPanelTest
+    URI GarmentStyleMatch
+    VERSION 1.0
+    NO_CACHEGEN
+    QML_FILES ${_style_gallery_test_qml_files}
+    RESOURCES ${_style_gallery_test_image_files}
+)
+
+add_test(NAME StyleGalleryPanelTest COMMAND StyleGalleryPanelTest -platform offscreen)
+
 if(WIN32)
     add_executable(PptPageListModelTest
         PptPageListModelTest.cpp

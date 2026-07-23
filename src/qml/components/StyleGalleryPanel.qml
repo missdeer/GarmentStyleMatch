@@ -34,25 +34,67 @@ Rectangle {
         return s
     }
 
+    function showUpperActions(part) {
+        return part !== "lower" && part !== "accessory"
+    }
+
+    function showLowerActions(part) {
+        return part !== "upper" && part !== "accessory"
+    }
+
+    function invalidateMatchMenu() {
+        matchMenu.close()
+        matchMenu.galleryRow = -1
+        matchMenu.part = "unknown"
+    }
+
+    function openMatchMenu(galleryRow, part) {
+        matchMenu.close()
+        matchMenu.galleryRow = galleryRow
+        matchMenu.part = part
+        if (matchMenu.hasActions)
+            matchMenu.popup()
+    }
+
+    Connections {
+        target: root.model
+        function onModelAboutToBeReset() {
+            root.invalidateMatchMenu()
+        }
+    }
+
     Menu {
         id: matchMenu
+        objectName: "galleryMatchMenu"
         property int galleryRow: -1
+        property string part: "unknown"
+        readonly property bool hasActions: root.showUpperActions(part) || root.showLowerActions(part)
 
         MenuItem {
+            objectName: "galleryMatchUpperMenuItem"
             text: qsTr("匹配为上衣")
+            visible: root.showUpperActions(matchMenu.part)
             onTriggered: root.matchRequested(matchMenu.galleryRow, "upper")
         }
         MenuItem {
+            objectName: "galleryMatchLowerMenuItem"
             text: qsTr("匹配为裤裙")
+            visible: root.showLowerActions(matchMenu.part)
             onTriggered: root.matchRequested(matchMenu.galleryRow, "lower")
         }
-        MenuSeparator {}
+        MenuSeparator {
+            visible: matchMenu.hasActions
+        }
         MenuItem {
+            objectName: "galleryConfirmUpperMenuItem"
             text: qsTr("确认为上衣")
+            visible: root.showUpperActions(matchMenu.part)
             onTriggered: root.confirmRequested(matchMenu.galleryRow, "upper")
         }
         MenuItem {
+            objectName: "galleryConfirmLowerMenuItem"
             text: qsTr("确认为裤裙")
+            visible: root.showLowerActions(matchMenu.part)
             onTriggered: root.confirmRequested(matchMenu.galleryRow, "lower")
         }
     }
@@ -238,11 +280,13 @@ Rectangle {
 
             delegate: Item {
                 id: cell
+                objectName: "galleryCell-" + index
                 required property int    index
                 required property string styleId
                 required property string imagePath
                 required property string tag
                 required property int    indexLabel
+                required property string part
 
                 width:  GridView.view.cellWidth
                 height: GridView.view.cellHeight
@@ -287,15 +331,14 @@ Rectangle {
                             }
 
                             MouseArea {
+                                objectName: "galleryMouseArea-" + cell.index
                                 anchors.fill: parent
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 cursorShape: Qt.PointingHandCursor
                                 z: 1
                                 onClicked: function(mouse) {
-                                    if (mouse.button === Qt.RightButton && root.currentPhotoSelected) {
-                                        matchMenu.galleryRow = cell.index
-                                        matchMenu.popup()
-                                    }
+                                    if (mouse.button === Qt.RightButton && root.currentPhotoSelected)
+                                        root.openMatchMenu(cell.index, cell.part)
                                 }
                                 onDoubleClicked: function(mouse) {
                                     if (mouse.button === Qt.LeftButton)
@@ -304,6 +347,7 @@ Rectangle {
                             }
 
                             Grid {
+                                objectName: "galleryActionGrid-" + cell.index
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 4
@@ -314,6 +358,7 @@ Rectangle {
 
                                 Button {
                                     id: matchUpperButton
+                                    objectName: "galleryMatchUpperButton-" + cell.index
                                     width: 28
                                     height: 28
                                     leftPadding: 2
@@ -321,6 +366,7 @@ Rectangle {
                                     topPadding: 2
                                     bottomPadding: 2
                                     enabled: root.currentPhotoSelected
+                                    visible: root.showUpperActions(cell.part)
                                     contentItem: Item {
                                         implicitWidth: 24
                                         implicitHeight: 24
@@ -342,6 +388,7 @@ Rectangle {
 
                                 Button {
                                     id: confirmUpperButton
+                                    objectName: "galleryConfirmUpperButton-" + cell.index
                                     width: 28
                                     height: 28
                                     leftPadding: 2
@@ -349,6 +396,7 @@ Rectangle {
                                     topPadding: 2
                                     bottomPadding: 2
                                     enabled: root.currentPhotoSelected
+                                    visible: root.showUpperActions(cell.part)
                                     contentItem: Item {
                                         implicitWidth: 24
                                         implicitHeight: 24
@@ -370,6 +418,7 @@ Rectangle {
 
                                 Button {
                                     id: matchLowerButton
+                                    objectName: "galleryMatchLowerButton-" + cell.index
                                     width: 28
                                     height: 28
                                     leftPadding: 2
@@ -377,6 +426,7 @@ Rectangle {
                                     topPadding: 2
                                     bottomPadding: 2
                                     enabled: root.currentPhotoSelected
+                                    visible: root.showLowerActions(cell.part)
                                     contentItem: Item {
                                         implicitWidth: 24
                                         implicitHeight: 24
@@ -398,6 +448,7 @@ Rectangle {
 
                                 Button {
                                     id: confirmLowerButton
+                                    objectName: "galleryConfirmLowerButton-" + cell.index
                                     width: 28
                                     height: 28
                                     leftPadding: 2
@@ -405,6 +456,7 @@ Rectangle {
                                     topPadding: 2
                                     bottomPadding: 2
                                     enabled: root.currentPhotoSelected
+                                    visible: root.showLowerActions(cell.part)
                                     contentItem: Item {
                                         implicitWidth: 24
                                         implicitHeight: 24
