@@ -7,8 +7,11 @@ Each rule ends with a ❌/✅ pair — match the pattern, not the slogan.
 ## Rule 0 — Modern CLI only
 Mappings: `find`→`fd`, `grep`→`rg`, `cat`→`bat` (or Read), `ls`→`eza`, `diff`→`delta`, JSON parsing → `jq` (never `python -c "import json"`).
 `git grep` / `git diff` are fine.
+- On Windows, invoke every `cmake-*` wrapper (for example, `cmake-build`, `cmake-reconfigure`, and `cmake-clean`) through `bash -lc`; run every other command directly without a shell wrapper.
 - ❌ `find . -name "*.go" | xargs grep TODO`
 - ✅ `fd -e go -x rg TODO`
+- ❌ `bash -lc "jira get GSMATCH-11"` / `cmake-reconfigure cmake-msvc-build`
+- ✅ `jira get GSMATCH-11` / `bash -lc "cmake-reconfigure cmake-msvc-build"` / `bash -lc "cmake-build cmake-msvc-build"`
 
 ## Rule 1 — Think, ask, surface conflicts
 State assumptions before coding. If two interpretations are both plausible, present them and ask — don't pick silently. If two patterns in the codebase contradict, pick one (more recent / more tested), say why, flag the other for cleanup; never blend them. Use the model only for judgment work (classification, drafting, summarization, extraction); for routing / retries / deterministic transforms, write code — don't ask the model.
