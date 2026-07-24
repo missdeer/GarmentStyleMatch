@@ -27,7 +27,7 @@ namespace
         Engine::Part part;
     };
 
-    constexpr std::array<ExpectedCategory, 59> kCurrentBrandCategories {{
+    constexpr std::array<ExpectedCategory, 59> kTeenieWeenieCategories {{
         {"JD", "2", "外套", "2.5", "羽绒", Engine::Part::Upper},     {"JP", "2", "外套", "2.6", "棉服", Engine::Part::Upper},
         {"JJ", "2", "外套", "2.1", "夹克", Engine::Part::Upper},     {"JE", "2", "外套", "2.8", "牛仔外套", Engine::Part::Upper},
         {"JW", "2", "外套", "2.7", "毛呢", Engine::Part::Upper},     {"JL", "2", "外套", "2.9", "皮衣", Engine::Part::Upper},
@@ -88,22 +88,7 @@ return {
             }
         end
         return { recognized = false, categoryCode = "ZZ", part = "unknown" }
-    end,
-    tests = {
-        {
-            input = "KNOWN",
-            expected = {
-                recognized = true,
-                categoryCode = "JE",
-                level1Code = "2",
-                level1Name = "外套",
-                level2Code = "2.8",
-                level2Name = "牛仔外套",
-                part = "upper"
-            }
-        },
-        { input = "OTHER", expected = { recognized = false, categoryCode = "ZZ", part = "unknown" } }
-    }
+    end
 }
 )lua";
     }
@@ -134,21 +119,7 @@ return {
             level2Name = "牛仔外套",
             part = "upper"
         }
-    end,
-    tests = {
-        {
-            input = "OK",
-            expected = {
-                recognized = true,
-                categoryCode = "JE",
-                level1Code = "2",
-                level1Name = "外套",
-                level2Code = "2.8",
-                level2Name = "牛仔外套",
-                part = "upper"
-            }
-        }
-    }
+    end
 }
 )lua";
     }
@@ -157,7 +128,7 @@ return {
     {
         Engine engine(validRule());
         if (!check(engine.state() == Engine::State::Ready && engine.errorMessage().isEmpty(),
-                   QStringLiteral("合法规则必须通过非空自验证进入可用状态")))
+                   QStringLiteral("声明完整契约的合法规则必须进入可用状态")))
         {
             return 1;
         }
@@ -196,15 +167,11 @@ return {
         Engine existingRule(validRule());
         Engine emptyRule(QByteArray {});
         Engine syntaxError(QByteArrayLiteral("return {"));
-        Engine missingTests(
-            QByteArrayLiteral("return { ruleId='x', version='1', classify=function() return {recognized=false, part='unknown'} end }"));
-        Engine failingSelfTest(
-            QByteArrayLiteral("return { ruleId='x', version='1', classify=function() return {recognized=false, part='unknown'} end,"
-                              "tests={{input='x', expected={recognized=true, categoryCode='JE', level1Code='2', level1Name='a',"
-                              "level2Code='2.8', level2Name='b', part='upper'}}} }"));
+        Engine missingRuleId(QByteArrayLiteral("return { version='1', classify=function() return {recognized=false, part='unknown'} end }"));
+        Engine missingClassify(QByteArrayLiteral("return { ruleId='x', version='1' }"));
         if (!check(emptyRule.state() == Engine::State::Rejected && syntaxError.state() == Engine::State::Rejected &&
-                       missingTests.state() == Engine::State::Rejected && failingSelfTest.state() == Engine::State::Rejected,
-                   QStringLiteral("缺失、语法错误、零样例和自验证失败的规则必须被拒绝")))
+                       missingRuleId.state() == Engine::State::Rejected && missingClassify.state() == Engine::State::Rejected,
+                   QStringLiteral("空内容、语法错误或缺少必要契约字段的规则必须被拒绝")))
         {
             return 1;
         }
@@ -223,10 +190,7 @@ return {
     version = "1",
     classify = function()
         return { recognized = false, part = "unknown" }
-    end,
-    tests = {
-        { input = "x", expected = { recognized = false, part = "unknown" } }
-    }
+    end
 }
 )lua";
         Engine           sandbox(sandboxRule);
@@ -293,23 +257,23 @@ return {
         return 0;
     }
 
-    int testCurrentBrandRule(const QString &rulePath)
+    int testTeenieWeenieRule(const QString &rulePath)
     {
         QFile ruleFile(rulePath);
-        if (!check(ruleFile.open(QIODevice::ReadOnly), QStringLiteral("无法读取当前品牌规则：%1").arg(rulePath)))
+        if (!check(ruleFile.open(QIODevice::ReadOnly), QStringLiteral("无法读取 TeenieWeenie 规则：%1").arg(rulePath)))
         {
             return 1;
         }
         const QByteArray script = ruleFile.readAll();
         Engine           engine(script);
-        if (!check(engine.state() == Engine::State::Ready && engine.ruleId() == QStringLiteral("current-brand") &&
+        if (!check(engine.state() == Engine::State::Ready && engine.ruleId() == QStringLiteral("TeenieWeenie") &&
                        engine.ruleVersion() == QStringLiteral("1"),
-                   QStringLiteral("当前品牌规则必须通过全量自验证并暴露稳定身份与修订：%1").arg(engine.errorMessage())))
+                   QStringLiteral("TeenieWeenie 规则必须加载并暴露稳定身份与修订：%1").arg(engine.errorMessage())))
         {
             return 1;
         }
 
-        for (const ExpectedCategory &expected : kCurrentBrandCategories)
+        for (const ExpectedCategory &expected : kTeenieWeenieCategories)
         {
             const QString        code    = QString::fromLatin1(expected.code);
             const QString        styleId = code == QLatin1String("JE") ? QStringLiteral("T0JE26B38A008") : QStringLiteral("T0%126B38A008").arg(code);
@@ -319,7 +283,7 @@ return {
                            actual.level1Name == QString::fromUtf8(expected.level1Name) &&
                            actual.level2Code == QString::fromLatin1(expected.level2Code) &&
                            actual.level2Name == QString::fromUtf8(expected.level2Name) && actual.part == expected.part,
-                       QStringLiteral("当前品牌代码 %1 必须符合已确认的业务层级与粗分类").arg(code)))
+                       QStringLiteral("TeenieWeenie 品牌代码 %1 必须符合已确认的业务层级与粗分类").arg(code)))
             {
                 return 1;
             }
@@ -342,8 +306,10 @@ return {
         }
         QByteArray incompleteScript = script;
         incompleteScript.replace(denimMapping, "JE = nil");
-        Engine incompleteRule(incompleteScript);
-        if (!check(incompleteRule.state() == Engine::State::Rejected, QStringLiteral("遗漏任一已支持代码时，全量自验证必须拒绝规则启用")))
+        Engine               incompleteRule(incompleteScript);
+        const Engine::Result missingDenim = incompleteRule.classify(QStringLiteral("T0JE26B38A008"));
+        if (!check(incompleteRule.state() == Engine::State::Ready && !missingDenim.recognized && missingDenim.categoryCode == QStringLiteral("JE"),
+                   QStringLiteral("内部全量测试必须检测出规则遗漏的已支持代码")))
         {
             return 1;
         }
@@ -357,13 +323,13 @@ int main(int argc, char *argv[])
     QCoreApplication application(argc, argv);
     if (argc != 2)
     {
-        qCritical() << "Usage: LuaCategoryRuleEngineTest <current-brand-rule>";
+        qCritical() << "Usage: LuaCategoryRuleEngineTest <TeenieWeenie-rule>";
         return 1;
     }
     int result = 0;
     result |= testValidRuleContract();
     result |= testRejectedRulesAndSandbox();
     result |= testLimitsAndRecovery();
-    result |= testCurrentBrandRule(QString::fromLocal8Bit(argv[1]));
+    result |= testTeenieWeenieRule(QString::fromLocal8Bit(argv[1]));
     return result;
 }

@@ -36,8 +36,7 @@ local function classify(input)
     return unknown()
 end
 return {
-    ruleId = "cache-test", version = "1", classify = classify,
-    tests = { { input = "SELF", expected = unknown() } }
+    ruleId = "cache-test", version = "1", classify = classify
 }
 )lua");
 
@@ -55,8 +54,7 @@ local function classify(input)
     return unknown()
 end
 return {
-    ruleId = "cache-test", version = "1", classify = classify,
-    tests = { { input = "SELF", expected = unknown() } }
+    ruleId = "cache-test", version = "1", classify = classify
 }
 )lua");
 
@@ -82,8 +80,7 @@ local function classify(input)
     return unknown()
 end
 return {
-    ruleId = "retry-test", version = "1", classify = classify,
-    tests = { { input = "SELF", expected = unknown() } }
+    ruleId = "retry-test", version = "1", classify = classify
 }
 )lua");
 

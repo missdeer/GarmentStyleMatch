@@ -186,6 +186,7 @@ public:
     [[nodiscard]] static QString modelDirectory();
     [[nodiscard]] static QString applicationModelDirectory();
     [[nodiscard]] static QString applicationCategoryRulesDirectory();
+    [[nodiscard]] static QString localCategoryRulesDirectory();
     [[nodiscard]] static QString findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir);
     [[nodiscard]] static bool    modelFilesExistInDirectories(const QString &applicationModelsDir, const QString &localModelsDir);
     [[nodiscard]] static QString availableModelDirectory();

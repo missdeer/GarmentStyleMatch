@@ -187,7 +187,7 @@ add_executable(LuaCategoryRuleEngineTest
 set_property(SOURCE LuaCategoryRuleEngineTest.cpp ../src/core/LuaCategoryRuleEngine.cpp APPEND PROPERTY
     OBJECT_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/core/LuaCategoryRuleEngine.h"
-        "${CMAKE_SOURCE_DIR}/resources/category-rules/current-brand.lua"
+        "${CMAKE_SOURCE_DIR}/resources/category-rules/TeenieWeenie.lua"
 )
 
 target_include_directories(LuaCategoryRuleEngineTest PRIVATE
@@ -200,7 +200,7 @@ target_link_libraries(LuaCategoryRuleEngineTest PRIVATE
 )
 
 add_test(NAME LuaCategoryRuleEngineTest COMMAND LuaCategoryRuleEngineTest
-    "${CMAKE_SOURCE_DIR}/resources/category-rules/current-brand.lua"
+    "${CMAKE_SOURCE_DIR}/resources/category-rules/TeenieWeenie.lua"
 )
 
 set(_gsm_match_controller_test_sources
@@ -241,7 +241,7 @@ add_executable(MatchControllerTest ${_gsm_match_controller_test_sources})
 add_custom_command(TARGET MatchControllerTest POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/resources/category-rules"
-            "$<TARGET_FILE_DIR:MatchControllerTest>/category-rules"
+            "$<TARGET_FILE_DIR:MatchControllerTest>/scripts/category-rules"
     COMMENT "Copying category rules for MatchControllerTest"
     VERBATIM
 )
@@ -252,7 +252,7 @@ set_property(SOURCE MatchControllerTest.cpp APPEND PROPERTY
     OBJECT_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/core/MatchController.h"
         "${CMAKE_SOURCE_DIR}/src/core/GalleryListModel.h"
-        "${CMAKE_SOURCE_DIR}/resources/category-rules/current-brand.lua"
+        "${CMAKE_SOURCE_DIR}/resources/category-rules/TeenieWeenie.lua"
 )
 set_property(SOURCE ../src/core/MatchController.cpp ../src/core/GalleryListModel.cpp APPEND PROPERTY
     OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/src/core/GalleryListModel.h"

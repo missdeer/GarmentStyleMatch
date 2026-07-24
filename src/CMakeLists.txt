@@ -159,9 +159,9 @@ qt_add_qml_module(GarmentStyleMatch
 
 set(GSM_CATEGORY_RULES_DIR "${CMAKE_SOURCE_DIR}/resources/category-rules")
 if(APPLE)
-    set(_gsm_build_category_rules_dir "$<TARGET_BUNDLE_DIR:GarmentStyleMatch>/Contents/Resources/category-rules")
+    set(_gsm_build_category_rules_dir "$<TARGET_BUNDLE_DIR:GarmentStyleMatch>/Contents/Scripts/category-rules")
 else()
-    set(_gsm_build_category_rules_dir "$<TARGET_FILE_DIR:GarmentStyleMatch>/category-rules")
+    set(_gsm_build_category_rules_dir "$<TARGET_FILE_DIR:GarmentStyleMatch>/scripts/category-rules")
 endif()
 add_custom_command(TARGET GarmentStyleMatch POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -286,11 +286,11 @@ install(TARGETS GarmentStyleMatch
 if(APPLE)
     set(_gsm_runtime_install_dir "bin/GarmentStyleMatch.app/Contents/MacOS")
     set(_gsm_models_install_dir "bin/GarmentStyleMatch.app/Contents/Resources/models")
-    set(_gsm_category_rules_install_dir "bin/GarmentStyleMatch.app/Contents/Resources/category-rules")
+    set(_gsm_category_rules_install_dir "bin/GarmentStyleMatch.app/Contents/Scripts/category-rules")
 else()
     set(_gsm_runtime_install_dir "bin")
     set(_gsm_models_install_dir "bin/models")
-    set(_gsm_category_rules_install_dir "bin/category-rules")
+    set(_gsm_category_rules_install_dir "bin/scripts/category-rules")
 endif()
 install(DIRECTORY "${GSM_CATEGORY_RULES_DIR}/"
     DESTINATION "${_gsm_category_rules_install_dir}"

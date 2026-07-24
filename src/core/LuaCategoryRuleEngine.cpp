@@ -273,13 +273,6 @@ namespace
         return result;
     }
 
-    bool equivalent(const LuaCategoryRuleEngine::Result &left, const LuaCategoryRuleEngine::Result &right)
-    {
-        return left.recognized == right.recognized && left.categoryCode == right.categoryCode && left.level1Code == right.level1Code &&
-               left.level1Name == right.level1Name && left.level2Code == right.level2Code && left.level2Name == right.level2Name &&
-               left.part == right.part;
-    }
-
     QString luaError(lua_State *state, int status)
     {
         if (status == LUA_ERRMEM)
@@ -425,58 +418,15 @@ public:
         pushRawField(lua, -1, "classify");
         const bool hasClassify = lua_type(lua, -1) == LUA_TFUNCTION;
         lua_pop(lua, 1);
-        pushRawField(lua, -1, "tests");
-        const bool        hasTests  = lua_type(lua, -1) == LUA_TTABLE && lua_rawlen(lua, -1) > 0;
-        const std::size_t testCount = hasTests ? lua_rawlen(lua, -1) : 0;
-        lua_pop(lua, 2);
+        lua_pop(lua, 1);
 
-        if (!ruleId || ruleId->isEmpty() || !version || version->isEmpty() || !hasClassify || !hasTests)
+        if (!ruleId || ruleId->isEmpty() || !version || version->isEmpty() || !hasClassify)
         {
-            loadError = QStringLiteral("Lua 规则必须声明 ruleId、version、classify 和非空 tests");
+            loadError = QStringLiteral("Lua 规则必须声明 ruleId、version 和 classify");
             return;
         }
         loadedRuleId      = *ruleId;
         loadedRuleVersion = *version;
-
-        for (std::size_t index = 1; index <= testCount; ++index)
-        {
-            QString input;
-            Result  expected;
-            {
-                StackGuard guard(lua);
-                lua_rawgeti(lua, LUA_REGISTRYINDEX, ruleReference);
-                pushRawField(lua, -1, "tests");
-                lua_rawgeti(lua, -1, static_cast<lua_Integer>(index));
-                if (lua_type(lua, -1) != LUA_TTABLE)
-                {
-                    loadError = QStringLiteral("Lua 自验证样例 %1 必须是 table").arg(index);
-                    return;
-                }
-                const auto testInput = stringField(lua, -1, "input");
-                pushRawField(lua, -1, "expected");
-                if (!testInput)
-                {
-                    loadError = QStringLiteral("Lua 自验证样例 %1 缺少 input").arg(index);
-                    return;
-                }
-                expected = parseResult(lua, -1);
-                if (!expected.error.isEmpty())
-                {
-                    loadError = QStringLiteral("Lua 自验证样例 %1 的预期结果无效：%2").arg(index).arg(expected.error);
-                    return;
-                }
-                input = *testInput;
-            }
-
-            const Result actual = callClassify(input, &validationRemaining);
-            if (!actual.error.isEmpty() || !equivalent(actual, expected))
-            {
-                loadError = QStringLiteral("Lua 自验证样例 %1 失败%2")
-                                .arg(index)
-                                .arg(actual.error.isEmpty() ? QString() : QStringLiteral("：%1").arg(actual.error));
-                return;
-            }
-        }
 
         ready = true;
         loadError.clear();

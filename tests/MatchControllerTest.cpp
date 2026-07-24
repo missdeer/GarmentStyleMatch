@@ -7,6 +7,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileSystemWatcher>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -112,6 +113,22 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
 #endif
     if (!check(MatchController::applicationModelDirectory() == expectedApplicationModelDirectory,
                QStringLiteral("随应用打包的模型目录必须符合当前平台的应用布局")))
+    {
+        return 1;
+    }
+
+#ifdef Q_OS_MACOS
+    const QString expectedApplicationCategoryRulesDirectory =
+        QDir::cleanPath(QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("../Scripts/category-rules")));
+#else
+    const QString expectedApplicationCategoryRulesDirectory =
+        QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QStringLiteral("scripts/category-rules"));
+#endif
+    const QString expectedLocalCategoryRulesDirectory =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).absoluteFilePath(QStringLiteral("scripts/category-rules"));
+    if (!check(MatchController::applicationCategoryRulesDirectory() == expectedApplicationCategoryRulesDirectory &&
+                   MatchController::localCategoryRulesDirectory() == expectedLocalCategoryRulesDirectory,
+               QStringLiteral("品类规则目录必须符合当前平台的随应用及 LocalAppData 布局")))
     {
         return 1;
     }
@@ -1080,11 +1097,30 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
 
     QSettings().remove(QStringLiteral("gallery/categoryRule"));
-    if (!check(QFileInfo::exists(QDir(MatchController::applicationCategoryRulesDirectory()).filePath(QStringLiteral("current-brand.lua"))),
-               QStringLiteral("控制器测试运行目录必须包含随应用部署的当前品牌规则")))
+    if (!check(QFileInfo::exists(QDir(MatchController::applicationCategoryRulesDirectory()).filePath(QStringLiteral("TeenieWeenie.lua"))),
+               QStringLiteral("控制器测试运行目录必须包含随应用部署的 TeenieWeenie 规则")))
     {
         return 1;
     }
+
+    QFile applicationRuleFile(QDir(MatchController::applicationCategoryRulesDirectory()).filePath(QStringLiteral("TeenieWeenie.lua")));
+    if (!check(applicationRuleFile.open(QIODevice::ReadOnly), QStringLiteral("无法读取随应用部署的品类规则测试脚本")))
+    {
+        return 1;
+    }
+    if (!check(QDir().mkpath(MatchController::localCategoryRulesDirectory()),
+               QStringLiteral("无法创建用户品类规则测试目录：%1").arg(MatchController::localCategoryRulesDirectory())))
+    {
+        return 1;
+    }
+    QByteArray localRule = applicationRuleFile.readAll();
+    localRule.replace(QByteArrayLiteral("ruleId = \"TeenieWeenie\""), QByteArrayLiteral("ruleId = \"local-test-brand\""));
+    const QString localRulePath = QDir(MatchController::localCategoryRulesDirectory()).filePath(QStringLiteral("local-test-brand.lua"));
+    if (!check(createFile(localRulePath, localRule), QStringLiteral("无法准备用户品类规则脚本")))
+    {
+        return 1;
+    }
+    const auto removeLocalRule = qScopeGuard([&localRulePath] { QFile::remove(localRulePath); });
 
     GalleryListModel categoryGalleryModel;
     MatchController  categoryController;
@@ -1096,23 +1132,33 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png"), QStringLiteral("adult")},
         {QString(), QStringLiteral("invalid.png"), QStringLiteral("adult")},
     });
-    bool currentBrandAvailable = false;
+    bool teenieWeenieAvailable = false;
+    bool localBrandAvailable   = false;
     for (const QVariant &option : categoryController.availableCategoryRules())
     {
-        currentBrandAvailable = currentBrandAvailable || option.toMap().value(QStringLiteral("id")).toString() == QLatin1String("current-brand");
+        teenieWeenieAvailable = teenieWeenieAvailable || option.toMap().value(QStringLiteral("id")).toString() == QLatin1String("TeenieWeenie");
+        localBrandAvailable   = localBrandAvailable || option.toMap().value(QStringLiteral("id")).toString() == QLatin1String("local-test-brand");
     }
-    if (!check(currentBrandAvailable && categoryController.currentCategoryRule().isEmpty() &&
+    if (!check(teenieWeenieAvailable && localBrandAvailable && categoryController.currentCategoryRule().isEmpty() &&
                    categoryController.categorySummary().contains(QStringLiteral("规则状态：已禁用")) &&
                    categoryController.categorySummary().contains(QStringLiteral("unknown：4")),
-               QStringLiteral("首次使用必须明确禁用品类规则，并按去重款号及无效款号单元安全汇总 unknown")))
+               QStringLiteral("首次使用必须发现随应用及用户规则、明确禁用品类规则，并按去重款号及无效款号单元安全汇总 unknown")))
     {
         return 1;
     }
 
-    categoryController.setCurrentCategoryRule(QStringLiteral("current-brand"));
+    categoryController.setCurrentCategoryRule(QStringLiteral("local-test-brand"));
+    if (!check(categoryGalleryModel.allItems().at(0).part == QStringLiteral("upper") &&
+                   categoryController.categoryRuleStatus().contains(QStringLiteral("local-test-brand")),
+               QStringLiteral("只存放在 LocalAppData 中的品类规则必须能够加载并分类")))
+    {
+        return 1;
+    }
+
+    categoryController.setCurrentCategoryRule(QStringLiteral("TeenieWeenie"));
     const auto &categoryItems = categoryGalleryModel.allItems();
-    if (!check(categoryController.currentCategoryRule() == QStringLiteral("current-brand") &&
-                   QSettings().value(QStringLiteral("gallery/categoryRule")).toString() == QStringLiteral("current-brand") &&
+    if (!check(categoryController.currentCategoryRule() == QStringLiteral("TeenieWeenie") &&
+                   QSettings().value(QStringLiteral("gallery/categoryRule")).toString() == QStringLiteral("TeenieWeenie") &&
                    categoryItems.at(0).part == QStringLiteral("upper") && categoryItems.at(1).part == QStringLiteral("upper") &&
                    categoryItems.at(2).part == QStringLiteral("lower") && categoryItems.at(3).part == QStringLiteral("unknown") &&
                    categoryItems.at(3).categoryCode == QStringLiteral("ZZ") && categoryItems.at(4).part == QStringLiteral("unknown") &&
@@ -1124,7 +1170,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
                    categoryController.categorySummary().contains(QStringLiteral("覆盖率：50.0%（2/4）")) &&
                    categoryController.categorySummary().contains(QStringLiteral("未知品类代码：ZZ（1）")) &&
                    categoryController.categorySummary().contains(QStringLiteral("无有效款号图片：1")),
-               QStringLiteral("启用当前品牌规则必须立即重分类已有图库，并按业务分类单元报告覆盖率、未知代码和无效款号：%1")
+               QStringLiteral("启用 TeenieWeenie 规则必须立即重分类已有图库，并按业务分类单元报告覆盖率、未知代码和无效款号：%1")
                    .arg(categoryController.categorySummary())))
     {
         return 1;
@@ -1146,14 +1192,14 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         return 1;
     }
 
-    categoryController.setCurrentCategoryRule(QStringLiteral("current-brand"));
+    categoryController.setCurrentCategoryRule(QStringLiteral("TeenieWeenie"));
     GalleryListModel restoredCategoryGalleryModel;
     MatchController  restoredCategoryController;
     restoredCategoryController.setGalleryModel(&restoredCategoryGalleryModel);
     restoredCategoryGalleryModel.setItems({
         {QStringLiteral("T0JE26B38A008"), QStringLiteral("restored.png"), QStringLiteral("adult")},
     });
-    if (!check(restoredCategoryController.currentCategoryRule() == QStringLiteral("current-brand") &&
+    if (!check(restoredCategoryController.currentCategoryRule() == QStringLiteral("TeenieWeenie") &&
                    restoredCategoryGalleryModel.allItems().at(0).part == QStringLiteral("upper"),
                QStringLiteral("重启恢复必须重新应用持久化规则，而不是自动猜测或回退到其他品牌")))
     {

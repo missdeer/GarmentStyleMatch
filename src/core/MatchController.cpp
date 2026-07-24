@@ -245,29 +245,51 @@ namespace
         return {};
     }
 
-    QString categoryRuleName(const QString &ruleId)
+    QStringList categoryRulesDirectories()
     {
-        return ruleId == QLatin1String("current-brand") ? QStringLiteral("当前品牌") : ruleId;
+        return {MatchController::applicationCategoryRulesDirectory(), MatchController::localCategoryRulesDirectory()};
     }
 
-    QVariantList categoryRuleOptions(const QString &directoryPath, const QString &savedRuleId)
+    QString categoryRuleScriptPath(const QStringList &directoryPaths, const QString &ruleId)
+    {
+        for (const QString &directoryPath : directoryPaths)
+        {
+            const QFileInfo script(QDir(directoryPath).absoluteFilePath(QStringLiteral("%1.lua").arg(ruleId)));
+            if (script.isFile() && script.isReadable())
+            {
+                return script.absoluteFilePath();
+            }
+        }
+        return {};
+    }
+
+    QVariantList categoryRuleOptions(const QStringList &directoryPaths, const QString &savedRuleId)
     {
         QVariantList options;
         options.push_back(QVariantMap {{QStringLiteral("id"), QString()}, {QStringLiteral("name"), QStringLiteral("不使用品类规则")}});
 
-        bool       savedRuleFound = savedRuleId.isEmpty();
-        const QDir directory(directoryPath);
-        const auto scripts = directory.entryInfoList({QStringLiteral("*.lua")}, QDir::Files | QDir::Readable, QDir::Name | QDir::IgnoreCase);
-        for (const QFileInfo &script : scripts)
+        bool        savedRuleFound = savedRuleId.isEmpty();
+        QStringList ruleIds;
+        for (const QString &directoryPath : directoryPaths)
         {
-            const QString ruleId = script.completeBaseName();
-            options.push_back(QVariantMap {{QStringLiteral("id"), ruleId}, {QStringLiteral("name"), categoryRuleName(ruleId)}});
-            savedRuleFound = savedRuleFound || ruleId == savedRuleId;
+            const QDir directory(directoryPath);
+            const auto scripts = directory.entryInfoList({QStringLiteral("*.lua")}, QDir::Files | QDir::Readable, QDir::Name | QDir::IgnoreCase);
+            for (const QFileInfo &script : scripts)
+            {
+                const QString ruleId = script.completeBaseName();
+                if (ruleIds.contains(ruleId, kPathCaseSensitivity))
+                {
+                    continue;
+                }
+                ruleIds.push_back(ruleId);
+                options.push_back(QVariantMap {{QStringLiteral("id"), ruleId}, {QStringLiteral("name"), ruleId}});
+                savedRuleFound = savedRuleFound || ruleId == savedRuleId;
+            }
         }
         if (!savedRuleFound)
         {
-            options.push_back(QVariantMap {{QStringLiteral("id"), savedRuleId},
-                                           {QStringLiteral("name"), QStringLiteral("%1（不可用）").arg(categoryRuleName(savedRuleId))}});
+            options.push_back(
+                QVariantMap {{QStringLiteral("id"), savedRuleId}, {QStringLiteral("name"), QStringLiteral("%1（不可用）").arg(savedRuleId)}});
         }
         return options;
     }
@@ -286,7 +308,7 @@ MatchController::MatchController(QObject *parent)
     m_parallelMatchThreadCount   = settings.value(QStringLiteral("matching/parallelThreads"), recommendedParallelMatchThreadCount()).toInt();
     m_parallelMatchThreadCount   = std::clamp(m_parallelMatchThreadCount, 1, kMaxParallelMatchThreads);
     m_currentCategoryRule        = settings.value(QStringLiteral("gallery/categoryRule")).toString();
-    m_availableCategoryRules     = categoryRuleOptions(applicationCategoryRulesDirectory(), m_currentCategoryRule);
+    m_availableCategoryRules     = categoryRuleOptions(categoryRulesDirectories(), m_currentCategoryRule);
     refreshCategorySummary();
 }
 
@@ -595,10 +617,15 @@ QString MatchController::applicationCategoryRulesDirectory()
 {
     const QDir applicationDir(QCoreApplication::applicationDirPath());
 #ifdef Q_OS_MACOS
-    return QDir::cleanPath(applicationDir.absoluteFilePath(QStringLiteral("../Resources/category-rules")));
+    return QDir::cleanPath(applicationDir.absoluteFilePath(QStringLiteral("../Scripts/category-rules")));
 #else
-    return applicationDir.absoluteFilePath(QStringLiteral("category-rules"));
+    return applicationDir.absoluteFilePath(QStringLiteral("scripts/category-rules"));
 #endif
+}
+
+QString MatchController::localCategoryRulesDirectory()
+{
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).absoluteFilePath(QStringLiteral("scripts/category-rules"));
 }
 
 QString MatchController::findAvailableModelDirectory(const QString &applicationModelsDir, const QString &localModelsDir)
@@ -1128,7 +1155,7 @@ QString MatchController::categoryRuleDisplayName(const QString &ruleId) const
             return item.value(QStringLiteral("name")).toString();
         }
     }
-    return categoryRuleName(ruleId);
+    return ruleId;
 }
 
 void MatchController::setCurrentCategoryRule(const QString &ruleId)
@@ -1189,7 +1216,7 @@ void MatchController::applyCategoryRule(bool forceReload)
         return;
     }
 
-    const QString scriptPath = QDir(applicationCategoryRulesDirectory()).absoluteFilePath(QStringLiteral("%1.lua").arg(m_currentCategoryRule));
+    const QString scriptPath = categoryRuleScriptPath(categoryRulesDirectories(), m_currentCategoryRule);
     QFile         scriptFile(scriptPath);
     if (!scriptFile.open(QIODevice::ReadOnly))
     {
