@@ -148,8 +148,6 @@ QVariant GalleryListModel::data(const QModelIndex &index, int role) const
         return item.styleId;
     case ImagePathRole:
         return item.imagePath;
-    case TagRole:
-        return item.tag;
     case IndexLabelRole:
         return index.row() + 1;
     case PartRole:
@@ -166,7 +164,6 @@ QHash<int, QByteArray> GalleryListModel::roleNames() const
     return {
         {StyleIdRole, "styleId"},
         {ImagePathRole, "imagePath"},
-        {TagRole, "tag"},
         {IndexLabelRole, "indexLabel"},
         {PartRole, "part"},
         {CategoryErrorRole, "categoryError"},
@@ -197,6 +194,7 @@ void GalleryListModel::setCategoryCachePath(const QString &databasePath)
         classifyItems(m_allItems);
         rebuildFilteredItems();
         endResetModel();
+        emit countChanged();
     }
 }
 
@@ -222,6 +220,7 @@ void GalleryListModel::setCategoryRuleScript(const QByteArray &script, bool forc
         classifyItems(m_allItems);
         rebuildFilteredItems();
         endResetModel();
+        emit countChanged();
     }
     emit classificationChanged();
 }
@@ -325,10 +324,26 @@ void GalleryListModel::setFilterText(const QString &text)
     emit countChanged();
 }
 
+void GalleryListModel::setPartFilter(const QString &part)
+{
+    const QString normalizedPart = part.trimmed().toLower();
+    const QString effectivePart  = normalizedPart == QStringLiteral("全部") ? QString() : normalizedPart;
+    if (effectivePart == m_partFilter)
+    {
+        return;
+    }
+
+    beginResetModel();
+    m_partFilter = effectivePart;
+    rebuildFilteredItems();
+    endResetModel();
+    emit countChanged();
+}
+
 void GalleryListModel::rebuildFilteredItems()
 {
     m_items.clear();
-    if (m_filterText.isEmpty())
+    if (m_filterText.isEmpty() && m_partFilter.isEmpty())
     {
         m_items = m_allItems;
         return;
@@ -336,7 +351,9 @@ void GalleryListModel::rebuildFilteredItems()
 
     for (const GalleryItem &item : std::as_const(m_allItems))
     {
-        if (item.styleId.contains(m_filterText, Qt::CaseInsensitive))
+        const bool textMatches = m_filterText.isEmpty() || item.styleId.contains(m_filterText, Qt::CaseInsensitive);
+        const bool partMatches = m_partFilter.isEmpty() || item.part == m_partFilter;
+        if (textMatches && partMatches)
         {
             m_items.push_back(item);
         }
@@ -364,7 +381,6 @@ void GalleryListModel::loadFromStyleCacheDir(const QString &directoryPath)
             GalleryItem item;
             item.styleId   = styleId;
             item.imagePath = imageFile.absoluteFilePath();
-            item.tag       = QStringLiteral("baby");
             items.push_back(std::move(item));
         }
     }

@@ -433,8 +433,8 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     manualController.setPhotoModel(&manualPhotoModel);
     manualController.setGalleryModel(&manualGalleryModel);
     manualGalleryModel.setItems({
-        {QStringLiteral("STYLE-UPPER"), upperImagePath, QStringLiteral("adult")},
-        {QStringLiteral("STYLE-REPLACEMENT"), replacementImagePath, QStringLiteral("adult")},
+        {QStringLiteral("STYLE-UPPER"), upperImagePath},
+        {QStringLiteral("STYLE-REPLACEMENT"), replacementImagePath},
     });
     if (!check(!manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
                QStringLiteral("没有选中实拍图时不得执行图库右键匹配")))
@@ -1126,11 +1126,11 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     MatchController  categoryController;
     categoryController.setGalleryModel(&categoryGalleryModel);
     categoryGalleryModel.setItems({
-        {QStringLiteral("T0JE26B38A008"), QStringLiteral("upper-1.png"), QStringLiteral("adult")},
-        {QStringLiteral(" t0je26b38a008 "), QStringLiteral("upper-2.png"), QStringLiteral("adult")},
-        {QStringLiteral("T0WH26B38A008"), QStringLiteral("lower.png"), QStringLiteral("adult")},
-        {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png"), QStringLiteral("adult")},
-        {QString(), QStringLiteral("invalid.png"), QStringLiteral("adult")},
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("upper-1.png")},
+        {QStringLiteral(" t0je26b38a008 "), QStringLiteral("upper-2.png")},
+        {QStringLiteral("T0WH26B38A008"), QStringLiteral("lower.png")},
+        {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png")},
+        {QString(), QStringLiteral("invalid.png")},
     });
     bool teenieWeenieAvailable = false;
     bool localBrandAvailable   = false;
@@ -1175,6 +1175,31 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
+    categoryController.setCategoryFilter(QStringLiteral("upper"));
+    if (!check(categoryController.categoryFilter() == QStringLiteral("upper") && categoryGalleryModel.rowCount() == 2 &&
+                   categoryGalleryModel.allItems().size() == 5,
+               QStringLiteral("控制器必须将 upper 下拉过滤传给图库模型，且不得缩小完整图库")))
+    {
+        return 1;
+    }
+    categoryController.setCategoryFilter(QStringLiteral("lower"));
+    if (!check(categoryGalleryModel.rowCount() == 1 && categoryGalleryModel.at(0)->part == QStringLiteral("lower"),
+               QStringLiteral("控制器必须按规则生成的 lower 标签过滤图库")))
+    {
+        return 1;
+    }
+    categoryController.setCategoryFilter(QStringLiteral("unknown"));
+    if (!check(categoryGalleryModel.rowCount() == 2 && categoryGalleryModel.at(0)->part == QStringLiteral("unknown") &&
+                   categoryGalleryModel.at(1)->part == QStringLiteral("unknown"),
+               QStringLiteral("控制器必须按规则生成的 unknown 标签过滤图库")))
+    {
+        return 1;
+    }
+    categoryController.setCategoryFilter(QStringLiteral("全部"));
+    if (!check(categoryGalleryModel.rowCount() == 5, QStringLiteral("控制器选择全部后必须恢复所有款号图片")))
+    {
+        return 1;
+    }
     categoryController.reloadCategoryRule();
     if (!check(categoryController.categoryRuleStatus().contains(QStringLiteral("覆盖 50.0%（2/4）")),
                QStringLiteral("显式重新加载当前规则后必须保留图库并刷新一致摘要")))
@@ -1197,7 +1222,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     MatchController  restoredCategoryController;
     restoredCategoryController.setGalleryModel(&restoredCategoryGalleryModel);
     restoredCategoryGalleryModel.setItems({
-        {QStringLiteral("T0JE26B38A008"), QStringLiteral("restored.png"), QStringLiteral("adult")},
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("restored.png")},
     });
     if (!check(restoredCategoryController.currentCategoryRule() == QStringLiteral("TeenieWeenie") &&
                    restoredCategoryGalleryModel.allItems().at(0).part == QStringLiteral("upper"),
@@ -1211,7 +1236,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     MatchController  missingRuleController;
     missingRuleController.setGalleryModel(&missingRuleGalleryModel);
     missingRuleGalleryModel.setItems({
-        {QStringLiteral("T0JE26B38A008"), QStringLiteral("missing-rule.png"), QStringLiteral("adult")},
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("missing-rule.png")},
     });
     bool missingRuleRetained = false;
     for (const QVariant &option : missingRuleController.availableCategoryRules())
@@ -1245,12 +1270,12 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
 
     const QVector<GalleryItem> policyItems {
-        {QStringLiteral("UPPER"), QString(), QString(), QStringLiteral("upper")},
-        {QStringLiteral("LOWER"), QString(), QString(), QStringLiteral("lower")},
-        {QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")},
-        {QStringLiteral("DRESS"), QString(), QString(), QStringLiteral("dress")},
-        {QStringLiteral("UNKNOWN"), QString(), QString(), QStringLiteral("unknown")},
-        {QStringLiteral("INVALID"), QString(), QString(), QStringLiteral("invalid")},
+        {QStringLiteral("UPPER"), QString(), QStringLiteral("upper")},
+        {QStringLiteral("LOWER"), QString(), QStringLiteral("lower")},
+        {QStringLiteral("ACCESSORY"), QString(), QStringLiteral("accessory")},
+        {QStringLiteral("DRESS"), QString(), QStringLiteral("dress")},
+        {QStringLiteral("UNKNOWN"), QString(), QStringLiteral("unknown")},
+        {QStringLiteral("INVALID"), QString(), QStringLiteral("invalid")},
     };
     const auto upperSelection    = GarmentMatcher::selectCandidates(QStringLiteral("upper"), policyItems, true);
     const auto lowerSelection    = GarmentMatcher::selectCandidates(QStringLiteral("lower"), policyItems, true);
@@ -1281,20 +1306,20 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
 
     const QVector<GalleryItem> noDressItems {
-        {QStringLiteral("UPPER"), QString(), QString(), QStringLiteral("upper")},
-        {QStringLiteral("LOWER"), QString(), QString(), QStringLiteral("lower")},
-        {QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")},
-        {QStringLiteral("UNKNOWN"), QString(), QString(), QStringLiteral("unknown")},
+        {QStringLiteral("UPPER"), QString(), QStringLiteral("upper")},
+        {QStringLiteral("LOWER"), QString(), QStringLiteral("lower")},
+        {QStringLiteral("ACCESSORY"), QString(), QStringLiteral("accessory")},
+        {QStringLiteral("UNKNOWN"), QString(), QStringLiteral("unknown")},
     };
     const auto dressFallback = GarmentMatcher::selectCandidates(QStringLiteral("dress"), noDressItems, true);
     const auto zeroCompatibleFallback =
         GarmentMatcher::selectCandidates(QStringLiteral("upper"),
-                                         {{QStringLiteral("LOWER"), QString(), QString(), QStringLiteral("lower")},
-                                          {QStringLiteral("DRESS"), QString(), QString(), QStringLiteral("dress")},
-                                          {QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")}},
+                                         {{QStringLiteral("LOWER"), QString(), QStringLiteral("lower")},
+                                          {QStringLiteral("DRESS"), QString(), QStringLiteral("dress")},
+                                          {QStringLiteral("ACCESSORY"), QString(), QStringLiteral("accessory")}},
                                          true);
     const auto noGarmentCandidates = GarmentMatcher::selectCandidates(
-        QStringLiteral("lower"), {{QStringLiteral("ACCESSORY"), QString(), QString(), QStringLiteral("accessory")}}, true);
+        QStringLiteral("lower"), {{QStringLiteral("ACCESSORY"), QString(), QStringLiteral("accessory")}}, true);
     if (!check(dressFallback.indexes == QVector<int>({0, 1, 3}) && !dressFallback.fallbackReason.isEmpty() &&
                    zeroCompatibleFallback.indexes == QVector<int>({0, 1}) && !zeroCompatibleFallback.fallbackReason.isEmpty() &&
                    noGarmentCandidates.indexes.isEmpty() && !noGarmentCandidates.fallbackReason.isEmpty(),
@@ -1304,9 +1329,9 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
 
     const QVector<GalleryItem> crossCategoryItems {
-        {QStringLiteral("WRONG-LOWER"), QString(), QString(), QStringLiteral("lower")},
-        {QStringLiteral("CORRECT-UPPER"), QString(), QString(), QStringLiteral("upper")},
-        {QStringLiteral("SAFE-UNKNOWN"), QString(), QString(), QStringLiteral("unknown")},
+        {QStringLiteral("WRONG-LOWER"), QString(), QStringLiteral("lower")},
+        {QStringLiteral("CORRECT-UPPER"), QString(), QStringLiteral("upper")},
+        {QStringLiteral("SAFE-UNKNOWN"), QString(), QStringLiteral("unknown")},
     };
     const auto unconstrained = GarmentMatcher::selectCandidates(QStringLiteral("upper"), crossCategoryItems, false);
     const auto constrained   = GarmentMatcher::selectCandidates(QStringLiteral("upper"), crossCategoryItems, true);

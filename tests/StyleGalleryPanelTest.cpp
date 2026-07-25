@@ -21,7 +21,6 @@ public:
     {
         StyleIdRole = Qt::UserRole + 1,
         ImagePathRole,
-        TagRole,
         IndexLabelRole,
         PartRole,
     };
@@ -44,8 +43,6 @@ public:
             return QStringLiteral("STYLE-%1").arg(index.row());
         case ImagePathRole:
             return QString();
-        case TagRole:
-            return QStringLiteral("adult");
         case IndexLabelRole:
             return index.row() + 1;
         case PartRole:
@@ -60,7 +57,6 @@ public:
         return {
             {StyleIdRole, "styleId"},
             {ImagePathRole, "imagePath"},
-            {TagRole, "tag"},
             {IndexLabelRole, "indexLabel"},
             {PartRole, "part"},
         };
@@ -84,7 +80,7 @@ class StyleGalleryPanelTestSetup final : public QObject
 public slots:
     void applicationAvailable()
     {
-        QQuickStyle::setStyle(QStringLiteral("Basic"));
+        QQuickStyle::setStyle(qEnvironmentVariable("GSM_TEST_QUICK_STYLE", "Basic"));
     }
 
     void qmlEngineAvailable(QQmlEngine *engine)

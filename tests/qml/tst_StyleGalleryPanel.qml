@@ -85,7 +85,6 @@ Item {
         function test_actionVisibility_data() {
             return [
                 {
-                    tag: "upper",
                     part: "upper",
                     upper: true,
                     lower: false,
@@ -93,7 +92,6 @@ Item {
                     layoutHeight: 28
                 },
                 {
-                    tag: "lower",
                     part: "lower",
                     upper: false,
                     lower: true,
@@ -101,7 +99,6 @@ Item {
                     layoutHeight: 28
                 },
                 {
-                    tag: "accessory",
                     part: "accessory",
                     upper: false,
                     lower: false,
@@ -109,7 +106,6 @@ Item {
                     layoutHeight: 0
                 },
                 {
-                    tag: "dress",
                     part: "dress",
                     upper: true,
                     lower: true,
@@ -117,7 +113,6 @@ Item {
                     layoutHeight: 60
                 },
                 {
-                    tag: "unknown",
                     part: "unknown",
                     upper: true,
                     lower: true,
@@ -130,6 +125,7 @@ Item {
         function test_actionVisibility(data) {
             galleryTestModel.setPart(data.part);
             waitForDelegate();
+            compare(child("galleryPartLabel-1").text, data.part);
             showHoverActions();
 
             compare(child("galleryMatchUpperButton-1").visible, data.upper);
@@ -144,10 +140,60 @@ Item {
                 tryCompare(menu, "visible", true);
             else
                 compare(menu.visible, false);
-            compare(child("galleryMatchUpperMenuItem").visible, data.upper);
-            compare(child("galleryConfirmUpperMenuItem").visible, data.upper);
-            compare(child("galleryMatchLowerMenuItem").visible, data.lower);
-            compare(child("galleryConfirmLowerMenuItem").visible, data.lower);
+            compare(child("galleryMatchUpperMenuItem") !== null, data.upper);
+            compare(child("galleryConfirmUpperMenuItem") !== null, data.upper);
+            compare(child("galleryMatchLowerMenuItem") !== null, data.lower);
+            compare(child("galleryConfirmLowerMenuItem") !== null, data.lower);
+            menu.close();
+        }
+
+        function test_partFilterOptionsAndSelection() {
+            const box = child("galleryPartFilterBox");
+            verify(box !== null);
+            compare(box.count, 5);
+            compare(box.textAt(0), "全部");
+            compare(box.textAt(1), "upper");
+            compare(box.textAt(2), "lower");
+            compare(box.textAt(3), "accessory");
+            compare(box.textAt(4), "unknown");
+
+            panel.categoryText = "lower";
+            tryCompare(box, "currentIndex", 2);
+            compare(box.currentText, "lower");
+
+            panel.categoryText = "missing";
+            tryCompare(box, "currentIndex", 0);
+            compare(box.currentText, "全部");
+        }
+
+        function test_contextMenuCollapsesHiddenActions_data() {
+            return [
+                { tag: "no spacing", spacing: 0 },
+                { tag: "compact spacing", spacing: 3 },
+                { tag: "wide spacing", spacing: 11 }
+            ];
+        }
+
+        function test_contextMenuCollapsesHiddenActions(data) {
+            const menu = child("galleryMatchMenu");
+            menu.contentItem.spacing = data.spacing;
+            galleryTestModel.setPart("upper");
+            waitForDelegate();
+            openMenu();
+            tryCompare(menu, "visible", true);
+            const confirmUpperItem = child("galleryConfirmUpperMenuItem");
+            tryVerify(function () {
+                const confirmUpperBottom = confirmUpperItem.mapToItem(menu.contentItem, 0, confirmUpperItem.height).y;
+                return confirmUpperBottom <= menu.contentItem.height;
+            });
+            const upperMenuHeight = menu.height;
+            menu.close();
+
+            galleryTestModel.setPart("unknown");
+            waitForDelegate();
+            openMenu();
+            tryCompare(menu, "visible", true);
+            tryVerify(function () { return menu.height > upperMenuHeight; });
             menu.close();
         }
 
@@ -180,6 +226,27 @@ Item {
             panel.currentPhotoSelected = true;
             compare(child("galleryMatchUpperButton-1").enabled, true);
             compare(child("galleryConfirmUpperButton-1").enabled, true);
+        }
+
+        function test_categoryRuleSelectionRestoresAndNeverStaysBlank() {
+            const box = child("categoryRuleBox");
+            verify(box !== null);
+
+            panel.currentCategoryRule = "TeenieWeenie";
+            panel.categoryRuleOptions = [
+                { id: "", name: "不使用品类规则" },
+                { id: "TeenieWeenie", name: "TeenieWeenie" }
+            ];
+            tryCompare(box, "currentIndex", 1);
+            compare(box.currentText, "TeenieWeenie");
+
+            panel.currentCategoryRule = "";
+            tryCompare(box, "currentIndex", 0);
+            compare(box.currentText, "不使用品类规则");
+
+            panel.currentCategoryRule = "missing-rule";
+            tryCompare(box, "currentIndex", 0);
+            compare(box.currentText, "不使用品类规则");
         }
 
         function test_modelRebuildInvalidatesOpenMenuAndUsesNewPart() {

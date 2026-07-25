@@ -58,6 +58,29 @@ return {
 }
 )lua");
 
+    const QByteArray kPartFilterRule = QByteArrayLiteral(R"lua(
+local parts = {
+    UPPER001 = { categoryCode = "UP", part = "upper" },
+    UPPER002 = { categoryCode = "UP", part = "upper" },
+    LOWER001 = { categoryCode = "LO", part = "lower" },
+    ACCESSORY001 = { categoryCode = "AC", part = "accessory" }
+}
+local function classify(input)
+    local result = parts[input]
+    if result == nil then
+        return { recognized = false, categoryCode = "ZZ", part = "unknown" }
+    end
+    return {
+        recognized = true, categoryCode = result.categoryCode,
+        level1Code = "1", level1Name = "测试品类",
+        level2Code = "1.1", level2Name = "测试子类", part = result.part
+    }
+end
+return {
+    ruleId = "part-filter-test", version = "1", classify = classify
+}
+)lua");
+
     const QByteArray kTransientFailureRule = QByteArrayLiteral(R"lua(
 local attempts = {}
 local function unknown()
@@ -107,9 +130,9 @@ int main(int argc, char *argv[])
     QCoreApplication application(argc, argv);
     GalleryListModel model;
     model.setItems({
-        {QStringLiteral("STYLE100A"), QStringLiteral("a.png"), QStringLiteral("baby")},
-        {QStringLiteral("STYLE200B"), QStringLiteral("b.png"), QStringLiteral("baby")},
-        {QStringLiteral("STYLE300C"), QStringLiteral("c.png"), QStringLiteral("baby")},
+        {QStringLiteral("STYLE100A"), QStringLiteral("a.png")},
+        {QStringLiteral("STYLE200B"), QStringLiteral("b.png")},
+        {QStringLiteral("STYLE300C"), QStringLiteral("c.png")},
     });
 
     if (!check(!model.roleNames().values().contains(QByteArrayLiteral("selected")), QStringLiteral("款号小图库模型不得再暴露列表项选择状态")))
@@ -198,9 +221,9 @@ int main(int argc, char *argv[])
     classifiedModel.setCategoryCachePath(categoryDatabasePath);
     classifiedModel.setCategoryRuleScript(kUpperRule);
     classifiedModel.setItems({
-        {QStringLiteral(" t0je26b38a008 "), QStringLiteral("first.png"), QStringLiteral("baby")},
-        {QStringLiteral("T0JE26B38A008"), QStringLiteral("second.png"), QStringLiteral("baby")},
-        {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png"), QStringLiteral("baby")},
+        {QStringLiteral(" t0je26b38a008 "), QStringLiteral("first.png")},
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("second.png")},
+        {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png")},
     });
     const auto &classifiedItems = classifiedModel.allItems();
     if (!check(classifiedItems.size() == 3 && classifiedItems.at(0).part == QStringLiteral("upper") &&
@@ -221,9 +244,9 @@ int main(int argc, char *argv[])
     }
 
     classifiedModel.setItems({
-        {QStringLiteral("T0JE26B38A008"), QStringLiteral("first.png"), QStringLiteral("baby")},
-        {QStringLiteral("T0JE26B38A008"), QStringLiteral("second.png"), QStringLiteral("baby")},
-        {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png"), QStringLiteral("baby")},
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("first.png")},
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("second.png")},
+        {QStringLiteral("T0ZZ26B38A008"), QStringLiteral("unknown.png")},
     });
     if (!check(classifiedModel.allItems().at(0).part == QStringLiteral("upper") && classifiedModel.allItems().at(1).part == QStringLiteral("upper") &&
                    classifiedModel.allItems().at(2).part == QStringLiteral("unknown") && classifiedModel.allItems().at(2).categoryError.isEmpty(),
@@ -261,16 +284,64 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    GalleryListModel partFilterModel;
+    partFilterModel.setCategoryRuleScript(kPartFilterRule);
+    partFilterModel.setItems({
+        {QStringLiteral("UPPER001"), QStringLiteral("upper-first.png")},
+        {QStringLiteral("UPPER002"), QStringLiteral("upper-second.png")},
+        {QStringLiteral("LOWER001"), QStringLiteral("lower.png")},
+        {QStringLiteral("ACCESSORY001"), QStringLiteral("accessory.png")},
+        {QStringLiteral("UNKNOWN001"), QStringLiteral("unknown.png")},
+    });
+    partFilterModel.setPartFilter(QStringLiteral("UPPER"));
+    if (!check(partFilterModel.rowCount() == 2 && partFilterModel.at(0)->part == QStringLiteral("upper") &&
+                   partFilterModel.at(1)->part == QStringLiteral("upper"),
+               QStringLiteral("upper 过滤必须只显示规则打标为 upper 的款号图片")))
+    {
+        return 1;
+    }
+    partFilterModel.setFilterText(QStringLiteral("002"));
+    if (!check(partFilterModel.rowCount() == 1 && partFilterModel.at(0)->styleId == QStringLiteral("UPPER002"),
+               QStringLiteral("品类过滤与款号文本搜索必须取交集")))
+    {
+        return 1;
+    }
+    partFilterModel.setFilterText({});
+    partFilterModel.setPartFilter(QStringLiteral("lower"));
+    if (!check(partFilterModel.rowCount() == 1 && partFilterModel.at(0)->part == QStringLiteral("lower"),
+               QStringLiteral("lower 过滤必须只显示规则打标为 lower 的款号图片")))
+    {
+        return 1;
+    }
+    partFilterModel.setPartFilter(QStringLiteral("accessory"));
+    if (!check(partFilterModel.rowCount() == 1 && partFilterModel.at(0)->part == QStringLiteral("accessory"),
+               QStringLiteral("accessory 过滤必须只显示规则打标为 accessory 的款号图片")))
+    {
+        return 1;
+    }
+    partFilterModel.setPartFilter(QStringLiteral("unknown"));
+    if (!check(partFilterModel.rowCount() == 1 && partFilterModel.at(0)->part == QStringLiteral("unknown"),
+               QStringLiteral("unknown 过滤必须只显示规则未识别的款号图片")))
+    {
+        return 1;
+    }
+    partFilterModel.setPartFilter(QStringLiteral("全部"));
+    if (!check(partFilterModel.rowCount() == 5 && partFilterModel.allItems().size() == 5,
+               QStringLiteral("选择全部必须恢复完整图库，品类过滤不得缩小自动匹配使用的数据集")))
+    {
+        return 1;
+    }
+
     GalleryListModel retryModel;
     retryModel.setCategoryCachePath(categoryDatabasePath);
     retryModel.setCategoryRuleScript(kTransientFailureRule);
-    retryModel.setItems({{QStringLiteral("T0JE26B38A008"), QStringLiteral("retry.png"), QStringLiteral("baby")}});
+    retryModel.setItems({{QStringLiteral("T0JE26B38A008"), QStringLiteral("retry.png")}});
     if (!check(retryModel.allItems().at(0).part == QStringLiteral("unknown") && !retryModel.allItems().at(0).categoryError.isEmpty(),
                QStringLiteral("单项规则执行失败必须安全回退为 unknown，并保留失败原因")))
     {
         return 1;
     }
-    retryModel.setItems({{QStringLiteral("T0JE26B38A008"), QStringLiteral("retry.png"), QStringLiteral("baby")}});
+    retryModel.setItems({{QStringLiteral("T0JE26B38A008"), QStringLiteral("retry.png")}});
     if (!check(retryModel.allItems().at(0).part == QStringLiteral("upper") && retryModel.allItems().at(0).categoryError.isEmpty(),
                QStringLiteral("故障回退 unknown 不得持久复用，后续导入必须重试并可恢复")))
     {

@@ -14,7 +14,6 @@ struct GalleryItem
 {
     QString styleId;   // e.g. "T0JE26B38A008"
     QString imagePath; // reference sketch/gallery image path
-    QString tag;       // e.g. "baby"
     QString part = QStringLiteral("unknown");
     QString categoryError;
     QString categoryCode;
@@ -29,7 +28,6 @@ public:
     {
         StyleIdRole = Qt::UserRole + 1,
         ImagePathRole,
-        TagRole,
         IndexLabelRole,
         PartRole,
         CategoryErrorRole,
@@ -54,6 +52,11 @@ public:
     {
         return m_filterText;
     }
+    void                  setPartFilter(const QString &part);
+    [[nodiscard]] QString partFilter() const
+    {
+        return m_partFilter;
+    }
     [[nodiscard]] const GalleryItem          *at(int row) const;
     [[nodiscard]] const QVector<GalleryItem> &allItems() const
     {
@@ -72,6 +75,7 @@ private:
     QVector<GalleryItem>                   m_allItems;
     QVector<GalleryItem>                   m_items;
     QString                                m_filterText;
+    QString                                m_partFilter;
     QString                                m_categoryCachePath;
     QByteArray                             m_categoryRuleScript;
     QString                                m_categoryRuleSha256;

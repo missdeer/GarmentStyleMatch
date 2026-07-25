@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     options.categoryFilterEnabled                   = false;
     const QStringList workingDirectoryEnginesBefore = executableDir.entryList({QStringLiteral("gsm_fp16*.engine")}, QDir::Files);
 
-    const QVector<GalleryItem>   gallery {{QStringLiteral("STYLE001"), galleryPath, QStringLiteral("test")}};
+    const QVector<GalleryItem>   gallery {{QStringLiteral("STYLE001"), galleryPath}};
     const GarmentMatcher::Result result = GarmentMatcher::match(photoPath, gallery, options);
     std::cout << "provider=" << result.provider.toStdString() << ", success=" << (result.success ? "true" : "false")
               << ", error=" << result.error.toStdString() << '\n';
@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
 
     options.categoryFilterEnabled = true;
     const QVector<GalleryItem> lowerGallery {
-        {QStringLiteral("STYLE001"), galleryPath, QStringLiteral("test"), QStringLiteral("lower")},
+        {QStringLiteral("STYLE001"), galleryPath, QStringLiteral("lower")},
     };
     const GarmentMatcher::Result unknownPhotoResult = GarmentMatcher::match(blankPhotoPath, lowerGallery, options);
     if (!check(unknownPhotoResult.success && unknownPhotoResult.upper.styleId.isEmpty() &&
@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     const QDateTime featureDatabaseTimestamp = QFileInfo(options.featureDatabasePath).lastModified();
     QThread::msleep(20);
     const QVector<GalleryItem> accessoryGallery {
-        {QStringLiteral("STYLE001"), galleryPath, QStringLiteral("test"), QStringLiteral("accessory")},
+        {QStringLiteral("STYLE001"), galleryPath, QStringLiteral("accessory")},
     };
     const GarmentMatcher::Result noGarmentCandidateResult = GarmentMatcher::match(photoPath, accessoryGallery, options);
     if (!check(!noGarmentCandidateResult.success && noGarmentCandidateResult.error.contains(QStringLiteral("没有可匹配的非配件图库候选")) &&
@@ -260,7 +260,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         }
     }
 
-    const QVector<GalleryItem>   changedGallery {{QStringLiteral("STYLE002"), galleryPath, QStringLiteral("test")}};
+    const QVector<GalleryItem>   changedGallery {{QStringLiteral("STYLE002"), galleryPath}};
     const GarmentMatcher::Result changedGalleryResult = GarmentMatcher::match(photoPath, changedGallery, options);
     if (!check(changedGalleryResult.success && changedGalleryResult.joinedStyleIds() == QStringLiteral("STYLE002"),
                QStringLiteral("款号小图库变化后必须刷新常驻 Runtime 使用的图库特征")))

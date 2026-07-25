@@ -42,6 +42,23 @@ Rectangle {
         return part !== "upper" && part !== "accessory"
     }
 
+    function categoryRuleIndex() {
+        const options = root.categoryRuleOptions || []
+        let fallbackIndex = options.length > 0 ? 0 : -1
+        for (let i = 0; i < options.length; ++i) {
+            if (options[i].id === root.currentCategoryRule)
+                return i
+            if (options[i].id === "")
+                fallbackIndex = i
+        }
+        return fallbackIndex
+    }
+
+    function categoryIndex() {
+        const index = catBox.model.indexOf(root.categoryText)
+        return index >= 0 ? index : 0
+    }
+
     function invalidateMatchMenu() {
         matchMenu.close()
         matchMenu.galleryRow = -1
@@ -69,33 +86,48 @@ Rectangle {
         property int galleryRow: -1
         property string part: "unknown"
         readonly property bool hasActions: root.showUpperActions(part) || root.showLowerActions(part)
+        readonly property int matchActionCount: (root.showUpperActions(part) ? 1 : 0)
+                                                + (root.showLowerActions(part) ? 1 : 0)
+        readonly property var actionEntries: {
+            const entries = []
+            if (root.showUpperActions(part))
+                entries.push({ objectName: "galleryMatchUpperMenuItem", text: qsTr("匹配为上衣"), action: "match", part: "upper" })
+            if (root.showLowerActions(part))
+                entries.push({ objectName: "galleryMatchLowerMenuItem", text: qsTr("匹配为裤裙"), action: "match", part: "lower" })
+            if (root.showUpperActions(part))
+                entries.push({ objectName: "galleryConfirmUpperMenuItem", text: qsTr("确认为上衣"), action: "confirm", part: "upper" })
+            if (root.showLowerActions(part))
+                entries.push({ objectName: "galleryConfirmLowerMenuItem", text: qsTr("确认为裤裙"), action: "confirm", part: "lower" })
+            return entries
+        }
 
-        MenuItem {
-            objectName: "galleryMatchUpperMenuItem"
-            text: qsTr("匹配为上衣")
-            visible: root.showUpperActions(matchMenu.part)
-            onTriggered: root.matchRequested(matchMenu.galleryRow, "upper")
-        }
-        MenuItem {
-            objectName: "galleryMatchLowerMenuItem"
-            text: qsTr("匹配为裤裙")
-            visible: root.showLowerActions(matchMenu.part)
-            onTriggered: root.matchRequested(matchMenu.galleryRow, "lower")
-        }
         MenuSeparator {
+            id: matchMenuSeparator
             visible: matchMenu.hasActions
         }
-        MenuItem {
-            objectName: "galleryConfirmUpperMenuItem"
-            text: qsTr("确认为上衣")
-            visible: root.showUpperActions(matchMenu.part)
-            onTriggered: root.confirmRequested(matchMenu.galleryRow, "upper")
-        }
-        MenuItem {
-            objectName: "galleryConfirmLowerMenuItem"
-            text: qsTr("确认为裤裙")
-            visible: root.showLowerActions(matchMenu.part)
-            onTriggered: root.confirmRequested(matchMenu.galleryRow, "lower")
+
+        Instantiator {
+            model: matchMenu.actionEntries
+
+            delegate: MenuItem {
+                required property var modelData
+                objectName: modelData.objectName
+                text: modelData.text
+                onTriggered: {
+                    if (modelData.action === "match")
+                        root.matchRequested(matchMenu.galleryRow, modelData.part)
+                    else
+                        root.confirmRequested(matchMenu.galleryRow, modelData.part)
+                }
+            }
+
+            onObjectAdded: function(index, object) {
+                const menuIndex = index < matchMenu.matchActionCount ? index : index + 1
+                matchMenu.insertItem(menuIndex, object)
+            }
+            onObjectRemoved: function(index, object) {
+                matchMenu.removeItem(object)
+            }
         }
     }
 
@@ -201,11 +233,12 @@ Rectangle {
                     Label { text: qsTr("品类规则") }
                     ComboBox {
                         id: categoryRuleBox
+                        objectName: "categoryRuleBox"
                         Layout.fillWidth: true
                         model: root.categoryRuleOptions
                         textRole: "name"
                         valueRole: "id"
-                        currentIndex: indexOfValue(root.currentCategoryRule)
+                        currentIndex: root.categoryRuleIndex()
                         onActivated: root.categoryRuleSelected(currentValue)
                     }
                     Button {
@@ -245,7 +278,9 @@ Rectangle {
 
                 ComboBox {
                     id: catBox
-                    model: [qsTr("全部"), qsTr("baby"), qsTr("kids"), qsTr("adult")]
+                    objectName: "galleryPartFilterBox"
+                    model: [qsTr("全部"), qsTr("upper"), qsTr("lower"), qsTr("accessory"), qsTr("unknown")]
+                    currentIndex: root.categoryIndex()
                     Layout.preferredWidth: 100
                     onCurrentTextChanged: root.categoryEdited(currentText)
                 }
@@ -284,7 +319,6 @@ Rectangle {
                 required property int    index
                 required property string styleId
                 required property string imagePath
-                required property string tag
                 required property int    indexLabel
                 required property string part
 
@@ -495,8 +529,9 @@ Rectangle {
                                 implicitHeight: tagLabel.implicitHeight + 4
                                 Label {
                                     id: tagLabel
+                                    objectName: "galleryPartLabel-" + cell.index
                                     anchors.centerIn: parent
-                                    text: cell.tag
+                                    text: cell.part
                                     font.pixelSize: 10
                                     color: Theme.accent
                                 }

@@ -413,6 +413,7 @@ void MatchController::setGalleryModel(GalleryListModel *m)
         m_galleryModel->setCategoryCachePath(
             QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_categories.sqlite")));
         m_galleryModel->setFilterText(m_searchText);
+        m_galleryModel->setPartFilter(m_categoryFilter);
         connect(m_galleryModel, &GalleryListModel::countChanged, this, &MatchController::rebuildAutoMatchedItems);
         connect(m_galleryModel, &GalleryListModel::classificationChanged, this, &MatchController::refreshCategorySummary);
         applyCategoryRule();
@@ -1142,6 +1143,10 @@ void MatchController::setCategoryFilter(const QString &v)
         return;
     }
     m_categoryFilter = v;
+    if (m_galleryModel)
+    {
+        m_galleryModel->setPartFilter(v);
+    }
     emit categoryFilterChanged();
 }
 
@@ -2058,7 +2063,6 @@ void MatchController::extractFromSelectedPages() // NOLINT(readability-function-
                         GalleryItem item;
                         item.styleId   = style.styleId;
                         item.imagePath = imagePath;
-                        item.tag       = QStringLiteral("baby");
                         items.push_back(std::move(item));
                     }
                 }
