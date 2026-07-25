@@ -53,40 +53,59 @@ local categories = {
     ["suit-trousers"] = {
         level1Code = "3", level1Name = "裤子", level2Code = "3.4", level2Name = "西装裤", part = "lower"
     },
+    shorts = {
+        level1Code = "3", level1Name = "裤子", level2Code = "3.5", level2Name = "短裤", part = "lower"
+    },
     skirt = {
-        level1Code = "3", level1Name = "裤子", level2Code = "3.5", level2Name = "半身裙", part = "lower"
+        level1Code = "3", level1Name = "裤子", level2Code = "3.6", level2Name = "半裙", part = "lower"
     },
     accessory = {
         level1Code = "4", level1Name = "配件", level2Code = "4.1", level2Name = "配饰", part = "accessory"
+    },
+    gift = {
+        level1Code = "5", level1Name = "赠品", level2Code = "5.1", level2Name = "赠品", part = "accessory"
     }
 }
 
 local codeToCategory = {
-    JD = "down-jacket",
+    JD = "down-jacket", DM = "down-jacket", DL = "down-jacket",
+    DS = "down-jacket", DK = "down-jacket", DV = "down-jacket",
     JP = "padded-jacket",
-    JJ = "jacket",
+    JJ = "jacket", JA = "jacket",
     JE = "denim-jacket",
-    JW = "wool-coat",
+    CL = "wool-coat", CS = "wool-coat", CM = "wool-coat",
+    CD = "wool-coat", JW = "wool-coat", JU = "wool-coat",
     JL = "leather-jacket",
-    JK = "suit",
+    JK = "suit", JM = "suit",
     JT = "trench",
-    VW = "vest",
-    CK = "knitwear", KW = "knitwear", KN = "knitwear",
-    MZ = "sweatshirt", MW = "sweatshirt", MA = "sweatshirt", MH = "sweatshirt",
+    VA = "vest", VJ = "vest", VL = "vest", VM = "vest", VW = "vest",
+    CK = "knitwear", KW = "knitwear", KN = "knitwear", KC = "knitwear",
+    KV = "knitwear", KA = "knitwear", KK = "knitwear",
+    MZ = "sweatshirt", MW = "sweatshirt", MA = "sweatshirt", MH = "sweatshirt", MT = "sweatshirt",
     LW = "tshirt", LS = "tshirt", LA = "tshirt", RW = "tshirt",
     RS = "tshirt", RA = "tshirt", RN = "tshirt", RL = "tshirt",
+    LB = "tshirt", RB = "tshirt", HB = "tshirt", HN = "tshirt",
+    SN = "tshirt", SH = "tshirt", SR = "tshirt",
     HW = "polo", HS = "polo", HA = "polo",
     YW = "shirt", YS = "shirt", YC = "shirt", YP = "shirt", YA = "shirt",
-    TM = "sweatpants", MT = "sweatpants",
-    TC = "trousers", TH = "trousers", TG = "trousers",
-    TJ = "jeans", TF = "jeans",
+    YB = "shirt", BL = "shirt", BN = "shirt", BW = "shirt", YN = "shirt",
+    TM = "sweatpants",
+    TC = "trousers", TG = "trousers", TA = "trousers",
+    TK = "trousers", TN = "trousers", TV = "trousers",
+    TH = "shorts", TF = "shorts",
+    TJ = "jeans",
     TW = "suit-trousers",
     WH = "skirt",
     AY = "accessory", AC = "accessory", AN = "accessory", AK = "accessory",
-    XP = "accessory", AW = "accessory", AM = "accessory", AB = "accessory",
+    AW = "accessory", AM = "accessory", AB = "accessory",
     AF = "accessory", AG = "accessory", AP = "accessory", AS = "accessory",
     AX = "accessory", FD = "accessory", FT = "accessory", MS = "accessory",
-    OA = "accessory", PP = "accessory"
+    OA = "accessory", PP = "accessory", GB = "accessory", GS = "accessory",
+    GD = "accessory", BG = "accessory", PG = "accessory", NB = "accessory",
+    LN = "accessory", FG = "accessory", FJ = "accessory", SX = "accessory",
+    FF = "accessory", QA = "accessory", WS = "accessory", AQ = "accessory",
+    KH = "accessory", XP = "accessory",
+    ZP = "gift"
 }
 
 local function unknown(code)
@@ -121,6 +140,6 @@ end
 
 return {
     ruleId = "TeenieWeenie",
-    version = "1",
+    version = "2",
     classify = classify
 }
