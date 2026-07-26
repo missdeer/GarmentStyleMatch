@@ -144,6 +144,18 @@ Item {
             compare(child("galleryConfirmUpperMenuItem") !== null, data.upper);
             compare(child("galleryMatchLowerMenuItem") !== null, data.lower);
             compare(child("galleryConfirmLowerMenuItem") !== null, data.lower);
+            const expectedMenuItems = [];
+            if (data.upper)
+                expectedMenuItems.push("galleryMatchUpperMenuItem");
+            if (data.lower)
+                expectedMenuItems.push("galleryMatchLowerMenuItem");
+            if (data.upper)
+                expectedMenuItems.push("galleryConfirmUpperMenuItem");
+            if (data.lower)
+                expectedMenuItems.push("galleryConfirmLowerMenuItem");
+            compare(menu.count, expectedMenuItems.length);
+            for (let index = 0; index < expectedMenuItems.length; ++index)
+                compare(menu.itemAt(index).objectName, expectedMenuItems[index]);
             menu.close();
         }
 

@@ -86,8 +86,6 @@ Rectangle {
         property int galleryRow: -1
         property string part: "unknown"
         readonly property bool hasActions: root.showUpperActions(part) || root.showLowerActions(part)
-        readonly property int matchActionCount: (root.showUpperActions(part) ? 1 : 0)
-                                                + (root.showLowerActions(part) ? 1 : 0)
         readonly property var actionEntries: {
             const entries = []
             if (root.showUpperActions(part))
@@ -99,11 +97,6 @@ Rectangle {
             if (root.showLowerActions(part))
                 entries.push({ objectName: "galleryConfirmLowerMenuItem", text: qsTr("确认为裤裙"), action: "confirm", part: "lower" })
             return entries
-        }
-
-        MenuSeparator {
-            id: matchMenuSeparator
-            visible: matchMenu.hasActions
         }
 
         Instantiator {
@@ -122,8 +115,7 @@ Rectangle {
             }
 
             onObjectAdded: function(index, object) {
-                const menuIndex = index < matchMenu.matchActionCount ? index : index + 1
-                matchMenu.insertItem(menuIndex, object)
+                matchMenu.insertItem(index, object)
             }
             onObjectRemoved: function(index, object) {
                 matchMenu.removeItem(object)
