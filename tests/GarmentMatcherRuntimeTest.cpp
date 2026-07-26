@@ -220,8 +220,10 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     const GarmentMatcher::Result unknownPhotoResult = GarmentMatcher::match(blankPhotoPath, lowerGallery, options);
     if (!check(unknownPhotoResult.success && unknownPhotoResult.upper.styleId.isEmpty() &&
                    unknownPhotoResult.lower.styleId == QStringLiteral("STYLE001") && !unknownPhotoResult.candidateDiagnostics.isEmpty() &&
-                   unknownPhotoResult.candidateDiagnostics.constFirst().contains(QStringLiteral("实拍类别 unknown")),
-               QStringLiteral("分割类别 unknown 时必须使用安全候选，并按获胜图库品类写入下装而非上衣")))
+                   unknownPhotoResult.candidateDiagnostics.constFirst().contains(QStringLiteral("未知候选")) &&
+                   unknownPhotoResult.candidateDiagnostics.constFirst().contains(QStringLiteral("实拍类别未知")) &&
+                   !unknownPhotoResult.candidateDiagnostics.constFirst().contains(QStringLiteral("unknown")),
+               QStringLiteral("分割类别未知时必须使用安全候选、输出中文诊断，并按获胜图库品类写入下装而非上衣")))
     {
         return 1;
     }

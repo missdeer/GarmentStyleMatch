@@ -1317,11 +1317,12 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
 
     const QString candidateFailureMessage = MatchController::autoMatchFailureMessage(
-        QStringLiteral("unknown 没有可匹配的非配件图库候选"), {QStringLiteral("unknown 候选 1→0（unknown 0），回退：使用全部非配件候选")});
+        QStringLiteral("未知没有可匹配的非配件图库候选"), {QStringLiteral("未知候选 1→0（未知 0），回退：使用全部非配件候选")});
     if (!check(candidateFailureMessage.contains(QStringLiteral("自动匹配失败")) &&
-                   candidateFailureMessage.contains(QStringLiteral("品类候选：unknown 候选 1→0（unknown 0）")) &&
-                   candidateFailureMessage.contains(QStringLiteral("回退：使用全部非配件候选")),
-               QStringLiteral("单张匹配失败日志必须保留候选数量和回退诊断：%1").arg(candidateFailureMessage)))
+                   candidateFailureMessage.contains(QStringLiteral("品类候选：未知候选 1→0（未知 0）")) &&
+                   candidateFailureMessage.contains(QStringLiteral("回退：使用全部非配件候选")) &&
+                   !candidateFailureMessage.contains(QStringLiteral("unknown")),
+               QStringLiteral("单张匹配失败日志必须以中文保留候选数量和回退诊断：%1").arg(candidateFailureMessage)))
     {
         return 1;
     }

@@ -450,15 +450,37 @@ namespace
         return QStringLiteral("unknown");
     }
 
+    [[nodiscard]] QString partDisplayName(const QString &part)
+    {
+        const QString normalized = normalizedPart(part);
+        if (normalized == QLatin1String("upper"))
+        {
+            return QStringLiteral("上衣");
+        }
+        if (normalized == QLatin1String("lower"))
+        {
+            return QStringLiteral("裤裙");
+        }
+        if (normalized == QLatin1String("dress"))
+        {
+            return QStringLiteral("连衣裙");
+        }
+        if (normalized == QLatin1String("accessory"))
+        {
+            return QStringLiteral("配饰");
+        }
+        return QStringLiteral("未知");
+    }
+
     [[nodiscard]] QString candidateDiagnostic(const GarmentMatcher::CandidateSelection &selection)
     {
-        QString message = selection.filterEnabled ? QStringLiteral("%1 候选 %2→%3（unknown %4）")
-                                                        .arg(selection.queryPart)
+        QString message = selection.filterEnabled ? QStringLiteral("%1候选 %2→%3（未知 %4）")
+                                                        .arg(partDisplayName(selection.queryPart))
                                                         .arg(selection.candidatesBefore)
                                                         .arg(selection.candidatesAfter)
                                                         .arg(selection.unknownCandidates)
                                                   : QStringLiteral("%1 品类约束已关闭，候选 %2→%3")
-                                                        .arg(selection.queryPart)
+                                                        .arg(partDisplayName(selection.queryPart))
                                                         .arg(selection.candidatesBefore)
                                                         .arg(selection.candidatesAfter);
         if (!selection.fallbackReason.isEmpty())
@@ -1062,8 +1084,8 @@ namespace
                 result.candidateDiagnostics.push_back(candidateDiagnostic(selection));
                 if (selection.indexes.isEmpty())
                 {
-                    throw std::runtime_error(QStringLiteral("%1 没有可匹配的非配件图库候选（过滤前 %2，过滤后 %3）")
-                                                 .arg(selection.queryPart)
+                    throw std::runtime_error(QStringLiteral("%1没有可匹配的非配件图库候选（过滤前 %2，过滤后 %3）")
+                                                 .arg(partDisplayName(selection.queryPart))
                                                  .arg(selection.candidatesBefore)
                                                  .arg(selection.candidatesAfter)
                                                  .toStdString());
@@ -1203,12 +1225,12 @@ GarmentMatcher::CandidateSelection GarmentMatcher::selectCandidates(const QStrin
     else if (selection.queryPart == QLatin1String("unknown"))
     {
         selection.indexes        = nonAccessoryIndexes;
-        selection.fallbackReason = QStringLiteral("实拍类别 unknown，使用全部非配件候选");
+        selection.fallbackReason = QStringLiteral("实拍类别未知，使用全部非配件候选");
     }
     else if (selection.queryPart == QLatin1String("dress") && !hasDressCandidate)
     {
         selection.indexes        = nonAccessoryIndexes;
-        selection.fallbackReason = QStringLiteral("当前图库无 dress 候选，使用全部非配件候选");
+        selection.fallbackReason = QStringLiteral("当前图库无连衣裙候选，使用全部非配件候选");
     }
     else
     {
