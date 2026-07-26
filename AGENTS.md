@@ -69,6 +69,8 @@ ctest --test-dir cmake-msvc-build --output-on-failure
 cmake --install cmake-msvc-build --prefix install
 ```
 
+`GarmentMatcherTensorRTRuntimeTest` routinely takes more than 3 minutes. Be patient when running the test suite: allow at least twice the expected runtime (more than 6 minutes for this test) before treating it as timed out or force-stopping it, unless there is explicit crash or deadlock evidence.
+
 Do not create a second `build/` tree. A running `GarmentStyleMatch.exe` locks the output binary on Windows and causes linker error `LNK1168`; close it before rebuilding.
 
 ## qt.conf trick (development runtime)
