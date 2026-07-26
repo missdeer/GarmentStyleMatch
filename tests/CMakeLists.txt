@@ -238,10 +238,15 @@ if(WIN32)
 endif()
 add_executable(MatchControllerTest ${_gsm_match_controller_test_sources})
 
+if(APPLE)
+    set(_gsm_match_controller_test_category_rules_dir "$<TARGET_FILE_DIR:MatchControllerTest>/../Scripts/category-rules")
+else()
+    set(_gsm_match_controller_test_category_rules_dir "$<TARGET_FILE_DIR:MatchControllerTest>/scripts/category-rules")
+endif()
 add_custom_command(TARGET MatchControllerTest POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/resources/category-rules"
-            "$<TARGET_FILE_DIR:MatchControllerTest>/scripts/category-rules"
+            "${_gsm_match_controller_test_category_rules_dir}"
     COMMENT "Copying category rules for MatchControllerTest"
     VERBATIM
 )
