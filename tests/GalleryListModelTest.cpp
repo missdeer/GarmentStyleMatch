@@ -332,6 +332,51 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    const QString    overrideDatabasePath = temporary.filePath(QStringLiteral("category-overrides.sqlite"));
+    GalleryListModel manualOverrideModel;
+    manualOverrideModel.setCategoryOverridePath(overrideDatabasePath);
+    manualOverrideModel.setCategoryRuleScript(kUpperRule);
+    manualOverrideModel.setItems({
+        {QStringLiteral(" t0je26b38a008 "), QStringLiteral("manual-first.png")},
+        {QStringLiteral("T0JE26B38A008"), QStringLiteral("manual-second.png")},
+    });
+    manualOverrideModel.setPartFilter(QStringLiteral("upper"));
+    if (!check(manualOverrideModel.setManualPart(0, QStringLiteral("lower")) && manualOverrideModel.rowCount() == 0 &&
+                   manualOverrideModel.allItems().at(0).part == QStringLiteral("lower") &&
+                   manualOverrideModel.allItems().at(1).part == QStringLiteral("lower") &&
+                   manualOverrideModel.allItems().at(0).categoryCode.isEmpty(),
+               QStringLiteral("人工分类必须按规范化款号覆盖同款多图、清除规则诊断，并立即更新当前品类过滤结果")))
+    {
+        return 1;
+    }
+    manualOverrideModel.setPartFilter(QStringLiteral("全部"));
+    for (const QString &part :
+         {QStringLiteral("upper"), QStringLiteral("lower"), QStringLiteral("dress"), QStringLiteral("accessory"), QStringLiteral("unknown")})
+    {
+        if (!check(manualOverrideModel.setManualPart(0, part) && manualOverrideModel.allItems().at(0).part == part,
+                   QStringLiteral("人工分类必须支持设置为 %1").arg(part)))
+        {
+            return 1;
+        }
+    }
+    if (!check(!manualOverrideModel.setManualPart(0, QStringLiteral("invalid")) &&
+                   manualOverrideModel.allItems().at(0).part == QStringLiteral("unknown"),
+               QStringLiteral("人工分类必须拒绝约定五类之外的值且不得改变现有分类")))
+    {
+        return 1;
+    }
+
+    GalleryListModel restoredOverrideModel;
+    restoredOverrideModel.setCategoryOverridePath(overrideDatabasePath);
+    restoredOverrideModel.setCategoryRuleScript(kChangedContentRule);
+    restoredOverrideModel.setItems({{QStringLiteral("T0JE26B38A008"), QStringLiteral("restored-override.png")}});
+    if (!check(restoredOverrideModel.allItems().at(0).part == QStringLiteral("unknown") &&
+                   restoredOverrideModel.allItems().at(0).categoryError.isEmpty() && restoredOverrideModel.allItems().at(0).categoryCode.isEmpty(),
+               QStringLiteral("人工 unknown 必须跨模型重建持久恢复，并优先于后来变化的自动分类规则")))
+    {
+        return 1;
+    }
+
     GalleryListModel retryModel;
     retryModel.setCategoryCachePath(categoryDatabasePath);
     retryModel.setCategoryRuleScript(kTransientFailureRule);

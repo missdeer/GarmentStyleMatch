@@ -412,6 +412,8 @@ void MatchController::setGalleryModel(GalleryListModel *m)
     {
         m_galleryModel->setCategoryCachePath(
             QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).absoluteFilePath(QStringLiteral("style_categories.sqlite")));
+        m_galleryModel->setCategoryOverridePath(QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+                                                    .absoluteFilePath(QStringLiteral("gallery_category_overrides.sqlite")));
         m_galleryModel->setFilterText(m_searchText);
         m_galleryModel->setPartFilter(m_categoryFilter);
         connect(m_galleryModel, &GalleryListModel::countChanged, this, &MatchController::rebuildAutoMatchedItems);
@@ -1195,6 +1197,31 @@ void MatchController::reloadCategoryRule()
     applyCategoryRule(true);
     emit logMessage(m_categoryRuleLoadError.isEmpty() ? QStringLiteral("已重新加载品类规则：%1").arg(categoryRuleDisplayName(m_currentCategoryRule))
                                                       : QStringLiteral("品类规则重新加载失败：%1").arg(m_categoryRuleLoadError));
+}
+
+bool MatchController::setGalleryItemCategory(int galleryRow, const QString &part)
+{
+    const GalleryItem *item = m_galleryModel ? m_galleryModel->at(galleryRow) : nullptr;
+    if (!item)
+    {
+        emit logMessage(QStringLiteral("设置款号品类失败：图库项不存在"));
+        return false;
+    }
+    const QString styleId        = item->styleId.trimmed();
+    const QString normalizedPart = part.trimmed().toLower();
+    if (!m_galleryModel->setManualPart(galleryRow, normalizedPart))
+    {
+        emit logMessage(QStringLiteral("设置款号 %1 品类失败").arg(styleId));
+        return false;
+    }
+
+    const QString category = normalizedPart == QLatin1String("upper")       ? QStringLiteral("上衣")
+                             : normalizedPart == QLatin1String("lower")     ? QStringLiteral("裤裙")
+                             : normalizedPart == QLatin1String("dress")     ? QStringLiteral("连衣裙")
+                             : normalizedPart == QLatin1String("accessory") ? QStringLiteral("配件")
+                                                                            : QStringLiteral("未知");
+    emit          logMessage(QStringLiteral("已将款号 %1 人工设为%2").arg(styleId, category));
+    return true;
 }
 
 void MatchController::applyCategoryRule(bool forceReload)

@@ -32,6 +32,7 @@ Rectangle {
     signal extractRequested()
     signal galleryMatchRequested(int galleryRow, string part)
     signal galleryConfirmRequested(int galleryRow, string part)
+    signal galleryCategoryOverrideRequested(int galleryRow, string part)
 
     function initializeStartupTab(loadFinished) {
         if (startupTabInitialized)
@@ -113,6 +114,7 @@ Rectangle {
                 onReloadCategoryRuleRequested: root.reloadCategoryRuleRequested()
                 onMatchRequested: (row, part) => root.galleryMatchRequested(row, part)
                 onConfirmRequested: (row, part) => root.galleryConfirmRequested(row, part)
+                onCategoryOverrideRequested: (row, part) => root.galleryCategoryOverrideRequested(row, part)
             }
         }
     }

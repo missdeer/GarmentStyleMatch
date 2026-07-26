@@ -1301,6 +1301,21 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         return 1;
     }
 
+    GalleryListModel manualOverrideGalleryModel;
+    MatchController  manualOverrideController;
+    manualOverrideController.setGalleryModel(&manualOverrideGalleryModel);
+    manualOverrideGalleryModel.setItems({
+        {QStringLiteral("MANUAL-CONTROLLER-OVERRIDE-001"), QStringLiteral("manual-controller.png")},
+    });
+    if (!check(manualOverrideController.setGalleryItemCategory(0, QStringLiteral("dress")) &&
+                   manualOverrideGalleryModel.allItems().at(0).part == QStringLiteral("dress") &&
+                   manualOverrideGalleryModel.allItems().at(0).categoryError.isEmpty() &&
+                   manualOverrideController.categorySummary().contains(QStringLiteral("连衣裙：1")),
+               QStringLiteral("控制器必须持久写入人工品类、刷新图库模型并同步分类摘要")))
+    {
+        return 1;
+    }
+
     const QString candidateFailureMessage = MatchController::autoMatchFailureMessage(
         QStringLiteral("unknown 没有可匹配的非配件图库候选"), {QStringLiteral("unknown 候选 1→0（unknown 0），回退：使用全部非配件候选")});
     if (!check(candidateFailureMessage.contains(QStringLiteral("自动匹配失败")) &&

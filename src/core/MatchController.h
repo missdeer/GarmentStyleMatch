@@ -228,6 +228,7 @@ public slots:
     void                      cancelModelDownload();
     static void               openModelDirectory();
     void                      reloadCategoryRule();
+    bool                      setGalleryItemCategory(int galleryRow, const QString &part);
 
     void restorePersistentState();
     void completeDeferredStartup();

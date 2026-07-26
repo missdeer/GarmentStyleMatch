@@ -43,6 +43,7 @@ public:
     void                  setItems(QVector<GalleryItem> items);
     void                  loadFromStyleCacheDir(const QString &directoryPath);
     void                  setCategoryCachePath(const QString &databasePath);
+    void                  setCategoryOverridePath(const QString &databasePath);
     void                  setCategoryRuleScript(const QByteArray &script, bool forceReload = false);
     [[nodiscard]] bool    categoryRuleReady() const;
     [[nodiscard]] QString categoryRuleId() const;
@@ -58,6 +59,7 @@ public:
         return m_partFilter;
     }
     [[nodiscard]] const GalleryItem          *at(int row) const;
+    bool                                      setManualPart(int row, const QString &part);
     [[nodiscard]] const QVector<GalleryItem> &allItems() const
     {
         return m_allItems;
@@ -70,6 +72,7 @@ signals:
 
 private:
     void classifyItems(QVector<GalleryItem> &items) const;
+    void applyManualOverrides(QVector<GalleryItem> &items) const;
     void rebuildFilteredItems();
 
     QVector<GalleryItem>                   m_allItems;
@@ -77,6 +80,7 @@ private:
     QString                                m_filterText;
     QString                                m_partFilter;
     QString                                m_categoryCachePath;
+    QString                                m_categoryOverridePath;
     QByteArray                             m_categoryRuleScript;
     QString                                m_categoryRuleSha256;
     std::unique_ptr<LuaCategoryRuleEngine> m_categoryRule;

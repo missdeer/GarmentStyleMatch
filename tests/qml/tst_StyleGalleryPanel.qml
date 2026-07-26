@@ -40,6 +40,11 @@ Item {
             signalName: "confirmRequested"
         }
 
+        SignalSpy {
+            id: categoryOverrideSpy
+            signalName: "categoryOverrideRequested"
+        }
+
         property var panel
 
         function child(name) {
@@ -71,14 +76,17 @@ Item {
             verify(panel !== null);
             matchSpy.target = panel;
             confirmSpy.target = panel;
+            categoryOverrideSpy.target = panel;
             matchSpy.clear();
             confirmSpy.clear();
+            categoryOverrideSpy.clear();
             waitForDelegate();
         }
 
         function cleanup() {
             matchSpy.target = null;
             confirmSpy.target = null;
+            categoryOverrideSpy.target = null;
             panel = null;
         }
 
@@ -108,7 +116,7 @@ Item {
                     upper: false,
                     lower: false,
                     dress: false,
-                    menu: false,
+                    menu: true,
                     layoutHeight: 0
                 },
                 {
@@ -171,9 +179,10 @@ Item {
                 expectedMenuItems.push("galleryConfirmLowerMenuItem");
             if (data.dress)
                 expectedMenuItems.push("galleryConfirmDressMenuItem");
-            compare(menu.count, expectedMenuItems.length);
+            compare(menu.count, expectedMenuItems.length + 1);
             for (let index = 0; index < expectedMenuItems.length; ++index)
                 compare(menu.itemAt(index).objectName, expectedMenuItems[index]);
+            compare(child("galleryCategoryOverrideMenu").count, 5);
             menu.close();
         }
 
@@ -275,6 +284,30 @@ Item {
             compare(child("galleryConfirmUpperButton-1").enabled, true);
         }
 
+        function test_categoryOverrideAvailableWithoutCurrentPhoto() {
+            galleryTestModel.setPart("upper");
+            waitForDelegate();
+            panel.currentPhotoSelected = false;
+            openMenu();
+            const menu = child("galleryMatchMenu");
+            tryCompare(menu, "visible", true);
+            compare(menu.count, 1);
+
+            const categoryMenu = child("galleryCategoryOverrideMenu");
+            compare(categoryMenu.count, 5);
+            compare(categoryMenu.itemAt(0).objectName, "gallerySetCategory-upper");
+            compare(categoryMenu.itemAt(1).objectName, "gallerySetCategory-lower");
+            compare(categoryMenu.itemAt(2).objectName, "gallerySetCategory-dress");
+            compare(categoryMenu.itemAt(3).objectName, "gallerySetCategory-accessory");
+            compare(categoryMenu.itemAt(4).objectName, "gallerySetCategory-unknown");
+            compare(child("gallerySetCategory-upper").checkable, false);
+            compare(child("gallerySetCategory-lower").checkable, false);
+            child("gallerySetCategory-lower").triggered();
+            compare(categoryOverrideSpy.count, 1);
+            compare(categoryOverrideSpy.signalArguments[0][0], 1);
+            compare(categoryOverrideSpy.signalArguments[0][1], "lower");
+        }
+
         function test_categoryRuleSelectionRestoresAndNeverStaysBlank() {
             const box = child("categoryRuleBox");
             verify(box !== null);
@@ -310,7 +343,7 @@ Item {
             compare(child("galleryMatchLowerButton-1").visible, false);
         }
 
-        function test_actionlessContextClosesOpenMenu() {
+        function test_accessoryContextStillOffersCategoryOverride() {
             galleryTestModel.setPart("unknown");
             waitForDelegate();
             openMenu();
@@ -318,9 +351,10 @@ Item {
             tryCompare(menu, "visible", true);
 
             panel.openMatchMenu(0, "accessory");
-            compare(menu.visible, false);
+            tryCompare(menu, "visible", true);
             compare(menu.galleryRow, 0);
             compare(menu.part, "accessory");
+            compare(child("gallerySetCategory-accessory").checkable, false);
         }
     }
 }

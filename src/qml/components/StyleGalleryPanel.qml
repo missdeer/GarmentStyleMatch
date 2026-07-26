@@ -33,6 +33,7 @@ Rectangle {
     signal reloadCategoryRuleRequested()
     signal matchRequested(int galleryRow, string part)
     signal confirmRequested(int galleryRow, string part)
+    signal categoryOverrideRequested(int galleryRow, string part)
 
     color: Theme.background
 
@@ -93,8 +94,7 @@ Rectangle {
         matchMenu.close()
         matchMenu.galleryRow = galleryRow
         matchMenu.part = part
-        if (matchMenu.hasActions)
-            matchMenu.popup()
+        matchMenu.popup()
     }
 
     Connections {
@@ -109,20 +109,19 @@ Rectangle {
         objectName: "galleryMatchMenu"
         property int galleryRow: -1
         property string part: "unknown"
-        readonly property bool hasActions: root.showUpperActions(part) || root.showLowerActions(part) || root.showDressActions(part)
         readonly property var actionEntries: {
             const entries = []
-            if (root.showUpperActions(part))
+            if (root.currentPhotoSelected && root.showUpperActions(part))
                 entries.push({ objectName: "galleryMatchUpperMenuItem", text: qsTr("匹配为上衣"), action: "match", part: "upper" })
-            if (root.showLowerActions(part))
+            if (root.currentPhotoSelected && root.showLowerActions(part))
                 entries.push({ objectName: "galleryMatchLowerMenuItem", text: qsTr("匹配为裤裙"), action: "match", part: "lower" })
-            if (root.showDressActions(part))
+            if (root.currentPhotoSelected && root.showDressActions(part))
                 entries.push({ objectName: "galleryMatchDressMenuItem", text: qsTr("匹配为连衣裙"), action: "match", part: "dress" })
-            if (root.showUpperActions(part))
+            if (root.currentPhotoSelected && root.showUpperActions(part))
                 entries.push({ objectName: "galleryConfirmUpperMenuItem", text: qsTr("确认为上衣"), action: "confirm", part: "upper" })
-            if (root.showLowerActions(part))
+            if (root.currentPhotoSelected && root.showLowerActions(part))
                 entries.push({ objectName: "galleryConfirmLowerMenuItem", text: qsTr("确认为裤裙"), action: "confirm", part: "lower" })
-            if (root.showDressActions(part))
+            if (root.currentPhotoSelected && root.showDressActions(part))
                 entries.push({ objectName: "galleryConfirmDressMenuItem", text: qsTr("确认为连衣裙"), action: "confirm", part: "dress" })
             return entries
         }
@@ -147,6 +146,38 @@ Rectangle {
             }
             onObjectRemoved: function(index, object) {
                 matchMenu.removeItem(object)
+            }
+        }
+
+        Menu {
+            id: categoryOverrideMenu
+            objectName: "galleryCategoryOverrideMenu"
+            title: qsTr("设置品类")
+
+            MenuItem {
+                objectName: "gallerySetCategory-upper"
+                text: qsTr("上衣")
+                onTriggered: root.categoryOverrideRequested(matchMenu.galleryRow, "upper")
+            }
+            MenuItem {
+                objectName: "gallerySetCategory-lower"
+                text: qsTr("裤裙")
+                onTriggered: root.categoryOverrideRequested(matchMenu.galleryRow, "lower")
+            }
+            MenuItem {
+                objectName: "gallerySetCategory-dress"
+                text: qsTr("连衣裙")
+                onTriggered: root.categoryOverrideRequested(matchMenu.galleryRow, "dress")
+            }
+            MenuItem {
+                objectName: "gallerySetCategory-accessory"
+                text: qsTr("配件")
+                onTriggered: root.categoryOverrideRequested(matchMenu.galleryRow, "accessory")
+            }
+            MenuItem {
+                objectName: "gallerySetCategory-unknown"
+                text: qsTr("未知")
+                onTriggered: root.categoryOverrideRequested(matchMenu.galleryRow, "unknown")
             }
         }
     }
@@ -393,7 +424,7 @@ Rectangle {
                                 cursorShape: Qt.PointingHandCursor
                                 z: 1
                                 onClicked: function(mouse) {
-                                    if (mouse.button === Qt.RightButton && root.currentPhotoSelected)
+                                    if (mouse.button === Qt.RightButton)
                                         root.openMatchMenu(cell.index, cell.part)
                                 }
                                 onDoubleClicked: function(mouse) {

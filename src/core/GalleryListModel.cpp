@@ -57,6 +57,12 @@ namespace
                                                   classification.part == QLatin1String("dress") || classification.part == QLatin1String("unknown"));
     }
 
+    bool isValidPart(const QString &part)
+    {
+        return part == QLatin1String("upper") || part == QLatin1String("lower") || part == QLatin1String("accessory") ||
+               part == QLatin1String("dress") || part == QLatin1String("unknown");
+    }
+
     bool prepareCategoryCache(SQLiteDB &database)
     {
         if (!database.execute("CREATE TABLE IF NOT EXISTS gallery_categories("
@@ -118,6 +124,30 @@ namespace
             return;
         }
         (void)statement.step();
+    }
+
+    bool prepareCategoryOverrideStore(SQLiteDB &database)
+    {
+        return database.execute("CREATE TABLE IF NOT EXISTS gallery_category_overrides("
+                                "normalized_style_id TEXT PRIMARY KEY,part TEXT NOT NULL)");
+    }
+
+    std::optional<QString> loadCategoryOverride(SQLiteDB &database, const QString &styleId)
+    {
+        SQLiteStatement statement = database.prepare("SELECT part FROM gallery_category_overrides WHERE normalized_style_id=?1");
+        if (!statement || !statement.bindText(1, styleId) || statement.step() != SQLiteStatement::StepResult::Row)
+        {
+            return std::nullopt;
+        }
+        const QString part = statement.columnText(0);
+        return isValidPart(part) ? std::optional<QString>(part) : std::nullopt;
+    }
+
+    bool saveCategoryOverride(SQLiteDB &database, const QString &styleId, const QString &part)
+    {
+        SQLiteStatement statement = database.prepare("INSERT INTO gallery_category_overrides(normalized_style_id,part) VALUES(?1,?2) "
+                                                     "ON CONFLICT(normalized_style_id) DO UPDATE SET part=excluded.part");
+        return statement && statement.bindText(1, styleId) && statement.bindText(2, part) && statement.step() == SQLiteStatement::StepResult::Done;
     }
 } // namespace
 
@@ -198,6 +228,24 @@ void GalleryListModel::setCategoryCachePath(const QString &databasePath)
     }
 }
 
+void GalleryListModel::setCategoryOverridePath(const QString &databasePath)
+{
+    if (databasePath == m_categoryOverridePath)
+    {
+        return;
+    }
+    m_categoryOverridePath = databasePath;
+    if (!m_allItems.isEmpty())
+    {
+        beginResetModel();
+        classifyItems(m_allItems);
+        rebuildFilteredItems();
+        endResetModel();
+        emit countChanged();
+        emit classificationChanged();
+    }
+}
+
 void GalleryListModel::setCategoryRuleScript(const QByteArray &script, bool forceReload)
 {
     if (!forceReload && script == m_categoryRuleScript)
@@ -250,6 +298,7 @@ void GalleryListModel::classifyItems(QVector<GalleryItem> &items) const
     }
     if (!m_categoryRule)
     {
+        applyManualOverrides(items);
         return;
     }
     if (m_categoryRule->state() != LuaCategoryRuleEngine::State::Ready)
@@ -259,6 +308,7 @@ void GalleryListModel::classifyItems(QVector<GalleryItem> &items) const
         {
             item.categoryError = error;
         }
+        applyManualOverrides(items);
         return;
     }
 
@@ -306,6 +356,44 @@ void GalleryListModel::classifyItems(QVector<GalleryItem> &items) const
     if (cacheTransactionStarted)
     {
         (void)database->execute("COMMIT");
+    }
+
+    applyManualOverrides(items);
+}
+
+void GalleryListModel::applyManualOverrides(QVector<GalleryItem> &items) const
+{
+    if (m_categoryOverridePath.isEmpty())
+    {
+        return;
+    }
+    QDir().mkpath(QFileInfo(m_categoryOverridePath).absolutePath());
+    SQLiteDB database(m_categoryOverridePath);
+    if (!database || !prepareCategoryOverrideStore(database))
+    {
+        return;
+    }
+
+    QHash<QString, std::optional<QString>> overrides;
+    overrides.reserve(items.size());
+    for (GalleryItem &item : items)
+    {
+        const QString styleId = normalizedStyleId(item.styleId);
+        if (styleId.isEmpty())
+        {
+            continue;
+        }
+        auto found = overrides.constFind(styleId);
+        if (found == overrides.constEnd())
+        {
+            found = overrides.constFind(overrides.insert(styleId, loadCategoryOverride(database, styleId)).key());
+        }
+        if (*found)
+        {
+            item.part = **found;
+            item.categoryError.clear();
+            item.categoryCode.clear();
+        }
     }
 }
 
@@ -394,6 +482,44 @@ const GalleryItem *GalleryListModel::at(int row) const
         return nullptr;
     }
     return &m_items.at(row);
+}
+
+bool GalleryListModel::setManualPart(int row, const QString &part)
+{
+    const QString normalizedPart = part.trimmed().toLower();
+    const auto   *item           = at(row);
+    if (!item || !isValidPart(normalizedPart) || m_categoryOverridePath.isEmpty())
+    {
+        return false;
+    }
+    const QString styleId = normalizedStyleId(item->styleId);
+    if (styleId.isEmpty())
+    {
+        return false;
+    }
+
+    QDir().mkpath(QFileInfo(m_categoryOverridePath).absolutePath());
+    SQLiteDB database(m_categoryOverridePath);
+    if (!database || !prepareCategoryOverrideStore(database) || !saveCategoryOverride(database, styleId, normalizedPart))
+    {
+        return false;
+    }
+
+    beginResetModel();
+    for (GalleryItem &candidate : m_allItems)
+    {
+        if (normalizedStyleId(candidate.styleId) == styleId)
+        {
+            candidate.part = normalizedPart;
+            candidate.categoryError.clear();
+            candidate.categoryCode.clear();
+        }
+    }
+    rebuildFilteredItems();
+    endResetModel();
+    emit countChanged();
+    emit classificationChanged();
+    return true;
 }
 
 void GalleryListModel::clear()

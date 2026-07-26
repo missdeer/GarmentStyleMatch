@@ -325,6 +325,7 @@ ApplicationWindow {
                     onExtractRequested:   ()  => controller.extractFromSelectedPages()
                     onGalleryMatchRequested: (row, part) => root.requestGalleryMatch(row, part, false)
                     onGalleryConfirmRequested: (row, part) => root.requestGalleryMatch(row, part, true)
+                    onGalleryCategoryOverrideRequested: (row, part) => controller.setGalleryItemCategory(row, part)
                 }
             }
         }
