@@ -92,6 +92,8 @@ set(GSM_IMAGE_FILES
     "${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-upper.svg"
     "${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-lower.svg"
     "${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-lower.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-dress.svg"
+    "${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-dress.svg"
 )
 set_source_files_properties("${CMAKE_SOURCE_DIR}/GarmentStyleMatch.png" PROPERTIES
     QT_RESOURCE_ALIAS "images/GarmentStyleMatch.png"
@@ -125,6 +127,12 @@ set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-l
 )
 set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-lower.svg" PROPERTIES
     QT_RESOURCE_ALIAS "images/gallery-confirm-lower.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-match-dress.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/gallery-match-dress.svg"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/resources/icons/gallery-confirm-dress.svg" PROPERTIES
+    QT_RESOURCE_ALIAS "images/gallery-confirm-dress.svg"
 )
 
 set(GSM_PLATFORM_SOURCES)

@@ -86,36 +86,46 @@ Item {
             return [
                 {
                     part: "upper",
+                    label: "上衣",
                     upper: true,
                     lower: false,
+                    dress: false,
                     menu: true,
                     layoutHeight: 28
                 },
                 {
                     part: "lower",
+                    label: "裤裙",
                     upper: false,
                     lower: true,
+                    dress: false,
                     menu: true,
                     layoutHeight: 28
                 },
                 {
                     part: "accessory",
+                    label: "配件",
                     upper: false,
                     lower: false,
+                    dress: false,
                     menu: false,
                     layoutHeight: 0
                 },
                 {
                     part: "dress",
-                    upper: true,
-                    lower: true,
+                    label: "连衣裙",
+                    upper: false,
+                    lower: false,
+                    dress: true,
                     menu: true,
-                    layoutHeight: 60
+                    layoutHeight: 28
                 },
                 {
                     part: "unknown",
+                    label: "未知",
                     upper: true,
                     lower: true,
+                    dress: false,
                     menu: true,
                     layoutHeight: 60
                 }
@@ -125,13 +135,15 @@ Item {
         function test_actionVisibility(data) {
             galleryTestModel.setPart(data.part);
             waitForDelegate();
-            compare(child("galleryPartLabel-1").text, data.part);
+            compare(child("galleryPartLabel-1").text, data.label);
             showHoverActions();
 
             compare(child("galleryMatchUpperButton-1").visible, data.upper);
             compare(child("galleryConfirmUpperButton-1").visible, data.upper);
             compare(child("galleryMatchLowerButton-1").visible, data.lower);
             compare(child("galleryConfirmLowerButton-1").visible, data.lower);
+            compare(child("galleryMatchDressButton-1").visible, data.dress);
+            compare(child("galleryConfirmDressButton-1").visible, data.dress);
             compare(child("galleryActionGrid-1").implicitHeight, data.layoutHeight);
 
             openMenu();
@@ -144,15 +156,21 @@ Item {
             compare(child("galleryConfirmUpperMenuItem") !== null, data.upper);
             compare(child("galleryMatchLowerMenuItem") !== null, data.lower);
             compare(child("galleryConfirmLowerMenuItem") !== null, data.lower);
+            compare(child("galleryMatchDressMenuItem") !== null, data.dress);
+            compare(child("galleryConfirmDressMenuItem") !== null, data.dress);
             const expectedMenuItems = [];
             if (data.upper)
                 expectedMenuItems.push("galleryMatchUpperMenuItem");
             if (data.lower)
                 expectedMenuItems.push("galleryMatchLowerMenuItem");
+            if (data.dress)
+                expectedMenuItems.push("galleryMatchDressMenuItem");
             if (data.upper)
                 expectedMenuItems.push("galleryConfirmUpperMenuItem");
             if (data.lower)
                 expectedMenuItems.push("galleryConfirmLowerMenuItem");
+            if (data.dress)
+                expectedMenuItems.push("galleryConfirmDressMenuItem");
             compare(menu.count, expectedMenuItems.length);
             for (let index = 0; index < expectedMenuItems.length; ++index)
                 compare(menu.itemAt(index).objectName, expectedMenuItems[index]);
@@ -162,16 +180,18 @@ Item {
         function test_partFilterOptionsAndSelection() {
             const box = child("galleryPartFilterBox");
             verify(box !== null);
-            compare(box.count, 5);
+            compare(box.count, 6);
             compare(box.textAt(0), "全部");
-            compare(box.textAt(1), "upper");
-            compare(box.textAt(2), "lower");
-            compare(box.textAt(3), "accessory");
-            compare(box.textAt(4), "unknown");
+            compare(box.textAt(1), "上衣");
+            compare(box.textAt(2), "裤裙");
+            compare(box.textAt(3), "配件");
+            compare(box.textAt(4), "连衣裙");
+            compare(box.textAt(5), "未知");
 
             panel.categoryText = "lower";
             tryCompare(box, "currentIndex", 2);
-            compare(box.currentText, "lower");
+            compare(box.currentText, "裤裙");
+            compare(box.currentValue, "lower");
 
             panel.categoryText = "missing";
             tryCompare(box, "currentIndex", 0);
@@ -226,6 +246,21 @@ Item {
             compare(confirmSpy.count, 1);
             compare(confirmSpy.signalArguments[0][0], 1);
             compare(confirmSpy.signalArguments[0][1], "lower");
+
+            galleryTestModel.setPart("dress");
+            waitForDelegate();
+            showHoverActions();
+            mouseClick(child("galleryMatchDressButton-1"));
+            compare(matchSpy.count, 2);
+            compare(matchSpy.signalArguments[1][0], 1);
+            compare(matchSpy.signalArguments[1][1], "dress");
+
+            openMenu();
+            tryCompare(child("galleryMatchMenu"), "visible", true);
+            mouseClick(child("galleryConfirmDressMenuItem"));
+            compare(confirmSpy.count, 2);
+            compare(confirmSpy.signalArguments[1][0], 1);
+            compare(confirmSpy.signalArguments[1][1], "dress");
         }
 
         function test_currentPhotoSelectionStillControlsEnablement() {

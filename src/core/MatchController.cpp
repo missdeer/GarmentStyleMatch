@@ -1340,11 +1340,11 @@ void MatchController::refreshCategorySummary()
                  : ruleReady                     ? QStringLiteral("可用")
                                                  : QStringLiteral("不可用")),
         QStringLiteral("统计单位：%1（去重款号 %2，无有效款号图片 %3）").arg(total).arg(uniqueStyles.size()).arg(invalidStyleItems),
-        QStringLiteral("upper：%1").arg(partCounts.value(QStringLiteral("upper"))),
-        QStringLiteral("lower：%1").arg(partCounts.value(QStringLiteral("lower"))),
-        QStringLiteral("accessory：%1").arg(partCounts.value(QStringLiteral("accessory"))),
-        QStringLiteral("dress：%1").arg(partCounts.value(QStringLiteral("dress"))),
-        QStringLiteral("unknown：%1").arg(partCounts.value(QStringLiteral("unknown"))),
+        QStringLiteral("上衣：%1").arg(partCounts.value(QStringLiteral("upper"))),
+        QStringLiteral("裤裙：%1").arg(partCounts.value(QStringLiteral("lower"))),
+        QStringLiteral("配件：%1").arg(partCounts.value(QStringLiteral("accessory"))),
+        QStringLiteral("连衣裙：%1").arg(partCounts.value(QStringLiteral("dress"))),
+        QStringLiteral("未知：%1").arg(partCounts.value(QStringLiteral("unknown"))),
         QStringLiteral("覆盖率：%1").arg(coverage),
     };
     if (!unknownCodes.isEmpty())
@@ -2869,6 +2869,10 @@ bool MatchController::galleryMatchWouldOverwriteConfirmedStyleId(const QString &
     {
         return false;
     }
+    if (part == QLatin1String("dress"))
+    {
+        return m_autoMatchResult.upper.confirmed || m_autoMatchResult.lower.confirmed;
+    }
     const StoredGarmentMatch *match = part == QLatin1String("upper")   ? &m_autoMatchResult.upper
                                       : part == QLatin1String("lower") ? &m_autoMatchResult.lower
                                                                        : nullptr;
@@ -2883,7 +2887,7 @@ bool MatchController::matchGalleryItemToCurrentPhoto(int galleryRow, const QStri
         return false;
     }
     const GalleryItem *galleryItem = m_galleryModel ? m_galleryModel->at(galleryRow) : nullptr;
-    if (!galleryItem || (part != QLatin1String("upper") && part != QLatin1String("lower")))
+    if (!galleryItem || (part != QLatin1String("upper") && part != QLatin1String("lower") && part != QLatin1String("dress")))
     {
         emit logMessage(QStringLiteral("匹配款号失败：参数无效"));
         return false;
@@ -2898,16 +2902,29 @@ bool MatchController::matchGalleryItemToCurrentPhoto(int galleryRow, const QStri
         return false;
     }
 
-    StoredMatchResult   result = storedResult.value_or(StoredMatchResult {});
-    StoredGarmentMatch &target = part == QLatin1String("upper") ? result.upper : result.lower;
-    if (target.confirmed && !overwriteConfirmed)
+    StoredMatchResult result            = storedResult.value_or(StoredMatchResult {});
+    const bool        isDress           = part == QLatin1String("dress");
+    const bool        overwriteRequired = isDress ? result.upper.confirmed || result.lower.confirmed
+                                                  : (part == QLatin1String("upper") ? result.upper.confirmed : result.lower.confirmed);
+    const QString     garment           = part == QLatin1String("upper")   ? QStringLiteral("上衣")
+                                          : part == QLatin1String("lower") ? QStringLiteral("裤裙")
+                                                                           : QStringLiteral("连衣裙");
+    if (overwriteRequired && !overwriteConfirmed)
     {
-        emit logMessage(QStringLiteral("匹配款号已取消：当前实拍图已有被确认的%1款号")
-                            .arg(part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙")));
+        emit logMessage(QStringLiteral("匹配款号已取消：当前实拍图已有被确认的%1款号").arg(garment));
         return false;
     }
 
-    target = {galleryItem->styleId, QFileInfo(galleryItem->imagePath).fileName(), confirmed};
+    const StoredGarmentMatch match {galleryItem->styleId, QFileInfo(galleryItem->imagePath).fileName(), confirmed};
+    if (isDress)
+    {
+        result.upper = match;
+        result.lower = match;
+    }
+    else
+    {
+        (part == QLatin1String("upper") ? result.upper : result.lower) = match;
+    }
     if (!MatchResultStore::save(matchDatabasePath(), targetImagePath, result, &error))
     {
         emit logMessage(QStringLiteral("匹配款号失败：%1").arg(error));
@@ -2919,9 +2936,7 @@ bool MatchController::matchGalleryItemToCurrentPhoto(int galleryRow, const QStri
     rebuildAutoMatchedItems();
     updatePhotoMatchStatuses(targetImagePath, result);
     emit logMessage(QStringLiteral("已将款号 %1 %2为当前实拍图的%3")
-                        .arg(galleryItem->styleId,
-                             confirmed ? QStringLiteral("确认") : QStringLiteral("匹配"),
-                             part == QLatin1String("upper") ? QStringLiteral("上衣") : QStringLiteral("裤裙")));
+                        .arg(galleryItem->styleId, confirmed ? QStringLiteral("确认") : QStringLiteral("匹配"), garment));
     return true;
 }
 

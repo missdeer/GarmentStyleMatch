@@ -538,6 +538,39 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     {
         return 1;
     }
+    if (!check(manualController.galleryMatchWouldOverwriteConfirmedStyleId(QStringLiteral("dress")) &&
+                   !manualController.matchGalleryItemToCurrentPhoto(1, QStringLiteral("dress"), false, false),
+               QStringLiteral("连衣裙操作覆盖任一已确认部位前必须要求用户确认")))
+    {
+        return 1;
+    }
+    if (!check(manualController.matchGalleryItemToCurrentPhoto(1, QStringLiteral("dress"), true, false),
+               QStringLiteral("确认覆盖后必须能把图库款式同时匹配到连衣裙的上下装双槽")))
+    {
+        return 1;
+    }
+    manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-REPLACEMENT") && !manualResult->upper.confirmed &&
+                   manualResult->lower.styleId == QStringLiteral("STYLE-REPLACEMENT") && !manualResult->lower.confirmed,
+               QStringLiteral("匹配为连衣裙必须把同一款号写入上下装双槽并保持待确认状态")))
+    {
+        return 1;
+    }
+    manualController.confirmAutoMatch(QStringLiteral("upper"));
+    if (!check(manualController.galleryMatchWouldOverwriteConfirmedStyleId(QStringLiteral("dress")) &&
+                   !manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("dress"), false, true) &&
+                   manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("dress"), true, true),
+               QStringLiteral("仅一个部位已确认时连衣裙操作也必须先确认覆盖，并能一次确认上下装双槽")))
+    {
+        return 1;
+    }
+    manualResult = MatchResultStore::load(manualDatabasePath, manualController.currentPhotoPath(), &manualMatchError);
+    if (!check(manualResult && manualResult->upper.styleId == QStringLiteral("STYLE-UPPER") && manualResult->upper.confirmed &&
+                   manualResult->lower.styleId == QStringLiteral("STYLE-UPPER") && manualResult->lower.confirmed,
+               QStringLiteral("确认为连衣裙必须把同一款号同时写入并确认上下装双槽")))
+    {
+        return 1;
+    }
 
     PhotoListModel     photoModel;
     QVector<PhotoItem> photos;
@@ -1150,7 +1183,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
     if (!check(teenieWeenieAvailable && localBrandAvailable && categoryController.currentCategoryRule().isEmpty() &&
                    categoryController.categorySummary().contains(QStringLiteral("规则状态：已禁用")) &&
-                   categoryController.categorySummary().contains(QStringLiteral("unknown：4")),
+                   categoryController.categorySummary().contains(QStringLiteral("未知：4")),
                QStringLiteral("首次使用必须发现随应用及用户规则、明确禁用品类规则，并按去重款号及无效款号单元安全汇总 unknown")))
     {
         return 1;
@@ -1171,11 +1204,11 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
                    categoryItems.at(0).part == QStringLiteral("upper") && categoryItems.at(1).part == QStringLiteral("upper") &&
                    categoryItems.at(2).part == QStringLiteral("lower") && categoryItems.at(3).part == QStringLiteral("unknown") &&
                    categoryItems.at(3).categoryCode == QStringLiteral("ZZ") && categoryItems.at(4).part == QStringLiteral("unknown") &&
-                   categoryController.categorySummary().contains(QStringLiteral("upper：1")) &&
-                   categoryController.categorySummary().contains(QStringLiteral("lower：1")) &&
-                   categoryController.categorySummary().contains(QStringLiteral("accessory：0")) &&
-                   categoryController.categorySummary().contains(QStringLiteral("dress：0")) &&
-                   categoryController.categorySummary().contains(QStringLiteral("unknown：2")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("上衣：1")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("裤裙：1")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("配件：0")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("连衣裙：0")) &&
+                   categoryController.categorySummary().contains(QStringLiteral("未知：2")) &&
                    categoryController.categorySummary().contains(QStringLiteral("覆盖率：50.0%（2/4）")) &&
                    categoryController.categorySummary().contains(QStringLiteral("未知品类代码：ZZ（1）")) &&
                    categoryController.categorySummary().contains(QStringLiteral("无有效款号图片：1")),
@@ -1220,7 +1253,7 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     if (!check(categoryGalleryModel.allItems().at(0).part == QStringLiteral("unknown") &&
                    categoryGalleryModel.allItems().at(2).part == QStringLiteral("unknown") &&
                    categoryController.categorySummary().contains(QStringLiteral("规则状态：已禁用")) &&
-                   categoryController.categorySummary().contains(QStringLiteral("unknown：4")),
+                   categoryController.categorySummary().contains(QStringLiteral("未知：4")),
                QStringLiteral("显式禁用品类规则必须立即把现有图库安全回退为 unknown，且人工图库内容保持存在")))
     {
         return 1;

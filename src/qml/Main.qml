@@ -167,7 +167,9 @@ ApplicationWindow {
 
         contentItem: Label {
             text: qsTr("当前实拍图已有已确认的%1款号，是否覆盖？")
-                    .arg(root.pendingGalleryMatchPart === "upper" ? qsTr("上衣") : qsTr("裤裙"))
+                    .arg(root.pendingGalleryMatchPart === "upper" ? qsTr("上衣")
+                         : root.pendingGalleryMatchPart === "dress" ? qsTr("连衣裙")
+                                                                    : qsTr("裤裙"))
             wrapMode: Text.Wrap
         }
     }

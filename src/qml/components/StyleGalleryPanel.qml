@@ -18,6 +18,14 @@ Rectangle {
     property string currentCategoryRule: ""
     property string categoryRuleStatus: ""
     property string categorySummary: ""
+    readonly property var categoryOptions: [
+        { value: "全部", text: qsTr("全部") },
+        { value: "upper", text: qsTr("上衣") },
+        { value: "lower", text: qsTr("裤裙") },
+        { value: "accessory", text: qsTr("配件") },
+        { value: "dress", text: qsTr("连衣裙") },
+        { value: "unknown", text: qsTr("未知") }
+    ]
 
     signal searchTextEdited(string text)
     signal categoryEdited(string text)
@@ -35,11 +43,24 @@ Rectangle {
     }
 
     function showUpperActions(part) {
-        return part !== "lower" && part !== "accessory"
+        return part !== "lower" && part !== "accessory" && part !== "dress"
     }
 
     function showLowerActions(part) {
-        return part !== "upper" && part !== "accessory"
+        return part !== "upper" && part !== "accessory" && part !== "dress"
+    }
+
+    function showDressActions(part) {
+        return part === "dress"
+    }
+
+    function categoryDisplayName(part) {
+        for (let index = 0; index < root.categoryOptions.length; ++index) {
+            const option = root.categoryOptions[index]
+            if (option.value === part)
+                return option.text
+        }
+        return part
     }
 
     function categoryRuleIndex() {
@@ -55,8 +76,11 @@ Rectangle {
     }
 
     function categoryIndex() {
-        const index = catBox.model.indexOf(root.categoryText)
-        return index >= 0 ? index : 0
+        for (let index = 0; index < root.categoryOptions.length; ++index) {
+            if (root.categoryOptions[index].value === root.categoryText)
+                return index
+        }
+        return 0
     }
 
     function invalidateMatchMenu() {
@@ -85,17 +109,21 @@ Rectangle {
         objectName: "galleryMatchMenu"
         property int galleryRow: -1
         property string part: "unknown"
-        readonly property bool hasActions: root.showUpperActions(part) || root.showLowerActions(part)
+        readonly property bool hasActions: root.showUpperActions(part) || root.showLowerActions(part) || root.showDressActions(part)
         readonly property var actionEntries: {
             const entries = []
             if (root.showUpperActions(part))
                 entries.push({ objectName: "galleryMatchUpperMenuItem", text: qsTr("匹配为上衣"), action: "match", part: "upper" })
             if (root.showLowerActions(part))
                 entries.push({ objectName: "galleryMatchLowerMenuItem", text: qsTr("匹配为裤裙"), action: "match", part: "lower" })
+            if (root.showDressActions(part))
+                entries.push({ objectName: "galleryMatchDressMenuItem", text: qsTr("匹配为连衣裙"), action: "match", part: "dress" })
             if (root.showUpperActions(part))
                 entries.push({ objectName: "galleryConfirmUpperMenuItem", text: qsTr("确认为上衣"), action: "confirm", part: "upper" })
             if (root.showLowerActions(part))
                 entries.push({ objectName: "galleryConfirmLowerMenuItem", text: qsTr("确认为裤裙"), action: "confirm", part: "lower" })
+            if (root.showDressActions(part))
+                entries.push({ objectName: "galleryConfirmDressMenuItem", text: qsTr("确认为连衣裙"), action: "confirm", part: "dress" })
             return entries
         }
 
@@ -271,10 +299,12 @@ Rectangle {
                 ComboBox {
                     id: catBox
                     objectName: "galleryPartFilterBox"
-                    model: [qsTr("全部"), qsTr("upper"), qsTr("lower"), qsTr("accessory"), qsTr("unknown")]
+                    model: root.categoryOptions
+                    textRole: "text"
+                    valueRole: "value"
                     currentIndex: root.categoryIndex()
                     Layout.preferredWidth: 100
-                    onCurrentTextChanged: root.categoryEdited(currentText)
+                    onActivated: root.categoryEdited(currentValue)
                 }
                 ClearableTextField {
                     id: searchField
@@ -501,6 +531,66 @@ Rectangle {
                                     ToolTip.text: qsTr("将此款式确认为当前实拍图的裤裙")
                                     onClicked: root.confirmRequested(cell.index, "lower")
                                 }
+
+                                Button {
+                                    id: matchDressButton
+                                    objectName: "galleryMatchDressButton-" + cell.index
+                                    width: 28
+                                    height: 28
+                                    leftPadding: 2
+                                    rightPadding: 2
+                                    topPadding: 2
+                                    bottomPadding: 2
+                                    enabled: root.currentPhotoSelected
+                                    visible: root.showDressActions(cell.part)
+                                    contentItem: Item {
+                                        implicitWidth: 24
+                                        implicitHeight: 24
+                                        ColorImage {
+                                            anchors.centerIn: parent
+                                            width: 24
+                                            height: 24
+                                            source: "qrc:/qt/qml/GarmentStyleMatch/images/gallery-match-dress.svg"
+                                            color: matchDressButton.palette.buttonText
+                                            sourceSize.width: 24
+                                            sourceSize.height: 24
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("将此款式匹配为当前实拍图的连衣裙（待确认）")
+                                    onClicked: root.matchRequested(cell.index, "dress")
+                                }
+
+                                Button {
+                                    id: confirmDressButton
+                                    objectName: "galleryConfirmDressButton-" + cell.index
+                                    width: 28
+                                    height: 28
+                                    leftPadding: 2
+                                    rightPadding: 2
+                                    topPadding: 2
+                                    bottomPadding: 2
+                                    enabled: root.currentPhotoSelected
+                                    visible: root.showDressActions(cell.part)
+                                    contentItem: Item {
+                                        implicitWidth: 24
+                                        implicitHeight: 24
+                                        ColorImage {
+                                            anchors.centerIn: parent
+                                            width: 24
+                                            height: 24
+                                            source: "qrc:/qt/qml/GarmentStyleMatch/images/gallery-confirm-dress.svg"
+                                            color: confirmDressButton.palette.buttonText
+                                            sourceSize.width: 24
+                                            sourceSize.height: 24
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("将此款式确认为当前实拍图的连衣裙")
+                                    onClicked: root.confirmRequested(cell.index, "dress")
+                                }
                             }
                         }
 
@@ -523,7 +613,7 @@ Rectangle {
                                     id: tagLabel
                                     objectName: "galleryPartLabel-" + cell.index
                                     anchors.centerIn: parent
-                                    text: cell.part
+                                    text: root.categoryDisplayName(cell.part)
                                     font.pixelSize: 10
                                     color: Theme.accent
                                 }
