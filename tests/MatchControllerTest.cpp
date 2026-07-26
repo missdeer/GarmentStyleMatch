@@ -436,6 +436,11 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
         {QStringLiteral("STYLE-UPPER"), upperImagePath},
         {QStringLiteral("STYLE-REPLACEMENT"), replacementImagePath},
     });
+    if (!check(manualController.categoryFilter() == QStringLiteral("全部") && manualGalleryModel.rowCount() == 2,
+               QStringLiteral("默认“全部”品类过滤必须保留所有图库图片")))
+    {
+        return 1;
+    }
     if (!check(!manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
                QStringLiteral("没有选中实拍图时不得执行图库右键匹配")))
     {
@@ -443,7 +448,11 @@ int main(int argc, char *argv[]) // NOLINT(readability-function-cognitive-comple
     }
 
     manualController.setPhotoDir(manualPhotoDir);
-    if (!check(manualController.currentPhotoIndex() == 0 && manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
+    if (!check(manualController.currentPhotoIndex() == 0, QStringLiteral("设置实拍图目录后必须选中首张实拍图")))
+    {
+        return 1;
+    }
+    if (!check(manualController.matchGalleryItemToCurrentPhoto(0, QStringLiteral("upper"), false, false),
                QStringLiteral("应能把图库图片匹配为当前实拍图的上衣")))
     {
         return 1;

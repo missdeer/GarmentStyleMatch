@@ -346,7 +346,7 @@ private:
     int           m_currentImagePage  = 0; // 0-based
     PreviewSource m_previewSource     = PreviewPhoto;
 
-    QString                           m_categoryFilter = QStringLiteral("\xE5\x85\xA8\xE9\x83\xA8"); // "全部"
+    QString                           m_categoryFilter = QStringLiteral("全部");
     QVariantList                      m_availableCategoryRules;
     QString                           m_currentCategoryRule;
     QString                           m_categoryRuleLoadError;
